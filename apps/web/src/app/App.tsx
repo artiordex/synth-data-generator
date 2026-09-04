@@ -174,12 +174,6 @@ export default function App() {
             <BookOpen className="w-4 h-4 text-sky-500" />
             데이터 지식 사전
           </button>
-
-          {/* Engine Status Badge */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            엔진 준비 완료
-          </div>
         </div>
       </header>
 

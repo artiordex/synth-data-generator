@@ -1,3 +1,13 @@
+---
+title: Synthetic Data Generator
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🛡️ 범용 AI 합성데이터 생성 & 심의 패키지 플랫폼
 
 > **차분 프라이버시(DP), Anonymeter 3대 재식별 위험도 평가, 심의위원회 HWP 3종 공문서 자동 바인딩을 지원하는 엔터프라이즈 AI 합성데이터 플랫폼**
