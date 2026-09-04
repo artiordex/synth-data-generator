@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: synth-data-api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - DATABASE_URL=sqlite:///storage/local/app.db
+      - STORAGE_DIR=/app/storage
+    volumes:
+      - ./storage:/app/storage
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: synth-data-web
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -1,0 +1,21 @@
+[project]
+name = "synth-data-studio-workspace"
+version = "2.1.0"
+description = "AI Synthetic Data Studio Monorepo Workspace"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "apps/api",
+    "packages/synthetic_engine",
+]
+
+[tool.uv.sources]
+synthetic-engine = { workspace = true }
+synthetic-api = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "apps/api/tests", "packages/synthetic_engine/tests"]
+python_files = ["test_*.py"]

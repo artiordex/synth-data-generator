@@ -1,0 +1,77 @@
+export interface ColumnInfo {
+  name: string;
+  inferred_type: "numerical" | "categorical" | "pii";
+  null_count: number;
+  unique_count: number;
+  pii_detected: boolean;
+  pii_type: string;
+  samples: string[];
+}
+
+export interface DatasetProfile {
+  filename: string;
+  row_count: number;
+  column_count: number;
+  sha256: string;
+  columns: ColumnInfo[];
+  preview: Record<string, any>[];
+  detected_pii: Record<string, any>;
+  suggested_categorical: string[];
+  suggested_numerical: string[];
+}
+
+export interface SynthesisRequest {
+  file_name: string;
+  department_name: string;
+  project_purpose: string;
+  model_type: "statistical" | "gaussian_copula" | "ctgan" | "tvae";
+  target_rows: number;
+  dp_enabled: boolean;
+  eps: number;
+  quality_threshold: number;
+  selected_columns?: string[];
+  categorical_columns?: string[];
+  numerical_columns?: string[];
+  preserve_null_columns?: string[];
+  conditions?: Record<string, any>;
+  constraints?: Array<Record<string, any>>;
+  epochs?: number;
+  batch_size?: number;
+}
+
+export interface JobStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed" | "canceled";
+  progress: number;
+  message: string;
+  original_filename: string;
+  file_path: string;
+  file_sha256: string;
+  department_name: string;
+  project_purpose: string;
+  model_type: string;
+  target_rows: number;
+  eps: number;
+  quality_threshold: number;
+  quality_score?: number;
+  reid_risk?: number;
+  assessment_passed?: boolean;
+  assessment_grade?: string;
+  assessment_score?: number;
+  package_dir?: string;
+  package_zip?: string;
+  package_folders?: Record<string, string>;
+  hwp_files?: Record<string, string>;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditLogEntry {
+  id?: number;
+  job_id: string;
+  action: string;
+  actor: string;
+  detail: string;
+  created_at: string;
+}

@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.uv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
+
+# Storage & Runtime Data (Enterprise Isolation)
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/outputs/*
+!storage/outputs/.gitkeep
+storage/temp/*
+!storage/temp/.gitkeep
+storage/local/*.db
+storage/local/*.sqlite
+storage/local/*.sqlite3
+!storage/local/.gitkeep
+
+# Legacy scratch & local DBs
+app.db
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+scratch_*
+
+# Environment & Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

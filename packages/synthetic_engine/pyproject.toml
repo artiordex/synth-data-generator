@@ -1,0 +1,19 @@
+[project]
+name = "synthetic-engine"
+version = "2.1.0"
+description = "Core AI Synthetic Data Generation, Differential Privacy, Anonymeter & HWP Exporter Engine"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "openpyxl>=3.1.0",
+    "faker>=25.0.0",
+    "sdv>=1.13.0",
+    "torch>=2.0.0",
+    "anonymeter>=1.1.0",
+    "olefile>=0.47",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

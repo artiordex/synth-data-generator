@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synthetic-api"
+version = "2.1.0"
+description = "Enterprise Synthetic Data Generator Backend API"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    "python-multipart>=0.0.9",
+    "sqlalchemy>=2.0.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "synthetic-engine>=2.1.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.uv.sources]
+synthetic-engine = { workspace = true }
