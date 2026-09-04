@@ -7,3 +7,10 @@ services:
     region: oregon
     healthCheckPath: /health
     autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"

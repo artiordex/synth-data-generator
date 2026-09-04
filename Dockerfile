@@ -1,35 +1,43 @@
-FROM python:3.12-slim
+# ==========================================
+# Stage 1: Build React Frontend with Node.js
+# ==========================================
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/apps/web
+COPY apps/web/package*.json ./
+RUN npm install
+COPY apps/web ./
+RUN npm run build
 
+# ==========================================
+# Stage 2: Ultra-Light Python API Runtime
+# ==========================================
+FROM python:3.12-slim
 WORKDIR /app
 
-# Install system dependencies & Node.js
+# Install minimal system dependencies for C-extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package configs & python code
+# Copy package configurations and source modules
 COPY pyproject.toml package.json ./
 COPY packages packages
 COPY apps/api apps/api
 
-# Install python workspace packages
-RUN pip install --no-cache-dir -e packages/synthetic_engine -e apps/api
+# Install core engine & API packages
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -e packages/synthetic_engine -e apps/api
 
-# Build React web frontend
-COPY apps/web apps/web
-WORKDIR /app/apps/web
-RUN npm install && npm run build
-
-WORKDIR /app
+# Copy pre-built React frontend assets from Stage 1
+COPY --from=frontend-builder /app/apps/web/dist /app/apps/web/dist
 COPY storage storage
 COPY experiments experiments
 COPY server.py ./
 
-# Expose default cloud ports (7860 for Hugging Face, 8000/10000 for standard)
-EXPOSE 7860 8000 10000
+# Expose Render default port (10000) and standard port (8000)
+EXPOSE 10000 8000
 
-ENV PORT=7860
-CMD ["sh", "-c", "uvicorn app.main:app --app-dir apps/api --host 0.0.0.0 --port ${PORT:-7860}"]
+ENV PORT=10000 \
+    PYTHONUNBUFFERED=1
+
+CMD ["sh", "-c", "uvicorn app.main:app --app-dir apps/api --host 0.0.0.0 --port ${PORT:-10000}"]
