@@ -1,16 +1,9 @@
----
-title: Synthetic Data Generator
-emoji: 🛡️
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # 🛡️ 범용 AI 합성데이터 생성 & 심의 패키지 플랫폼
 
-> **차분 프라이버시(DP), Anonymeter 3대 재식별 위험도 평가, 심의위원회 HWP 3종 공문서 자동 바인딩을 지원하는 엔터프라이즈 AI 합성데이터 플랫폼**
+현재 한글(HWPX) 자동 생성, uv 모노레포 실행, Render 배포 및 폴더 정리 기준은
+[운영 가이드](docs/review-documents-and-deployment.md)를 참고하세요.
+
+> **데이터 합성·평가와 심의위원회 한글(HWPX) 문서 자동 생성을 지원하는 플랫폼. uv/npm 모노레포이며 Render Docker 배포를 사용합니다.**
 
 ---
 
@@ -22,8 +15,8 @@ pinned: false
    - **단일식별 위험(Singling-Out)**, **연결성 위험(Linkability)**, **속성추론 위험(Inference)**을 시뮬레이션하여 0.00~1.00 수치로 정밀 산출합니다.
 3. **통계적 분포 유사도 (JSD & Wasserstein)**
    - Jensen-Shannon 발산(JSD)을 통해 전 컬럼의 원본 대비 결합 확률 분포 보존율을 다각도로 정량화합니다.
-4. **심의위원회 3종 법정 공문서(HWP) 자동 바인딩**
-   - 순수 파이썬 OLE2 복합 파일 엔진으로 **원본데이터 명세서.hwp**, **합성데이터 명세서.hwp**, **심의위원회 심의자료.hwp**를 무결하게 자동 완성합니다.
+4. **심의위원회 한글 문서(HWPX) 자동 생성**
+   - 원본 HWP를 한글에서 변환한 HWPX 템플릿을 복제해 **원본데이터 명세서**, **합성데이터 명세서**, **안전성 및 유용성 측정결과서**의 셀에 값을 입력합니다. 글꼴·테두리·수식을 유지하고, 데이터 컬럼에 따라 표와 병합 행을 늘립니다. `storage/templates/*.hwpx`가 필요합니다.
 5. **한국형 PII 10종 자동 감지 및 Faker 가명화**
    - 이름, 주민등록번호, 휴대전화, 이메일, 주소, 계좌번호 등을 정규식 및 패턴으로 자동 탐지하여 일관된 가명 레코드로 대체합니다.
 6. **하이브리드 AI 합성 엔진 지원**
@@ -43,7 +36,8 @@ work/
 │  ├─ web/                         # React 18 + Vite + TypeScript 프론트엔드
 │  │  ├─ src/                      # Feature 슬라이스 (dictionary, dataset, profiling, synthesis, validation, export)
 │  │  └─ dist/                     # 정적 웹 번들
-│  └─ api/                         # FastAPI 클린 아키텍처 백엔드 (Domain, App, Infra, API v1)
+│  └─ api/                         # FastAPI 프로젝트 (pyproject.toml, tests)
+│     └─ src/synthetic_api/         # main.py, routes, application, domain, infrastructure, core
 ├─ packages/
 │  ├─ synthetic_engine/            # AI 합성 / DP 노이즈 / Anonymeter / HWP 빌더 코어 패키지
 │  └─ contracts/                   # 공통 인터페이스 스키마 및 DTO
@@ -82,7 +76,7 @@ scripts\dev\run_dev.bat
 
 ```bash
 # 전체 워크스페이스 단위 및 E2E 테스트
-.\.uv\Scripts\python.exe -m pytest -v
+uv run --locked --all-packages python -m pytest -v
 ```
 
 ---

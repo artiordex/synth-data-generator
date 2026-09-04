@@ -1,0 +1,3169 @@
+[
+  {
+    "id": "korean_name",
+    "name": "성명 (한국명)",
+    "english_name": "name",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "성명",
+      "이름",
+      "고객명",
+      "사용자명",
+      "회원명",
+      "작성자",
+      "담당자",
+      "대표자명",
+      "name",
+      "user_name",
+      "cust_name"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "name"
+    },
+    "sample": "김민수"
+  },
+  {
+    "id": "first_name",
+    "name": "이름 (First Name)",
+    "english_name": "first_name",
+    "category": "인적 및 계정 정보",
+    "source": "Mockaroo",
+    "aliases": [
+      "이름만",
+      "first_name",
+      "fname"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "민수",
+        "서연",
+        "지훈",
+        "예은",
+        "도윤",
+        "하은",
+        "시우",
+        "지우",
+        "은우",
+        "수아",
+        "준서",
+        "유진"
+      ]
+    },
+    "sample": "민수"
+  },
+  {
+    "id": "last_name",
+    "name": "성씨 (Last Name)",
+    "english_name": "last_name",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "성씨",
+      "성",
+      "last_name",
+      "lname"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "김",
+        "이",
+        "박",
+        "최",
+        "정",
+        "강",
+        "조",
+        "윤",
+        "장",
+        "임",
+        "한",
+        "오",
+        "서",
+        "신",
+        "권",
+        "황",
+        "안",
+        "송",
+        "류",
+        "홍"
+      ],
+      "weights": [
+        0.21,
+        0.15,
+        0.08,
+        0.05,
+        0.04,
+        0.02,
+        0.02,
+        0.02,
+        0.02,
+        0.02,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01
+      ]
+    },
+    "sample": "김"
+  },
+  {
+    "id": "english_name",
+    "name": "영문 성명",
+    "english_name": "eng_name",
+    "category": "인적 및 계정 정보",
+    "source": "마이데이터",
+    "aliases": [
+      "영문명",
+      "영문성명",
+      "eng_name",
+      "english_name"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "KIM MINSOO",
+        "LEE SEOYEON",
+        "PARK JIHOON",
+        "CHOI YEEUN",
+        "JUNG DOYOON",
+        "KANG HAEUN",
+        "CHO SIWOO",
+        "YOON JINWOO",
+        "HAN EUNWOO",
+        "OH SOOAH"
+      ]
+    },
+    "sample": "KIM MINSOO"
+  },
+  {
+    "id": "user_id",
+    "name": "회원/사용자 ID",
+    "english_name": "user_id",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "아이디",
+      "회원ID",
+      "사용자ID",
+      "고객번호",
+      "user_id",
+      "member_id",
+      "login_id",
+      "cust_id"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "sequence",
+      "prefix": "USR_",
+      "start": 10001,
+      "step": 1
+    },
+    "sample": "USR_10001"
+  },
+  {
+    "id": "nickname",
+    "name": "닉네임/별칭",
+    "english_name": "nickname",
+    "category": "인적 및 계정 정보",
+    "source": "Mockaroo",
+    "aliases": [
+      "닉네임",
+      "별명",
+      "별칭",
+      "nickname",
+      "nick"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "푸른바다",
+        "달빛사냥꾼",
+        "햇살가득",
+        "코딩요정",
+        "커피홀릭",
+        "바람돌이",
+        "별헤는밤",
+        "새벽공기",
+        "초코우유",
+        "산들바람",
+        "불꽃남자",
+        "단풍나무"
+      ]
+    },
+    "sample": "푸른바다"
+  },
+  {
+    "id": "gender",
+    "name": "성별 (남/여)",
+    "english_name": "gender",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "성별",
+      "남여",
+      "gender",
+      "sex"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "남",
+        "여"
+      ],
+      "weights": [
+        0.5,
+        0.5
+      ]
+    },
+    "sample": "남"
+  },
+  {
+    "id": "gender_code",
+    "name": "성별 코드 (M/F)",
+    "english_name": "gender_cd",
+    "category": "인적 및 계정 정보",
+    "source": "마이데이터",
+    "aliases": [
+      "성별코드",
+      "gender_code",
+      "gender_cd",
+      "sex_cd"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "M",
+        "F"
+      ],
+      "weights": [
+        0.5,
+        0.5
+      ]
+    },
+    "sample": "M"
+  },
+  {
+    "id": "age",
+    "name": "연령/나이 (만 나이)",
+    "english_name": "age",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "나이",
+      "연령",
+      "만나이",
+      "age"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 19,
+      "max": 75,
+      "integer": true
+    },
+    "sample": "34"
+  },
+  {
+    "id": "age_group",
+    "name": "연령대",
+    "english_name": "age_group",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "연령대",
+      "연령구분",
+      "age_group",
+      "age_band"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "20대",
+        "30대",
+        "40대",
+        "50대",
+        "60대 이상"
+      ],
+      "weights": [
+        0.2,
+        0.3,
+        0.25,
+        0.15,
+        0.1
+      ]
+    },
+    "sample": "30대"
+  },
+  {
+    "id": "birth_date",
+    "name": "생년월일 (YYYY-MM-DD)",
+    "english_name": "birth_date",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "생년월일",
+      "생일",
+      "birth_date",
+      "birth_dt",
+      "dob"
+    ],
+    "data_type": "DATE",
+    "rule": {
+      "type": "date_between",
+      "start": "1960-01-01",
+      "end": "2005-12-31"
+    },
+    "sample": "1991-07-24"
+  },
+  {
+    "id": "resident_registration_number",
+    "name": "주민등록번호 (가상)",
+    "english_name": "rrn",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "주민등록번호",
+      "주민번호",
+      "rrn",
+      "ssn",
+      "resident_number"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "ssn"
+    },
+    "sample": "910724-1234567"
+  },
+  {
+    "id": "foreigner_id",
+    "name": "외국인등록번호 (가상)",
+    "english_name": "arc_no",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "외국인등록번호",
+      "외국인번호",
+      "alien_no",
+      "arc"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "foreigner_id"
+    },
+    "sample": "880512-5678901"
+  },
+  {
+    "id": "nationality",
+    "name": "국적",
+    "english_name": "nationality",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "국적",
+      "국가",
+      "nationality",
+      "country"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "대한민국",
+        "미국",
+        "중국",
+        "일본",
+        "베트남",
+        "캐나다",
+        "호주",
+        "영국"
+      ],
+      "weights": [
+        0.92,
+        0.02,
+        0.02,
+        0.01,
+        0.01,
+        0.01,
+        0.005,
+        0.005
+      ]
+    },
+    "sample": "대한민국"
+  },
+  {
+    "id": "marital_status",
+    "name": "결혼 여부",
+    "english_name": "marital_status",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "결혼여부",
+      "혼인여부",
+      "marital_status"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "미혼",
+        "기혼",
+        "기타"
+      ],
+      "weights": [
+        0.45,
+        0.5,
+        0.05
+      ]
+    },
+    "sample": "기혼"
+  },
+  {
+    "id": "children_count",
+    "name": "자녀 수",
+    "english_name": "children_cnt",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "자녀수",
+      "자녀",
+      "children_count",
+      "children_cnt"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "choice",
+      "values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "weights": [
+        0.5,
+        0.3,
+        0.17,
+        0.03
+      ]
+    },
+    "sample": "1"
+  },
+  {
+    "id": "education_level",
+    "name": "학력 구분",
+    "english_name": "education_level",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "학력",
+      "최종학력",
+      "education",
+      "edu_level"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "고등학교 졸업",
+        "전문대학 졸업",
+        "대학교 졸업",
+        "대학원 석사",
+        "대학원 박사"
+      ],
+      "weights": [
+        0.2,
+        0.2,
+        0.5,
+        0.08,
+        0.02
+      ]
+    },
+    "sample": "대학교 졸업"
+  },
+  {
+    "id": "job_title",
+    "name": "직업/직종",
+    "english_name": "occupation",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "직업",
+      "직종",
+      "occupation",
+      "job"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "사무직/회사원",
+        "전문직",
+        "연구/기술직",
+        "공무원/교직원",
+        "자영업",
+        "서비스/판매직",
+        "학생",
+        "주부",
+        "기타"
+      ],
+      "weights": [
+        0.35,
+        0.15,
+        0.12,
+        0.08,
+        0.1,
+        0.08,
+        0.05,
+        0.05,
+        0.02
+      ]
+    },
+    "sample": "사무직/회사원"
+  },
+  {
+    "id": "position",
+    "name": "직급/직책",
+    "english_name": "position",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "직급",
+      "직책",
+      "position",
+      "rank"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "사원",
+        "대리",
+        "과장",
+        "차장",
+        "부장",
+        "이사",
+        "팀장"
+      ],
+      "weights": [
+        0.3,
+        0.25,
+        0.2,
+        0.12,
+        0.08,
+        0.02,
+        0.03
+      ]
+    },
+    "sample": "과장"
+  },
+  {
+    "id": "department",
+    "name": "부서명",
+    "english_name": "department",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "부서",
+      "부서명",
+      "소속",
+      "dept",
+      "department"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "경영기획팀",
+        "인사팀",
+        "재무회계팀",
+        "마케팅팀",
+        "영업1팀",
+        "영업2팀",
+        "고객지원팀",
+        "IT개발팀",
+        "데이터분석팀",
+        "보안관리팀"
+      ]
+    },
+    "sample": "데이터분석팀"
+  },
+  {
+    "id": "employee_id",
+    "name": "사원번호 (사번)",
+    "english_name": "emp_id",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "사번",
+      "사원번호",
+      "emp_id",
+      "employee_id"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "sequence",
+      "prefix": "EMP",
+      "start": 24001,
+      "step": 1
+    },
+    "sample": "EMP24001"
+  },
+  {
+    "id": "phone_mobile",
+    "name": "휴대전화번호 (010)",
+    "english_name": "mobile_phone",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "휴대전화",
+      "휴대폰",
+      "핸드폰",
+      "전화번호",
+      "연락처",
+      "mobile",
+      "phone",
+      "cellphone"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "phone_number"
+    },
+    "sample": "010-4829-1920"
+  },
+  {
+    "id": "phone_tel",
+    "name": "일반 유선전화번호 (지역번호)",
+    "english_name": "tel_phone",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "유선전화",
+      "일반전화",
+      "사무실전화",
+      "자택전화",
+      "tel",
+      "office_phone"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "phone_number"
+    },
+    "sample": "02-582-9102"
+  },
+  {
+    "id": "email",
+    "name": "이메일 주소",
+    "english_name": "email",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "이메일",
+      "메일주소",
+      "email",
+      "e-mail"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "email"
+    },
+    "sample": "user482@gmail.com"
+  },
+  {
+    "id": "road_address",
+    "name": "도로명 주소",
+    "english_name": "road_address",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "도로명주소",
+      "주소",
+      "배송주소",
+      "소재지",
+      "거주지",
+      "address",
+      "road_address"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "address"
+    },
+    "sample": "서울특별시 강남구 테헤란로 152"
+  },
+  {
+    "id": "postal_code",
+    "name": "우편번호 (5자리)",
+    "english_name": "zip_code",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "우편번호",
+      "zipcode",
+      "zip_code",
+      "post_code"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "06134",
+        "04524",
+        "03182",
+        "13494",
+        "16514",
+        "21988",
+        "41935",
+        "48058",
+        "35242",
+        "61945"
+      ]
+    },
+    "sample": "06134"
+  },
+  {
+    "id": "sido",
+    "name": "시도 자치단체명",
+    "english_name": "sido",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "시도",
+      "광역자치단체",
+      "sido",
+      "province"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "서울특별시",
+        "경기도",
+        "인천광역시",
+        "부산광역시",
+        "대구광역시",
+        "대전광역시",
+        "광주광역시",
+        "울산광역시",
+        "세종특별자치시",
+        "강원특별자치도",
+        "충청북도",
+        "충청남도",
+        "전북특별자치도",
+        "전라남도",
+        "경상북도",
+        "경상남도",
+        "제주특별자치도"
+      ],
+      "weights": [
+        0.19,
+        0.26,
+        0.06,
+        0.07,
+        0.05,
+        0.03,
+        0.03,
+        0.02,
+        0.01,
+        0.03,
+        0.03,
+        0.04,
+        0.03,
+        0.03,
+        0.05,
+        0.06,
+        0.01
+      ]
+    },
+    "sample": "서울특별시"
+  },
+  {
+    "id": "sigungu",
+    "name": "시군구 자치구명",
+    "english_name": "sigungu",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "시군구",
+      "자치구",
+      "구명",
+      "sigungu",
+      "city_district"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "강남구",
+        "서초구",
+        "송파구",
+        "마포구",
+        "영등포구",
+        "성남시 분당구",
+        "수원시 영통구",
+        "용인시 수지구",
+        "고양시 일산동구",
+        "해운대구",
+        "수성구",
+        "유성구"
+      ]
+    },
+    "sample": "강남구"
+  },
+  {
+    "id": "latitude",
+    "name": "위도 (Latitude)",
+    "english_name": "lat",
+    "category": "연락처 및 주소",
+    "source": "Mockaroo",
+    "aliases": [
+      "위도",
+      "lat",
+      "latitude"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 35.1,
+      "max": 37.7,
+      "integer": false
+    },
+    "sample": "37.5665"
+  },
+  {
+    "id": "longitude",
+    "name": "경도 (Longitude)",
+    "english_name": "lng",
+    "category": "연락처 및 주소",
+    "source": "Mockaroo",
+    "aliases": [
+      "경도",
+      "lng",
+      "longitude",
+      "lon"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 126.8,
+      "max": 129.2,
+      "integer": false
+    },
+    "sample": "126.9780"
+  },
+  {
+    "id": "housing_type",
+    "name": "주거 형태",
+    "english_name": "housing_type",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "주거형태",
+      "주택유형",
+      "housing_type",
+      "residence_type"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "아파트",
+        "단독주택",
+        "다세대/빌라",
+        "오피스텔",
+        "기타"
+      ],
+      "weights": [
+        0.6,
+        0.15,
+        0.15,
+        0.08,
+        0.02
+      ]
+    },
+    "sample": "아파트"
+  },
+  {
+    "id": "bank_name",
+    "name": "은행명",
+    "english_name": "bank_name",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "은행",
+      "은행명",
+      "금융기관",
+      "bank",
+      "bank_name"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "국민은행",
+        "신한은행",
+        "하나은행",
+        "우리은행",
+        "NH농협은행",
+        "카카오뱅크",
+        "토스뱅크",
+        "케이뱅크",
+        "IBK기업은행",
+        "SC제일은행"
+      ],
+      "weights": [
+        0.2,
+        0.18,
+        0.15,
+        0.14,
+        0.12,
+        0.1,
+        0.05,
+        0.03,
+        0.02,
+        0.01
+      ]
+    },
+    "sample": "국민은행"
+  },
+  {
+    "id": "account_number",
+    "name": "계좌번호 (가상)",
+    "english_name": "account_no",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "계좌번호",
+      "계좌",
+      "환불계좌",
+      "account_no",
+      "account_num",
+      "acct_no"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "account"
+    },
+    "sample": "110-382-918239"
+  },
+  {
+    "id": "card_company",
+    "name": "카드사명",
+    "english_name": "card_company",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "카드사",
+      "카드사명",
+      "발급사",
+      "card_company",
+      "card_issuer"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "신한카드",
+        "삼성카드",
+        "현대카드",
+        "KB국민카드",
+        "롯데카드",
+        "우리카드",
+        "하나카드",
+        "BC카드",
+        "NH농협카드"
+      ],
+      "weights": [
+        0.22,
+        0.19,
+        0.17,
+        0.16,
+        0.08,
+        0.07,
+        0.06,
+        0.03,
+        0.02
+      ]
+    },
+    "sample": "현대카드"
+  },
+  {
+    "id": "credit_card_number",
+    "name": "신용카드번호 (16자리)",
+    "english_name": "card_no",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "카드번호",
+      "신용카드번호",
+      "card_no",
+      "card_number",
+      "credit_card"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "credit_card"
+    },
+    "sample": "9410-4829-1920-5829"
+  },
+  {
+    "id": "card_expiry",
+    "name": "카드 유효기간 (MM/YY)",
+    "english_name": "card_expiry",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "유효기간",
+      "카드유효기간",
+      "expiry",
+      "card_expiry"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "03/27",
+        "06/27",
+        "11/27",
+        "02/28",
+        "08/28",
+        "12/28",
+        "04/29",
+        "09/29",
+        "01/30",
+        "07/30"
+      ]
+    },
+    "sample": "08/28"
+  },
+  {
+    "id": "cvc",
+    "name": "카드 CVC 코드 (3자리)",
+    "english_name": "cvc",
+    "category": "금융 및 결제",
+    "source": "Mockaroo",
+    "aliases": [
+      "cvc",
+      "cvv",
+      "보안코드",
+      "cvc_code"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "number_range",
+      "min": 100,
+      "max": 999,
+      "integer": true
+    },
+    "sample": "729"
+  },
+  {
+    "id": "payment_amount",
+    "name": "결제/거래 금액",
+    "english_name": "pay_amount",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "결제금액",
+      "거래금액",
+      "승인금액",
+      "pay_amt",
+      "payment_amount",
+      "amount",
+      "price"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 1500,
+      "max": 650000,
+      "integer": true
+    },
+    "sample": "48,500"
+  },
+  {
+    "id": "currency",
+    "name": "통화 코드",
+    "english_name": "currency",
+    "category": "금융 및 결제",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "통화",
+      "통화코드",
+      "currency",
+      "curr_cd"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "KRW",
+        "USD",
+        "JPY",
+        "EUR"
+      ],
+      "weights": [
+        0.95,
+        0.03,
+        0.01,
+        0.01
+      ]
+    },
+    "sample": "KRW"
+  },
+  {
+    "id": "payment_method",
+    "name": "결제 수단",
+    "english_name": "pay_method",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "결제수단",
+      "결제방식",
+      "pay_method",
+      "payment_method"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "신용카드",
+        "체크카드",
+        "간편결제(카카오/네이버/토스)",
+        "실시간계좌이체",
+        "가상계좌",
+        "휴대폰소액결제"
+      ],
+      "weights": [
+        0.45,
+        0.25,
+        0.2,
+        0.05,
+        0.03,
+        0.02
+      ]
+    },
+    "sample": "간편결제(카카오/네이버/토스)"
+  },
+  {
+    "id": "approval_status",
+    "name": "승인 상태",
+    "english_name": "appr_status",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "승인상태",
+      "결제상태",
+      "거래상태",
+      "status",
+      "appr_status"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "승인성공",
+        "승인취소",
+        "한도초과거절",
+        "잔액부족거절",
+        "시스템오류"
+      ],
+      "weights": [
+        0.92,
+        0.04,
+        0.02,
+        0.015,
+        0.005
+      ]
+    },
+    "sample": "승인성공"
+  },
+  {
+    "id": "installment_month",
+    "name": "할부 개월 수",
+    "english_name": "installment",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "할부개월",
+      "할부",
+      "installment",
+      "inst_month"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "choice",
+      "values": [
+        0,
+        2,
+        3,
+        5,
+        6,
+        10,
+        12
+      ],
+      "weights": [
+        0.7,
+        0.05,
+        0.12,
+        0.03,
+        0.05,
+        0.02,
+        0.03
+      ]
+    },
+    "sample": "0"
+  },
+  {
+    "id": "account_balance",
+    "name": "계좌 잔액",
+    "english_name": "balance",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "잔액",
+      "계좌잔액",
+      "예금잔액",
+      "balance",
+      "acct_balance"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 50000,
+      "max": 45000000,
+      "integer": true
+    },
+    "sample": "3,480,000"
+  },
+  {
+    "id": "credit_score",
+    "name": "신용점수 (KCB/NICE)",
+    "english_name": "credit_score",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "신용점수",
+      "신용등급",
+      "credit_score",
+      "credit_point"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 550,
+      "max": 990,
+      "integer": true
+    },
+    "sample": "845"
+  },
+  {
+    "id": "annual_income",
+    "name": "연간 소득금액",
+    "english_name": "annual_income",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "연소득",
+      "연봉",
+      "소득금액",
+      "annual_income",
+      "salary"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 28000000,
+      "max": 120000000,
+      "integer": true
+    },
+    "sample": "52,000,000"
+  },
+  {
+    "id": "loan_amount",
+    "name": "대출 원금",
+    "english_name": "loan_amount",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "대출금",
+      "대출원금",
+      "대출잔액",
+      "loan_amount",
+      "loan_amt"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 10000000,
+      "max": 300000000,
+      "integer": true
+    },
+    "sample": "85,000,000"
+  },
+  {
+    "id": "interest_rate",
+    "name": "대출/예금 금리 (%)",
+    "english_name": "interest_rate",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "금리",
+      "이자율",
+      "interest_rate",
+      "rate"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 3.15,
+      "max": 7.85,
+      "integer": false
+    },
+    "sample": "4.65"
+  },
+  {
+    "id": "order_id",
+    "name": "주문번호",
+    "english_name": "order_id",
+    "category": "이커머스 및 유통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "주문번호",
+      "주문ID",
+      "order_id",
+      "order_no"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "sequence",
+      "prefix": "ORD",
+      "start": 20260001,
+      "step": 1
+    },
+    "sample": "ORD20260001"
+  },
+  {
+    "id": "product_id",
+    "name": "상품 번호/코드",
+    "english_name": "product_id",
+    "category": "이커머스 및 유통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "상품번호",
+      "상품코드",
+      "상품ID",
+      "product_id",
+      "item_code",
+      "sku"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "sequence",
+      "prefix": "PRD_",
+      "start": 1001,
+      "step": 1
+    },
+    "sample": "PRD_1001"
+  },
+  {
+    "id": "product_name",
+    "name": "상품명",
+    "english_name": "product_name",
+    "category": "이커머스 및 유통",
+    "source": "Mockaroo",
+    "aliases": [
+      "상품명",
+      "품명",
+      "물품명",
+      "product_name",
+      "item_name"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "유기농 제주 감귤 5kg",
+        "무선 노이즈캔슬링 블루투스 헤드폰",
+        "프리미엄 캡슐 에스프레소 머신",
+        "울트라 슬림 16인치 경량 노트북",
+        "친환경 대나무 칫솔 4입 세트",
+        "100% 암막 항균 암막커튼",
+        "스마트 고속 무선충전기 15W",
+        "단백질 보충 쉐이크 바닐라맛 1kg",
+        "방수 방풍 사계절 캠핑 텐트",
+        "천연 소가죽 클래식 서류가방"
+      ]
+    },
+    "sample": "무선 노이즈캔슬링 블루투스 헤드폰"
+  },
+  {
+    "id": "category_large",
+    "name": "상품 대분류 카테고리",
+    "english_name": "category_large",
+    "category": "이커머스 및 유통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "대분류",
+      "카테고리",
+      "카테고리명",
+      "category",
+      "category_large"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "디지털/가전",
+        "패션의류/잡화",
+        "식품/생필품",
+        "홈인테리어",
+        "뷰티/스킨케어",
+        "스포츠/레저",
+        "도서/문구",
+        "반려동물용품"
+      ],
+      "weights": [
+        0.25,
+        0.22,
+        0.2,
+        0.1,
+        0.08,
+        0.07,
+        0.05,
+        0.03
+      ]
+    },
+    "sample": "디지털/가전"
+  },
+  {
+    "id": "brand_name",
+    "name": "브랜드명",
+    "english_name": "brand",
+    "category": "이커머스 및 유통",
+    "source": "Mockaroo",
+    "aliases": [
+      "브랜드",
+      "제조사",
+      "brand",
+      "brand_name",
+      "manufacturer"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "삼성전자",
+        "LG전자",
+        "애플",
+        "나이키",
+        "아디다스",
+        "아모레퍼시픽",
+        "CJ제일제당",
+        "한샘",
+        "다이슨",
+        "소니"
+      ]
+    },
+    "sample": "삼성전자"
+  },
+  {
+    "id": "order_quantity",
+    "name": "주문 수량",
+    "english_name": "quantity",
+    "category": "이커머스 및 유통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "수량",
+      "주문수량",
+      "구매수량",
+      "quantity",
+      "qty",
+      "order_cnt"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "choice",
+      "values": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        10
+      ],
+      "weights": [
+        0.65,
+        0.2,
+        0.08,
+        0.03,
+        0.03,
+        0.01
+      ]
+    },
+    "sample": "1"
+  },
+  {
+    "id": "delivery_status",
+    "name": "배송 상태",
+    "english_name": "delivery_status",
+    "category": "이커머스 및 유통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "배송상태",
+      "물류상태",
+      "delivery_status",
+      "shipping_status"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "결제완료",
+        "배송준비중",
+        "배송중",
+        "배송완료",
+        "반품접수",
+        "교환완료"
+      ],
+      "weights": [
+        0.15,
+        0.1,
+        0.25,
+        0.45,
+        0.03,
+        0.02
+      ]
+    },
+    "sample": "배송완료"
+  },
+  {
+    "id": "courier_name",
+    "name": "택배사명",
+    "english_name": "courier",
+    "category": "이커머스 및 유통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "택배사",
+      "배송업체",
+      "courier",
+      "shipping_company"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "CJ대한통운",
+        "우체국택배",
+        "한진택배",
+        "롯데택배",
+        "로젠택배",
+        "쿠팡로켓배송"
+      ],
+      "weights": [
+        0.4,
+        0.22,
+        0.15,
+        0.12,
+        0.06,
+        0.05
+      ]
+    },
+    "sample": "CJ대한통운"
+  },
+  {
+    "id": "tracking_number",
+    "name": "운송장번호 (12자리)",
+    "english_name": "tracking_no",
+    "category": "이커머스 및 유통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "운송장번호",
+      "송장번호",
+      "tracking_no",
+      "tracking_number"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "sequence",
+      "prefix": "6482",
+      "start": 10000001,
+      "step": 1
+    },
+    "sample": "648210000001"
+  },
+  {
+    "id": "review_rating",
+    "name": "리뷰 평점 (1~5점)",
+    "english_name": "rating",
+    "category": "이커머스 및 유통",
+    "source": "Mockaroo",
+    "aliases": [
+      "평점",
+      "별점",
+      "리뷰평점",
+      "rating",
+      "score"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "choice",
+      "values": [
+        5,
+        4,
+        3,
+        2,
+        1
+      ],
+      "weights": [
+        0.6,
+        0.25,
+        0.09,
+        0.04,
+        0.02
+      ]
+    },
+    "sample": "5"
+  },
+  {
+    "id": "company_name",
+    "name": "회사/기업명",
+    "english_name": "company_name",
+    "category": "기업 및 사업자 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "회사명",
+      "기업명",
+      "상호명",
+      "상호",
+      "법인명",
+      "company",
+      "company_name",
+      "corp_name"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "(주)테크솔루션스",
+        "에이아이랩스코리아(주)",
+        "넥스트글로벌네트웍스(주)",
+        "한울물류시스템(주)",
+        "다온소프트랩",
+        "미래정밀기계(주)",
+        "한국데이터플랫폼",
+        "청송바이오텍(주)",
+        "대명컨설팅그룹",
+        "그린에너지파워(주)"
+      ]
+    },
+    "sample": "(주)테크솔루션스"
+  },
+  {
+    "id": "business_number",
+    "name": "사업자등록번호 (3-2-5)",
+    "english_name": "biz_no",
+    "category": "기업 및 사업자 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "사업자등록번호",
+      "사업자번호",
+      "biz_no",
+      "business_number",
+      "company_reg_no"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "business_number"
+    },
+    "sample": "120-81-48291"
+  },
+  {
+    "id": "corporate_number",
+    "name": "법인등록번호 (6-7)",
+    "english_name": "corp_no",
+    "category": "기업 및 사업자 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "법인등록번호",
+      "법인번호",
+      "corp_no",
+      "corporate_number"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "corporate_number"
+    },
+    "sample": "110111-5829102"
+  },
+  {
+    "id": "ceo_name",
+    "name": "대표자 성명",
+    "english_name": "ceo_name",
+    "category": "기업 및 사업자 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "대표자",
+      "대표자명",
+      "대표이사",
+      "ceo",
+      "ceo_name",
+      "president"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "name"
+    },
+    "sample": "박동현"
+  },
+  {
+    "id": "industry_type",
+    "name": "업종/업태",
+    "english_name": "industry",
+    "category": "기업 및 사업자 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "업종",
+      "업태",
+      "industry",
+      "biz_type"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "정보통신업 / 소프트웨어 개발 및 공급",
+        "제조업 / 전자부품 및 컴퓨터 제조",
+        "도매 및 소매업 / 전자상거래",
+        "전문, 과학 및 기술 서비스업",
+        "운수 및 창고업 / 물류대행",
+        "금융 및 보험업"
+      ]
+    },
+    "sample": "정보통신업 / 소프트웨어 개발 및 공급"
+  },
+  {
+    "id": "employee_headcount",
+    "name": "임직원 수 (명)",
+    "english_name": "headcount",
+    "category": "기업 및 사업자 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "임직원수",
+      "직원수",
+      "근로자수",
+      "headcount",
+      "emp_count"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 10,
+      "max": 1500,
+      "integer": true
+    },
+    "sample": "85"
+  },
+  {
+    "id": "annual_revenue",
+    "name": "연간 매출액 (원)",
+    "english_name": "revenue",
+    "category": "기업 및 사업자 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "매출액",
+      "연매출",
+      "매출",
+      "revenue",
+      "sales_amount"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 500000000,
+      "max": 50000000000,
+      "integer": true
+    },
+    "sample": "4,800,000,000"
+  },
+  {
+    "id": "ip_address",
+    "name": "IP 주소 (IPv4)",
+    "english_name": "ip_address",
+    "category": "IT 시스템 및 웹 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "IP",
+      "IP주소",
+      "접속IP",
+      "ip_address",
+      "client_ip"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "ip_address"
+    },
+    "sample": "211.234.118.42"
+  },
+  {
+    "id": "mac_address",
+    "name": "MAC 주소",
+    "english_name": "mac_address",
+    "category": "IT 시스템 및 웹 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "MAC",
+      "MAC주소",
+      "mac_address"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "00:1A:2B:3C:4D:5E",
+        "54:E1:AD:12:34:56",
+        "BC:D1:19:8A:2B:CC",
+        "F8:FF:C2:55:66:77",
+        "A0:99:9B:DE:F0:12"
+      ]
+    },
+    "sample": "54:E1:AD:12:34:56"
+  },
+  {
+    "id": "user_agent",
+    "name": "사용자 에이전트 (User-Agent)",
+    "english_name": "user_agent",
+    "category": "IT 시스템 및 웹 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "브라우저",
+      "에이전트",
+      "user_agent",
+      "ua"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+        "Mozilla/5.0 (Linux; Android 14; SM-S928N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+      ]
+    },
+    "sample": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)..."
+  },
+  {
+    "id": "http_status",
+    "name": "HTTP 상태 코드",
+    "english_name": "http_status",
+    "category": "IT 시스템 및 웹 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "상태코드",
+      "HTTP상태",
+      "status_code",
+      "http_status"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "choice",
+      "values": [
+        200,
+        201,
+        301,
+        400,
+        401,
+        403,
+        404,
+        500
+      ],
+      "weights": [
+        0.85,
+        0.05,
+        0.02,
+        0.02,
+        0.01,
+        0.01,
+        0.03,
+        0.01
+      ]
+    },
+    "sample": "200"
+  },
+  {
+    "id": "response_time_ms",
+    "name": "서버 응답시간 (ms)",
+    "english_name": "response_time",
+    "category": "IT 시스템 및 웹 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "응답시간",
+      "처리시간",
+      "latency",
+      "response_time",
+      "elapsed_ms"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 12,
+      "max": 850,
+      "integer": true
+    },
+    "sample": "84"
+  },
+  {
+    "id": "uuid",
+    "name": "고유 식별자 (UUID v4)",
+    "english_name": "uuid",
+    "category": "IT 시스템 및 웹 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "UUID",
+      "GUID",
+      "식별자",
+      "uuid",
+      "guid"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "e4b3d7a8-12cd-4ef0-9ab2-5f8c2e917d01",
+        "7c9e2b1a-8f3d-4c5b-a6e7-1d0f9c2b4e8a",
+        "3f1a9b8c-4d2e-4f0a-8b6c-7e5d3a1f9b0c",
+        "a8b0c2d4-e6f8-4a1b-9c3d-5e7f1a3b5c7d"
+      ]
+    },
+    "sample": "e4b3d7a8-12cd-4ef0-9ab2-5f8c2e917d01"
+  },
+  {
+    "id": "car_plate",
+    "name": "자동차 등록번호 (차량번호)",
+    "english_name": "car_plate",
+    "category": "차량 및 교통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "차량번호",
+      "자동차번호",
+      "번호판",
+      "car_plate",
+      "plate_no",
+      "vehicle_no"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "faker",
+      "provider": "car_plate"
+    },
+    "sample": "123가 4567"
+  },
+  {
+    "id": "car_model",
+    "name": "자동차 모델명",
+    "english_name": "car_model",
+    "category": "차량 및 교통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "차종",
+      "차량모델",
+      "모델명",
+      "car_model",
+      "vehicle_model"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "그랜저",
+        "아반떼",
+        "쏘나타",
+        "싼타페",
+        "투싼",
+        "쏘렌토",
+        "카니발",
+        "스포티지",
+        "G80",
+        "GV80",
+        "EV6",
+        "아이오닉 5"
+      ]
+    },
+    "sample": "그랜저"
+  },
+  {
+    "id": "mileage",
+    "name": "누적 주행거리 (km)",
+    "english_name": "mileage",
+    "category": "차량 및 교통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "주행거리",
+      "누적주행거리",
+      "km",
+      "mileage",
+      "odometer"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 5000,
+      "max": 180000,
+      "integer": true
+    },
+    "sample": "42,800"
+  },
+  {
+    "id": "fuel_type",
+    "name": "자동차 연료 구분",
+    "english_name": "fuel_type",
+    "category": "차량 및 교통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "연료",
+      "유종",
+      "fuel_type",
+      "fuel"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "가솔린(휘발유)",
+        "디젤(경유)",
+        "하이브리드(HEV)",
+        "전기(EV)",
+        "LPG"
+      ],
+      "weights": [
+        0.45,
+        0.2,
+        0.2,
+        0.1,
+        0.05
+      ]
+    },
+    "sample": "하이브리드(HEV)"
+  },
+  {
+    "id": "patient_id",
+    "name": "환자 등록번호",
+    "english_name": "patient_id",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "환자번호",
+      "환자ID",
+      "patient_id",
+      "pt_no"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "sequence",
+      "prefix": "PT",
+      "start": 50001,
+      "step": 1
+    },
+    "sample": "PT50001"
+  },
+  {
+    "id": "blood_type",
+    "name": "혈액형 (ABO식)",
+    "english_name": "blood_type",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "혈액형",
+      "blood_type",
+      "blood_group"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "A형",
+        "B형",
+        "O형",
+        "AB형"
+      ],
+      "weights": [
+        0.34,
+        0.27,
+        0.28,
+        0.11
+      ]
+    },
+    "sample": "A형"
+  },
+  {
+    "id": "height",
+    "name": "신장 / 키 (cm)",
+    "english_name": "height",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "신장",
+      "키",
+      "height",
+      "height_cm"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 150.0,
+      "max": 188.0,
+      "integer": false
+    },
+    "sample": "172.5"
+  },
+  {
+    "id": "weight",
+    "name": "체중 / 몸무게 (kg)",
+    "english_name": "weight",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "체중",
+      "몸무게",
+      "weight",
+      "weight_kg"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 45.0,
+      "max": 95.0,
+      "integer": false
+    },
+    "sample": "68.2"
+  },
+  {
+    "id": "systolic_bp",
+    "name": "수축기 혈압 (최고혈압, mmHg)",
+    "english_name": "systolic_bp",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "수축기혈압",
+      "최고혈압",
+      "systolic",
+      "systolic_bp",
+      "sbp"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 110,
+      "max": 145,
+      "integer": true
+    },
+    "sample": "124"
+  },
+  {
+    "id": "diastolic_bp",
+    "name": "이완기 혈압 (최저혈압, mmHg)",
+    "english_name": "diastolic_bp",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "이완기혈압",
+      "최저혈압",
+      "diastolic",
+      "diastolic_bp",
+      "dbp"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 70,
+      "max": 95,
+      "integer": true
+    },
+    "sample": "82"
+  },
+  {
+    "id": "fasting_glucose",
+    "name": "공복 혈당 (mg/dL)",
+    "english_name": "glucose",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "공복혈당",
+      "혈당",
+      "glucose",
+      "fbs"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 75,
+      "max": 135,
+      "integer": true
+    },
+    "sample": "98"
+  },
+  {
+    "id": "medical_department",
+    "name": "진료 과목",
+    "english_name": "medical_dept",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "진료과",
+      "진료과목",
+      "medical_dept",
+      "clinic_dept"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "내과",
+        "정형외과",
+        "이비인후과",
+        "안과",
+        "피부과",
+        "소아청소년과",
+        "신경과",
+        "정신건강의학과",
+        "치과",
+        "가정의학과"
+      ]
+    },
+    "sample": "내과"
+  },
+  {
+    "id": "created_datetime",
+    "name": "등록/생성 일시 (YYYY-MM-DD HH:mm:ss)",
+    "english_name": "created_at",
+    "category": "날짜 및 시간 공통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "등록일시",
+      "생성일시",
+      "작성일시",
+      "created_at",
+      "reg_dt",
+      "insert_time"
+    ],
+    "data_type": "DATETIME",
+    "rule": {
+      "type": "date_between",
+      "start": "2025-01-01",
+      "end": "2026-09-01"
+    },
+    "sample": "2025-11-14 15:32:09"
+  },
+  {
+    "id": "updated_datetime",
+    "name": "수정/변경 일시",
+    "english_name": "updated_at",
+    "category": "날짜 및 시간 공통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "수정일시",
+      "변경일시",
+      "updated_at",
+      "mod_dt",
+      "update_time"
+    ],
+    "data_type": "DATETIME",
+    "rule": {
+      "type": "date_between",
+      "start": "2026-01-01",
+      "end": "2026-09-01"
+    },
+    "sample": "2026-04-02 09:15:44"
+  },
+  {
+    "id": "start_date",
+    "name": "시작 일자",
+    "english_name": "start_date",
+    "category": "날짜 및 시간 공통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "시작일자",
+      "시작일",
+      "start_date",
+      "begin_date",
+      "start_dt"
+    ],
+    "data_type": "DATE",
+    "rule": {
+      "type": "date_between",
+      "start": "2026-01-01",
+      "end": "2026-06-30"
+    },
+    "sample": "2026-02-01"
+  },
+  {
+    "id": "end_date",
+    "name": "종료 일자",
+    "english_name": "end_date",
+    "category": "날짜 및 시간 공통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "종료일자",
+      "만료일",
+      "종료일",
+      "end_date",
+      "expire_date",
+      "end_dt"
+    ],
+    "data_type": "DATE",
+    "rule": {
+      "type": "date_between",
+      "start": "2026-07-01",
+      "end": "2026-12-31"
+    },
+    "sample": "2026-12-31"
+  },
+  {
+    "id": "year_month",
+    "name": "기준 연월 (YYYY-MM)",
+    "english_name": "year_month",
+    "category": "날짜 및 시간 공통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "기준연월",
+      "연월",
+      "year_month",
+      "ym",
+      "target_month"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05",
+        "2025-06",
+        "2025-07",
+        "2025-08",
+        "2025-09",
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08"
+      ]
+    },
+    "sample": "2026-05"
+  },
+  {
+    "id": "passport_number",
+    "name": "여권번호 (Passport No)",
+    "english_name": "passport_no",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "여권번호",
+      "passport",
+      "passport_no",
+      "pspt_no"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "pattern",
+      "format": "M########"
+    },
+    "sample": "M83920194"
+  },
+  {
+    "id": "driver_license",
+    "name": "운전면허번호",
+    "english_name": "driver_license_no",
+    "category": "인적 및 계정 정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "운전면허번호",
+      "면허번호",
+      "driver_license",
+      "drv_no"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "pattern",
+      "format": "##-##-######-##"
+    },
+    "sample": "11-23-456789-01"
+  },
+  {
+    "id": "safe_phone_050",
+    "name": "050 안심번호",
+    "english_name": "safe_phone",
+    "category": "연락처 및 주소",
+    "source": "Mockaroo",
+    "aliases": [
+      "안심번호",
+      "050안심번호",
+      "safe_phone",
+      "virtual_phone"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "pattern",
+      "format": "0504-####-####"
+    },
+    "sample": "0504-3819-2041"
+  },
+  {
+    "id": "country_code",
+    "name": "국가 코드 (ISO 2자리)",
+    "english_name": "country_code",
+    "category": "연락처 및 주소",
+    "source": "Mockaroo",
+    "aliases": [
+      "국가코드",
+      "country_code",
+      "country_cd",
+      "iso_country"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "KR",
+        "US",
+        "JP",
+        "CN",
+        "VN",
+        "SG",
+        "DE",
+        "GB",
+        "FR",
+        "CA",
+        "AU"
+      ],
+      "weights": [
+        0.7,
+        0.08,
+        0.05,
+        0.04,
+        0.03,
+        0.02,
+        0.02,
+        0.02,
+        0.02,
+        0.01,
+        0.01
+      ]
+    },
+    "sample": "KR"
+  },
+  {
+    "id": "country_name",
+    "name": "국가명",
+    "english_name": "country_name",
+    "category": "연락처 및 주소",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "국가명",
+      "국가",
+      "country",
+      "country_name"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "대한민국",
+        "미국",
+        "일본",
+        "중국",
+        "베트남",
+        "싱가포르",
+        "독일",
+        "영국",
+        "프랑스",
+        "캐나다"
+      ]
+    },
+    "sample": "대한민국"
+  },
+  {
+    "id": "user_status",
+    "name": "회원/계정 상태",
+    "english_name": "user_status",
+    "category": "인적 및 계정 정보",
+    "source": "마이데이터",
+    "aliases": [
+      "회원상태",
+      "계정상태",
+      "user_status",
+      "member_status",
+      "account_status"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "정상",
+        "휴면",
+        "탈퇴대기",
+        "이용정지"
+      ],
+      "weights": [
+        0.85,
+        0.08,
+        0.04,
+        0.03
+      ]
+    },
+    "sample": "정상"
+  },
+  {
+    "id": "points_balance",
+    "name": "적립금/포인트 잔액",
+    "english_name": "reward_points",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "포인트",
+      "적립금",
+      "마일리지",
+      "points",
+      "reward_points",
+      "mileage_bal"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 0,
+      "max": 50000,
+      "integer": true
+    },
+    "sample": "12500"
+  },
+  {
+    "id": "kcb_credit_grade",
+    "name": "KCB 신용등급 (1~10등급)",
+    "english_name": "credit_grade",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "신용등급",
+      "credit_grade",
+      "grade"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "1등급",
+        "2등급",
+        "3등급",
+        "4등급",
+        "5등급",
+        "6등급",
+        "7등급",
+        "8등급"
+      ],
+      "weights": [
+        0.25,
+        0.25,
+        0.2,
+        0.15,
+        0.08,
+        0.04,
+        0.02,
+        0.01
+      ]
+    },
+    "sample": "2등급"
+  },
+  {
+    "id": "transaction_type",
+    "name": "금융 거래 구분",
+    "english_name": "tx_type",
+    "category": "금융 및 결제",
+    "source": "마이데이터",
+    "aliases": [
+      "거래구분",
+      "거래유형",
+      "tx_type",
+      "tran_type",
+      "deal_type"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "체크승인",
+        "신용승인",
+        "계좌이체",
+        "ATM출금",
+        "간편결제",
+        "자동이체"
+      ]
+    },
+    "sample": "체크승인"
+  },
+  {
+    "id": "discount_rate",
+    "name": "할인율 (%)",
+    "english_name": "discount_rate",
+    "category": "이커머스 및 쇼핑",
+    "source": "Mockaroo",
+    "aliases": [
+      "할인율",
+      "할인퍼센트",
+      "discount_rate",
+      "dc_rate"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "choice",
+      "values": [
+        0,
+        5,
+        10,
+        15,
+        20,
+        30,
+        50
+      ],
+      "weights": [
+        0.3,
+        0.15,
+        0.2,
+        0.15,
+        0.1,
+        0.06,
+        0.04
+      ]
+    },
+    "sample": "10"
+  },
+  {
+    "id": "coupon_code",
+    "name": "할인 쿠폰 코드",
+    "english_name": "coupon_code",
+    "category": "이커머스 및 쇼핑",
+    "source": "Mockaroo",
+    "aliases": [
+      "쿠폰코드",
+      "쿠폰번호",
+      "coupon_code",
+      "promo_code"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "WELCOME2026",
+        "SUMMER_SALE",
+        "APP_ONLY_10",
+        "SPECIAL_VIP",
+        "FREESHIP",
+        "BIRTHDAY20"
+      ]
+    },
+    "sample": "WELCOME2026"
+  },
+  {
+    "id": "shipping_fee",
+    "name": "배송비 (원)",
+    "english_name": "shipping_fee",
+    "category": "이커머스 및 쇼핑",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "배송비",
+      "운임비",
+      "shipping_fee",
+      "delivery_fee"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "choice",
+      "values": [
+        0,
+        2500,
+        3000,
+        5000
+      ],
+      "weights": [
+        0.4,
+        0.1,
+        0.45,
+        0.05
+      ]
+    },
+    "sample": "3000"
+  },
+  {
+    "id": "device_type",
+    "name": "접속 디바이스 유형",
+    "english_name": "device_type",
+    "category": "IT 및 시스템 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "디바이스",
+      "단말기구분",
+      "기기유형",
+      "device_type",
+      "device"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "Mobile",
+        "Desktop",
+        "Tablet"
+      ],
+      "weights": [
+        0.65,
+        0.3,
+        0.05
+      ]
+    },
+    "sample": "Mobile"
+  },
+  {
+    "id": "os_type",
+    "name": "운영체제 (OS)",
+    "english_name": "os_name",
+    "category": "IT 및 시스템 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "운영체제",
+      "OS",
+      "os_name",
+      "platform"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "iOS",
+        "Android",
+        "Windows",
+        "macOS",
+        "Linux"
+      ],
+      "weights": [
+        0.45,
+        0.35,
+        0.15,
+        0.04,
+        0.01
+      ]
+    },
+    "sample": "iOS"
+  },
+  {
+    "id": "browser_type",
+    "name": "웹 브라우저",
+    "english_name": "browser",
+    "category": "IT 및 시스템 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "브라우저",
+      "웹브라우저",
+      "browser",
+      "browser_name"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "Chrome",
+        "Safari",
+        "Whale",
+        "Edge",
+        "Samsung Internet",
+        "Firefox"
+      ],
+      "weights": [
+        0.5,
+        0.25,
+        0.1,
+        0.08,
+        0.05,
+        0.02
+      ]
+    },
+    "sample": "Chrome"
+  },
+  {
+    "id": "color_hex",
+    "name": "색상 코드 (HEX)",
+    "english_name": "color_hex",
+    "category": "IT 및 시스템 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "색상코드",
+      "컬러",
+      "color_hex",
+      "hex_color"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "#3B82F6",
+        "#10B981",
+        "#EF4444",
+        "#F59E0B",
+        "#8B5CF6",
+        "#1F2937",
+        "#6B7280",
+        "#EC4899"
+      ]
+    },
+    "sample": "#3B82F6"
+  },
+  {
+    "id": "file_extension",
+    "name": "파일 확장자",
+    "english_name": "file_ext",
+    "category": "IT 및 시스템 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "확장자",
+      "파일확장자",
+      "file_ext",
+      "ext"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "pdf",
+        "xlsx",
+        "csv",
+        "png",
+        "jpg",
+        "docx",
+        "zip"
+      ]
+    },
+    "sample": "pdf"
+  },
+  {
+    "id": "mime_type",
+    "name": "MIME 타입",
+    "english_name": "mime_type",
+    "category": "IT 및 시스템 로그",
+    "source": "Mockaroo",
+    "aliases": [
+      "MIME타입",
+      "마임타입",
+      "mime_type",
+      "content_type"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "application/json",
+        "text/csv",
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ]
+    },
+    "sample": "application/json"
+  },
+  {
+    "id": "kcd_disease_code",
+    "name": "질병 분류 기호 (KCD-8)",
+    "english_name": "kcd_code",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "질병코드",
+      "상병기호",
+      "KCD코드",
+      "kcd_code",
+      "disease_code",
+      "icd10"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "J00 (급성비인두염)",
+        "I10 (본태성고혈압)",
+        "E11 (2형당뇨병)",
+        "M54 (등통증)",
+        "K29 (위염및십이지장염)",
+        "J20 (급성기관지염)",
+        "K21 (위식도역류병)",
+        "M17 (무릎관절증)"
+      ]
+    },
+    "sample": "J00 (급성비인두염)"
+  },
+  {
+    "id": "prescription_days",
+    "name": "처방/투약 일수 (일)",
+    "english_name": "prescription_days",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "처방일수",
+      "투약일수",
+      "prescription_days",
+      "med_days"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "choice",
+      "values": [
+        3,
+        5,
+        7,
+        14,
+        30,
+        60,
+        90
+      ],
+      "weights": [
+        0.4,
+        0.25,
+        0.15,
+        0.1,
+        0.05,
+        0.03,
+        0.02
+      ]
+    },
+    "sample": "3"
+  },
+  {
+    "id": "medication_count",
+    "name": "복약 용법/횟수",
+    "english_name": "dosage_instructions",
+    "category": "헬스케어 및 신체정보",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "복약지도",
+      "용법",
+      "dosage_instructions",
+      "dosage"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "1일 3회 식후 30분",
+        "1일 2회 아침/저녁 식후",
+        "1일 1회 취침 전",
+        "통증 시 1회 복용"
+      ]
+    },
+    "sample": "1일 3회 식후 30분"
+  },
+  {
+    "id": "company_established_date",
+    "name": "회사 설립일자",
+    "english_name": "founded_date",
+    "category": "기업 및 사업자",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "설립일자",
+      "설립일",
+      "founded_date",
+      "established_date",
+      "open_dt"
+    ],
+    "data_type": "DATE",
+    "rule": {
+      "type": "date_between",
+      "start": "1995-01-01",
+      "end": "2024-12-31"
+    },
+    "sample": "2015-08-12"
+  },
+  {
+    "id": "capital_amount",
+    "name": "자본금 (원)",
+    "english_name": "capital_krw",
+    "category": "기업 및 사업자",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "자본금",
+      "capital",
+      "capital_amount"
+    ],
+    "data_type": "NUMBER",
+    "rule": {
+      "type": "number_range",
+      "min": 50000000,
+      "max": 5000000000,
+      "integer": true
+    },
+    "sample": "500000000"
+  },
+  {
+    "id": "is_active_yn",
+    "name": "사용/활성 여부 (Y/N)",
+    "english_name": "use_yn",
+    "category": "공통 코드 및 플래그",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "사용여부",
+      "활성여부",
+      "use_yn",
+      "is_active",
+      "active_flag"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "Y",
+        "N"
+      ],
+      "weights": [
+        0.9,
+        0.1
+      ]
+    },
+    "sample": "Y"
+  },
+  {
+    "id": "is_agree_yn",
+    "name": "약관 동의 여부 (Y/N)",
+    "english_name": "agree_yn",
+    "category": "공통 코드 및 플래그",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "동의여부",
+      "약관동의",
+      "agree_yn",
+      "consent_flag"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "Y",
+        "N"
+      ],
+      "weights": [
+        0.95,
+        0.05
+      ]
+    },
+    "sample": "Y"
+  },
+  {
+    "id": "boolean_flag",
+    "name": "불리언 (True/False)",
+    "english_name": "is_valid",
+    "category": "공통 코드 및 플래그",
+    "source": "Mockaroo",
+    "aliases": [
+      "불리언",
+      "boolean",
+      "is_valid",
+      "is_checked"
+    ],
+    "data_type": "BOOLEAN",
+    "rule": {
+      "type": "choice",
+      "values": [
+        true,
+        false
+      ],
+      "weights": [
+        0.5,
+        0.5
+      ]
+    },
+    "sample": "True"
+  },
+  {
+    "id": "day_of_week",
+    "name": "요일 (한글)",
+    "english_name": "day_of_week",
+    "category": "날짜 및 시간 공통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "요일",
+      "day_of_week",
+      "dow"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "월요일",
+        "화요일",
+        "수요일",
+        "목요일",
+        "금요일",
+        "토요일",
+        "일요일"
+      ]
+    },
+    "sample": "수요일"
+  },
+  {
+    "id": "quarter",
+    "name": "분기 (YYYY-QQ)",
+    "english_name": "quarter",
+    "category": "날짜 및 시간 공통",
+    "source": "행안부_공통표준",
+    "aliases": [
+      "분기",
+      "quarter",
+      "qtr"
+    ],
+    "data_type": "STRING",
+    "rule": {
+      "type": "choice",
+      "values": [
+        "2025-Q1",
+        "2025-Q2",
+        "2025-Q3",
+        "2025-Q4",
+        "2026-Q1",
+        "2026-Q2",
+        "2026-Q3",
+        "2026-Q4"
+      ]
+    },
+    "sample": "2026-Q2"
+  }
+]

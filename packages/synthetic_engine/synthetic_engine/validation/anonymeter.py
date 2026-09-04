@@ -1,86 +1,69 @@
-# -*- coding: utf-8 -*-
+"""Risk evaluation against a control set excluded before model fitting."""
 from __future__ import annotations
+import math
+import warnings
 from typing import Any
 import pandas as pd
 from ..common.types import ColumnPlan
 
+
+def unavailable(reason: str, status: str = 'NOT_EVALUATED') -> dict[str, Any]:
+    report = {'evaluated_with_anonymeter': False, 'status': status, 'reason': reason, 'errors': {}}
+    for name in ('singling_out', 'linkability', 'inference'):
+        report[name] = {'risk': None, 'status': status, 'reason': reason}
+        report[f'{name}_risk'] = None
+    return report
+
+
 class AnonymeterValidator:
     @staticmethod
-    def evaluate_risks(original: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPlan, n_attacks: int = 50) -> dict[str, Any]:
+    def evaluate_risks(original: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPlan,
+                       n_attacks: int = 50, control: pd.DataFrame | None = None) -> dict[str, Any]:
+        cols = [c for c in plan.categorical + plan.numerical if c in original and c in synthetic]
+        if control is None or any(c not in control for c in cols):
+            return unavailable('학습에서 제외한 독립 대조 데이터가 없습니다.')
+        if len(cols) < 2 or min(len(original), len(synthetic), len(control)) < 10:
+            return unavailable('평가에는 최소 2개 컬럼과 학습·합성·대조 데이터 각각 10행이 필요합니다.')
         try:
             from anonymeter.evaluators import SinglingOutEvaluator, LinkabilityEvaluator, InferenceEvaluator
-
-            eval_cols = [c for c in (plan.categorical + plan.numerical) if c in original.columns and c in synthetic.columns]
-            if len(eval_cols) < 2 or len(original) < 10 or len(synthetic) < 10:
-                return {
-                    "singling_out_risk": 0.0, "linkability_risk": 0.0, "inference_risk": 0.0,
-                    "evaluated_with_anonymeter": False, "status": "PASS",
-                }
-
-            ori_clean = original[eval_cols].dropna().head(600).reset_index(drop=True)
-            syn_clean = synthetic[eval_cols].dropna().head(600).reset_index(drop=True)
-            if len(ori_clean) < 10 or len(syn_clean) < 10:
-                ori_clean = original[eval_cols].fillna("NA").head(600).reset_index(drop=True)
-                syn_clean = synthetic[eval_cols].fillna("NA").head(600).reset_index(drop=True)
-
-            split_idx = len(ori_clean) // 2
-            ori_train = ori_clean.iloc[:split_idx]
-            ori_control = ori_clean.iloc[split_idx:]
-            attacks = min(n_attacks, len(syn_clean), len(ori_train))
-
-            singling_risk = 0.0
-            try:
-                so_eval = SinglingOutEvaluator(ori=ori_train, syn=syn_clean, control=ori_control, n_attacks=attacks)
-                so_eval.evaluate(mode="univariate")
-                singling_res = so_eval.risk()
-                singling_risk = float(max(0.0, min(1.0, singling_res.value))) if hasattr(singling_res, "value") else float(singling_res)
-            except Exception as e:
-                print(f"[WARN] Anonymeter SinglingOut warning: {e}")
-
-            link_risk = 0.0
-            try:
-                half_c = max(1, len(eval_cols) // 2)
-                aux1 = eval_cols[:half_c]
-                aux2 = eval_cols[half_c:]
-                if aux1 and aux2:
-                    link_eval = LinkabilityEvaluator(ori=ori_train, syn=syn_clean, control=ori_control, aux_cols=(aux1, aux2), n_attacks=attacks)
-                    link_eval.evaluate(n_jobs=1)
-                    link_res = link_eval.risk()
-                    link_risk = float(max(0.0, min(1.0, link_res.value))) if hasattr(link_res, "value") else float(link_res)
-            except Exception as e:
-                print(f"[WARN] Anonymeter Linkability warning: {e}")
-
-            inf_risk = 0.0
-            try:
-                target_col = eval_cols[-1]
-                aux_cols = eval_cols[:-1]
-                if aux_cols and target_col:
-                    inf_eval = InferenceEvaluator(ori=ori_train, syn=syn_clean, control=ori_control, aux_cols=aux_cols, secret=target_col, n_attacks=attacks)
-                    inf_eval.evaluate(n_jobs=1)
-                    inf_res = inf_eval.risk()
-                    inf_risk = float(max(0.0, min(1.0, inf_res.value))) if hasattr(inf_res, "value") else float(inf_res)
-            except Exception as e:
-                print(f"[WARN] Anonymeter Inference warning: {e}")
-
-            return {
-                "singling_out": {"risk": round(singling_risk, 4), "status": "PASS" if singling_risk <= 0.05 else "REVIEW"},
-                "linkability": {"risk": round(link_risk, 4), "status": "PASS" if link_risk <= 0.05 else "REVIEW"},
-                "inference": {"risk": round(inf_risk, 4), "status": "PASS" if inf_risk <= 0.05 else "REVIEW"},
-                "singling_out_risk": round(singling_risk, 4),
-                "linkability_risk": round(link_risk, 4),
-                "inference_risk": round(inf_risk, 4),
-                "evaluated_with_anonymeter": True,
-            }
         except Exception as exc:
-            return {
-                "singling_out": {"risk": 0.0, "status": "PASS"},
-                "linkability": {"risk": 0.0, "status": "PASS"},
-                "inference": {"risk": 0.0, "status": "PASS"},
-                "singling_out_risk": 0.0,
-                "linkability_risk": 0.0,
-                "inference_risk": 0.0,
-                "evaluated_with_anonymeter": False,
-                "error": str(exc),
-            }
+            return unavailable(str(exc), 'ERROR')
+        ori, syn, ctrl = [frame[cols].sample(n=min(len(frame), 600), random_state=42).reset_index(drop=True)
+                          for frame in (original, synthetic, control)]
+        attacks = min(n_attacks, len(ori), len(syn), len(ctrl))
+        report = unavailable('')
+        half = max(1, len(cols) // 2)
+        factories = {
+            'singling_out': lambda: SinglingOutEvaluator(ori=ori, syn=syn, control=ctrl, n_attacks=attacks),
+            'linkability': lambda: LinkabilityEvaluator(ori=ori, syn=syn, control=ctrl,
+                                                       aux_cols=(cols[:half], cols[half:]), n_attacks=attacks),
+            'inference': lambda: InferenceEvaluator(ori=ori, syn=syn, control=ctrl,
+                                                    aux_cols=cols[:-1], secret=cols[-1], n_attacks=attacks),
+        }
+        for name, factory in factories.items():
+            try:
+                evaluator = factory()
+                with warnings.catch_warnings(record=True) as notices:
+                    warnings.simplefilter('always')
+                    evaluator.evaluate(**({'mode': 'univariate'} if name == 'singling_out' else {'n_jobs': 1}))
+                    result = evaluator.risk()
+                unreliable = [str(w.message) for w in notices if 'cannot be trusted' in str(w.message).lower()]
+                if unreliable:
+                    raise ValueError('; '.join(unreliable))
+                value = float(result.value if hasattr(result, 'value') else result)
+                if not math.isfinite(value) or not 0 <= value <= 1:
+                    raise ValueError('유효하지 않은 위험도 측정값')
+                report[name] = {'risk': value, 'status': 'PASS' if value <= .05 else 'REVIEW'}
+                report[f'{name}_risk'] = value
+            except Exception as exc:
+                report['errors'][name] = str(exc)
+                report[name] = {'risk': None, 'status': 'ERROR', 'reason': str(exc)}
+        report['evaluated_with_anonymeter'] = not bool(report['errors'])
+        report['status'] = ('ERROR' if report['errors'] else
+                            'PASS' if all(report[name]['status'] == 'PASS' for name in factories) else 'REVIEW')
+        report['reason'] = '일부 평가 실패' if report['errors'] else ''
+        report['sample_rows'] = {'training': len(ori), 'synthetic': len(syn), 'control': len(ctrl)}
+        return report
+
 
 evaluate_anonymeter = AnonymeterValidator.evaluate_risks

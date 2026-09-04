@@ -68,11 +68,110 @@ class ContextAwareFaker:
         return f"{code}-{mid}-{last:04d}"
 
     @classmethod
+    def generate_coherent_foreigner_id(cls, age_val: Any, gender_val: Any) -> str:
+        current_year = 2026
+        birth_year = 1990
+        if age_val is not None:
+            try:
+                age_int = int(float(age_val))
+                if 0 <= age_int <= 120:
+                    birth_year = current_year - age_int
+            except Exception:
+                pass
+
+        yy = f"{birth_year % 100:02d}"
+        mm = f"{random.randint(1, 12):02d}"
+        dd = f"{random.randint(1, 28):02d}"
+        front = f"{yy}{mm}{dd}"
+
+        is_female = False
+        if gender_val is not None:
+            g_str = str(gender_val).strip().lower()
+            if "여" in g_str or "female" in g_str or g_str == "f" or g_str == "2":
+                is_female = True
+
+        gender_digit = ("6" if is_female else "5") if birth_year < 2000 else ("8" if is_female else "7")
+        back_tail = f"{random.randint(100000, 999999):06d}"
+        return f"{front}-{gender_digit}{back_tail}"
+
+    @classmethod
+    def generate_passport(cls) -> str:
+        letter = random.choice(["M", "S", "G", "D", "R"])
+        digits = f"{random.randint(10000000, 99999999):08d}"
+        return f"{letter}{digits}"
+
+    @classmethod
+    def generate_driver_license(cls) -> str:
+        region_code = random.choice(["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "28"])
+        yy = f"{random.randint(0, 26):02d}"
+        serial = f"{random.randint(100000, 999999):06d}"
+        chk = f"{random.randint(10, 99):02d}"
+        return f"{region_code}-{yy}-{serial}-{chk}"
+
+    @classmethod
+    def generate_business_number(cls) -> str:
+        part1 = f"{random.randint(100, 999):03d}"
+        part2 = f"{random.randint(10, 99):02d}"
+        part3 = f"{random.randint(10000, 99999):05d}"
+        return f"{part1}-{part2}-{part3}"
+
+    @classmethod
+    def generate_corporate_number(cls) -> str:
+        part1 = f"{random.randint(100000, 999999):06d}"
+        part2 = f"{random.randint(1000000, 9999999):07d}"
+        return f"{part1}-{part2}"
+
+    @classmethod
+    def generate_credit_card(cls) -> str:
+        p1 = f"{random.randint(1000, 9999):04d}"
+        p2 = f"{random.randint(1000, 9999):04d}"
+        p3 = f"{random.randint(1000, 9999):04d}"
+        p4 = f"{random.randint(1000, 9999):04d}"
+        return f"{p1}-{p2}-{p3}-{p4}"
+
+    @classmethod
+    def generate_car_plate(cls) -> str:
+        num = random.choice([f"{random.randint(10, 99):02d}", f"{random.randint(100, 999):03d}"])
+        hangeul = random.choice(["가", "나", "다", "라", "마", "거", "너", "더", "러", "머", "고", "노", "도", "로", "모", "구", "누", "두", "루", "무", "하", "허", "호"])
+        tail = f"{random.randint(1000, 9999):04d}"
+        return f"{num}{hangeul} {tail}"
+
+    @classmethod
+    def generate_ip_address(cls, fake: Faker) -> str:
+        return fake.ipv4() if hasattr(fake, "ipv4") else f"{random.randint(1,223)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
+
+    @classmethod
     def faker_value_coherent(cls, fake: Faker, provider: str, col_name: str, row: Any) -> Any:
         if provider == "ssn":
             age = cls.extract_context_value(row, ["연령", "나이", "age"])
             gender = cls.extract_context_value(row, ["성별", "gender", "sex"])
             return cls.generate_coherent_ssn(age, gender)
+
+        if provider == "foreigner_id":
+            age = cls.extract_context_value(row, ["연령", "나이", "age"])
+            gender = cls.extract_context_value(row, ["성별", "gender", "sex"])
+            return cls.generate_coherent_foreigner_id(age, gender)
+
+        if provider == "passport":
+            return cls.generate_passport()
+
+        if provider == "driver_license":
+            return cls.generate_driver_license()
+
+        if provider == "business_number":
+            return cls.generate_business_number()
+
+        if provider == "corporate_number":
+            return cls.generate_corporate_number()
+
+        if provider == "credit_card":
+            return cls.generate_credit_card()
+
+        if provider == "car_plate":
+            return cls.generate_car_plate()
+
+        if provider == "ip_address":
+            return cls.generate_ip_address(fake)
 
         if provider == "phone_number":
             region = cls.extract_context_value(row, ["거주", "지역", "주소", "소재지", "시도", "region", "address"])
@@ -92,9 +191,10 @@ class ContextAwareFaker:
         if provider == "account": return fake.bban()
         return fake.word()
 
-def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int) -> tuple[pd.DataFrame, dict[str, Any]]:
+def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42) -> tuple[pd.DataFrame, dict[str, Any]]:
     fake = Faker("ko_KR")
     Faker.seed(seed)
+    random.seed(seed)
     output = df.copy()
     summary = {}
 
@@ -113,7 +213,15 @@ def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int) -> tuple[pd.DataFra
             output[column] = output[column].map(lambda value: None if pd.isna(value) else hashlib.sha256(str(value).encode("utf-8")).hexdigest())
             summary[column] = {"action": "hash"}
             continue
-        summary[column] = {"action": "faker", "provider": spec.get("faker", "word")}
+        provider = spec.get("faker", "word")
+        fake = Faker("ko_KR")
+        values = []
+        for idx in range(len(output)):
+            row_data = output.iloc[idx]
+            val = ContextAwareFaker.faker_value_coherent(fake, provider, column, row_data)
+            values.append(val)
+        output[column] = values
+        summary[column] = {"action": "faker", "provider": provider}
 
     return output, summary
 

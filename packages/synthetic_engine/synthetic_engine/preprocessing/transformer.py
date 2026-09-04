@@ -12,7 +12,7 @@ def constraint_null_columns(constraints: list[dict[str, Any]]) -> set[str]:
         if constraint.get("type") == "null_indicator" and "column" in constraint
     }
 
-def prepare_training_frame(df: pd.DataFrame, plan: ColumnPlan, constraints: list[dict[str, Any]]) -> pd.DataFrame:
+def prepare_training_frame(df: pd.DataFrame, plan: ColumnPlan, constraints: list[dict[str, Any]], reference: pd.DataFrame | None = None) -> pd.DataFrame:
     training = pd.DataFrame(index=df.index)
     preserve_nulls = constraint_null_columns(constraints)
 
@@ -26,7 +26,7 @@ def prepare_training_frame(df: pd.DataFrame, plan: ColumnPlan, constraints: list
             continue
         training[column] = pd.to_numeric(df[column], errors="coerce")
         if column not in preserve_nulls and training[column].isna().any():
-            median = training[column].median()
+            median = pd.to_numeric(reference[column], errors='coerce').median() if reference is not None else training[column].median()
             training[column] = training[column].fillna(0 if pd.isna(median) else median)
 
     return training
@@ -44,7 +44,11 @@ def apply_constraints_before_training(df: pd.DataFrame, constraints: list[dict[s
         null_label = constraint.get("null_label", "비적용")
         not_null_label = constraint.get("not_null_label", "적용")
 
+        if column not in output.columns or column not in plan.categorical + plan.numerical:
+            raise ValueError(f"결측 의미 보존 대상이 학습 컬럼에 없습니다: {column}")
         if column in output.columns:
+            if column in plan.numerical:
+                output[column] = pd.to_numeric(output[column], errors="coerce")
             output[indicator] = np.where(output[column].isna(), null_label, not_null_label)
             if indicator not in categorical:
                 categorical.append(indicator)
@@ -57,15 +61,7 @@ def apply_constraints_after_generation(df: pd.DataFrame, constraints: list[dict[
     for constraint in constraints:
         c_type = constraint.get("type")
         if c_type == "null_indicator":
-            column = constraint.get("column")
-            indicator = constraint.get("indicator_column")
-            null_label = constraint.get("null_label", "비적용")
-            not_null_label = constraint.get("not_null_label", "적용")
-
-            if column in output.columns and indicator in output.columns:
-                output.loc[output[indicator] == null_label, column] = np.nan
-                missing = (output[indicator] == not_null_label) & output[column].isna()
-                output.loc[missing, indicator] = null_label
+            continue  # Enforce after all value repairs below.
 
         elif c_type in {"greater_than", "inequality"}:
             high_col = constraint.get("high_column") or constraint.get("greater_column")
@@ -104,4 +100,17 @@ def apply_constraints_after_generation(df: pd.DataFrame, constraints: list[dict[
         if swap_mask.any():
             output.loc[swap_mask, ["수축기혈압", "이완기혈압"]] = output.loc[swap_mask, ["이완기혈압", "수축기혈압"]].values
 
+    # Other repairs can change a null-constrained column; enforce its meaning
+    # on the final candidate before it is accepted.
+    for constraint in constraints:
+        if constraint.get("type") == "null_indicator":
+            column, indicator = constraint["column"], constraint["indicator_column"]
+            if column not in output or indicator not in output:
+                raise ValueError(f"결측 제약조건 컬럼이 생성 결과에 없습니다: {column}, {indicator}")
+            null_label = constraint.get("null_label", "비적용")
+            not_null_label = constraint.get("not_null_label", "적용")
+            output.loc[output[indicator] == null_label, column] = np.nan
+            valid = output[indicator].isin([null_label, not_null_label])
+            invalid = (output[indicator] == not_null_label) & output[column].isna()
+            output = output.loc[valid & ~invalid].copy()
     return output

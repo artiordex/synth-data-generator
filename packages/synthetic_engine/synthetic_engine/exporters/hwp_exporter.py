@@ -248,12 +248,51 @@ def generate_filled_hwp(template_path: Path, output_path: Path, replacements: li
     output_path.write_bytes(hwp_bytes)
     return output_path
 
-DEFAULT_TEMPLATE_DIR = Path(r"C:\Users\PRO\Downloads\심의위원회 심의자료")
-TEMPLATE_FILENAMES = {
-    "original_spec": "원본데이터 명세서(개인 정보보호 인식 및 침해사고 경험).hwp",
-    "synthetic_spec": "합성데이터 명세서(개인 정보보호 인식 및 침해사고 경험).hwp",
-    "review_report": "합성데이터 안전성 및 유용성 측정결과서(개인 정보보호 인식 및 침해사고 경험).hwp",
-}
+def get_template_search_dirs(user_specified_dir: Path | None = None) -> list[Path]:
+    dirs = []
+    if user_specified_dir:
+        dirs.append(Path(user_specified_dir))
+
+    # Project storage/templates
+    proj_root = Path(__file__).resolve().parent.parent.parent.parent
+    dirs.append(proj_root / "storage" / "templates")
+    dirs.append(Path.cwd() / "storage" / "templates")
+
+    # User Downloads folder
+    home_downloads = Path.home() / "Downloads"
+    dirs.append(home_downloads)
+    dirs.append(home_downloads / "심의위원회 심의자료")
+    dirs.append(Path(r"C:\Users\kasun\Downloads"))
+    dirs.append(Path(r"C:\Users\PRO\Downloads\심의위원회 심의자료"))
+
+    res = []
+    seen = set()
+    for d in dirs:
+        try:
+            resolved = str(d.resolve()) if d.exists() else str(d)
+        except Exception:
+            resolved = str(d)
+        if resolved not in seen:
+            seen.add(resolved)
+            if d.exists() and d.is_dir():
+                res.append(d)
+    return res
+
+def find_template_file(search_dirs: list[Path], exact_name: str, keywords: list[str]) -> Path | None:
+    # 1. Try exact name match
+    for d in search_dirs:
+        target = d / exact_name
+        if target.exists():
+            return target
+    # 2. Try keyword substring match
+    for d in search_dirs:
+        try:
+            for f in d.glob("*.hwp"):
+                if all(k in f.name for k in keywords):
+                    return f
+        except Exception:
+            continue
+    return None
 
 def build_review_documents(
     dataset_name: str,
@@ -266,8 +305,8 @@ def build_review_documents(
     output_review_dir: Path,
     template_dir: Path | None = None,
 ) -> dict[str, Path]:
-    tpl_dir = template_dir or DEFAULT_TEMPLATE_DIR
     output_review_dir.mkdir(parents=True, exist_ok=True)
+    search_dirs = get_template_search_dirs(template_dir)
 
     safety = metrics.get("safety", {})
     anonymeter = safety.get("anonymeter", {})
@@ -293,9 +332,10 @@ def build_review_documents(
 
     created_files = {}
 
-    t1_src = tpl_dir / TEMPLATE_FILENAMES["original_spec"]
+    # 1. 원본데이터 명세서
+    t1_src = find_template_file(search_dirs, "원본데이터 명세서.hwp", ["원본데이터", "명세서"])
     t1_dst = output_review_dir / f"원본데이터 명세서({dataset_name}).hwp"
-    if t1_src.exists():
+    if t1_src and t1_src.exists():
         repl_1 = [
             ("개인 정보보호 인식 및 침해사고 경험", dataset_name),
             ("개인 인터넷 이용행태 정보", dataset_name),
@@ -307,9 +347,10 @@ def build_review_documents(
         generate_filled_hwp(t1_src, t1_dst, repl_1)
         created_files["original_spec"] = t1_dst
 
-    t2_src = tpl_dir / TEMPLATE_FILENAMES["synthetic_spec"]
+    # 2. 합성데이터 명세서
+    t2_src = find_template_file(search_dirs, "합성데이터 명세서.hwp", ["합성데이터", "명세서"])
     t2_dst = output_review_dir / f"합성데이터 명세서({dataset_name}).hwp"
-    if t2_src.exists():
+    if t2_src and t2_src.exists():
         repl_2 = [
             ("개인 정보보호 인식 및 침해사고 경험", dataset_name),
             ("개인 인터넷 이용행태 정보", f"합성데이터_{dataset_name}"),
@@ -320,9 +361,10 @@ def build_review_documents(
         generate_filled_hwp(t2_src, t2_dst, repl_2)
         created_files["synthetic_spec"] = t2_dst
 
-    t3_src = tpl_dir / TEMPLATE_FILENAMES["review_report"]
+    # 3. 심의위원회 심의자료 (안전성 및 유용성 측정결과서)
+    t3_src = find_template_file(search_dirs, "측정결과서.hwp", ["측정결과서"]) or find_template_file(search_dirs, "측정결과서.hwp", ["안전성", "유용성"])
     t3_dst = output_review_dir / f"합성데이터 안전성 및 유용성 측정결과서({dataset_name}).hwp"
-    if t3_src.exists():
+    if t3_src and t3_src.exists():
         assessment_comment = (
             f"통계적 분포 유사도(JSD: {mean_jsd:.4f})가 매우 우수하며, "
             f"Anonymeter 3대 프라이버시 평가(단일식별: {so_risk:.4f}, 결합식별: {link_risk:.4f}, 속성추론: {inf_risk:.4f}) "

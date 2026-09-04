@@ -21,7 +21,10 @@ export interface DatasetProfile {
 }
 
 export interface SynthesisRequest {
+  duplicate_policy?: 'balanced' | 'strict';
+  review_metadata?: Record<string, string>;
   file_name: string;
+  original_filename?: string;
   department_name: string;
   project_purpose: string;
   model_type: "statistical" | "gaussian_copula" | "ctgan" | "tvae";
@@ -37,6 +40,12 @@ export interface SynthesisRequest {
   constraints?: Array<Record<string, any>>;
   epochs?: number;
   batch_size?: number;
+  pac?: number;
+  seed?: number;
+  sampling_batch_size?: number;
+  max_sampling_attempts?: number;
+  enable_gpu?: boolean;
+  evaluation_excluded_columns?: string[];
 }
 
 export interface JobStatus {
@@ -54,10 +63,10 @@ export interface JobStatus {
   eps: number;
   quality_threshold: number;
   quality_score?: number;
-  reid_risk?: number;
+  reid_risk?: number | null;
   assessment_passed?: boolean;
   assessment_grade?: string;
-  assessment_score?: number;
+  assessment_score?: number | null;
   package_dir?: string;
   package_zip?: string;
   package_folders?: Record<string, string>;

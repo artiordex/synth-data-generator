@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 from ...common.types import ColumnPlan
 from ..base import BaseSynthesizer
+from ..registry import register_synthesizer
 
+@register_synthesizer("statistical")
 class StatisticalSampler(BaseSynthesizer):
     def __init__(self):
         self.training = None
@@ -30,7 +32,7 @@ class StatisticalSampler(BaseSynthesizer):
             if column not in sub_training.columns:
                 continue
             distribution = sub_training[column].astype("string").value_counts(normalize=True, dropna=False)
-            output[column] = np.random.choice(distribution.index.astype(str), size=num_rows, p=distribution.values)
+            output[column] = np.random.choice(distribution.index.to_numpy(dtype=object), size=num_rows, p=distribution.values)
 
         for column in self.plan.numerical:
             if column not in sub_training.columns:

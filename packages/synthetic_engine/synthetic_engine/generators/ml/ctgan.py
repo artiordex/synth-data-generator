@@ -1,17 +1,21 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 import os
+from math import lcm
 from typing import Any
 import pandas as pd
 from ...common.types import ColumnPlan
 from ..base import BaseSynthesizer
+from ..registry import register_synthesizer
 
+@register_synthesizer("ctgan")
 class CTGANGenerator(BaseSynthesizer):
-    def __init__(self, epochs: int = 30, batch_size: int = 64, pac: int = 1, verbose: bool = False):
+    def __init__(self, epochs: int = 30, batch_size: int = 64, pac: int = 1, verbose: bool = False, enable_gpu: bool = False):
         self.epochs = max(1, epochs)
         self.raw_batch = batch_size
         self.pac = max(1, pac)
         self.verbose = verbose
+        self.enable_gpu = enable_gpu
         self.synthesizer = None
         self.plan = None
 
@@ -39,16 +43,16 @@ class CTGANGenerator(BaseSynthesizer):
             if column in training.columns:
                 metadata.update_column(column_name=column, sdtype="numerical")
 
-        batch_size = max(self.pac, (self.raw_batch // self.pac) * self.pac)
-        if len(training) < batch_size:
-            batch_size = max(self.pac, (len(training) // self.pac) * self.pac)
+        unit = lcm(2, self.pac)
+        self.batch_size = max(unit, (min(len(training), self.raw_batch) // unit) * unit)
 
         self.synthesizer = CTGANSynthesizer(
             metadata,
             epochs=self.epochs,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
             pac=self.pac,
-            verbose=self.verbose
+            verbose=self.verbose,
+            enable_gpu=self.enable_gpu,
         )
         self.synthesizer.fit(training)
 

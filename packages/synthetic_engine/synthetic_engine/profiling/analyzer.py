@@ -7,19 +7,36 @@ import pandas as pd
 from ..common.types import ColumnPlan
 
 PII_COLUMN_PATTERNS = {
-    "name": re.compile(r"(이름|성명|name)", re.IGNORECASE),
-    "phone_number": re.compile(r"(전화|휴대|핸드폰|연락처|phone|mobile|tel)", re.IGNORECASE),
-    "email": re.compile(r"(이메일|메일|email)", re.IGNORECASE),
-    "address": re.compile(r"(주소|address)", re.IGNORECASE),
+    "name": re.compile(r"(이름|성명|name|대표자|담당자|작성자|고객명|환자명|회원명)", re.IGNORECASE),
+    "phone_number": re.compile(r"(전화|휴대|핸드폰|연락처|phone|mobile|tel|hp)", re.IGNORECASE),
+    "email": re.compile(r"(이메일|메일|email|e-mail)", re.IGNORECASE),
+    "address": re.compile(r"(주소|address|거주지|도로명|소재지|배송지)", re.IGNORECASE),
     "ssn": re.compile(r"(주민|주민등록|rrn|ssn|resident)", re.IGNORECASE),
-    "account": re.compile(r"(계좌|account)", re.IGNORECASE),
+    "account": re.compile(r"(계좌|account|계좌번호|환불계좌)", re.IGNORECASE),
+    "foreigner_id": re.compile(r"(외국인|외국인등록|alien|arc)", re.IGNORECASE),
+    "passport": re.compile(r"(여권|여권번호|passport)", re.IGNORECASE),
+    "driver_license": re.compile(r"(운전면허|면허번호|driver.*licen)", re.IGNORECASE),
+    "business_number": re.compile(r"(사업자|사업자등록|사업자번호|biz_no|business_number)", re.IGNORECASE),
+    "corporate_number": re.compile(r"(법인|법인등록|법인번호|corporate_number)", re.IGNORECASE),
+    "credit_card": re.compile(r"(카드|카드번호|신용카드|credit_card|card_number)", re.IGNORECASE),
+    "car_plate": re.compile(r"(차량|차량번호|자동차번호|plate|vehicle)", re.IGNORECASE),
+    "ip_address": re.compile(r"(ip|ip_address|아이피|접속ip|방문ip)", re.IGNORECASE),
 }
 
 PII_VALUE_PATTERNS = {
     "email": re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
     "phone_number": re.compile(r"^(01[016789]|02|0[3-6][1-5])[-\s]?\d{3,4}[-\s]?\d{4}$"),
     "ssn": re.compile(r"^\d{6}[-\s]?[1-4]\d{6}$"),
+    "foreigner_id": re.compile(r"^\d{6}[-\s]?[5-8]\d{6}$"),
+    "passport": re.compile(r"^[a-zA-Z]\d{8}$"),
+    "driver_license": re.compile(r"^\d{2}[-\s]?\d{2}[-\s]?\d{6}[-\s]?\d{2}$"),
+    "business_number": re.compile(r"^\d{3}[-\s]?\d{2}[-\s]?\d{5}$"),
+    "corporate_number": re.compile(r"^\d{6}[-\s]?\d{7}$"),
+    "credit_card": re.compile(r"^\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}$"),
+    "car_plate": re.compile(r"^(\d{2,3}[가-힣]\s?\d{4}|[가-힣]{2}\d{2}[가-힣]\s?\d{4})$"),
+    "ip_address": re.compile(r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"),
 }
+
 
 def read_table(path: Path, sheet_name: str | int = 0) -> pd.DataFrame:
     if not path.exists():

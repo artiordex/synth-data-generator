@@ -1,3 +1,10 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["synthetic_engine*"]
+
 [project]
 name = "synthetic-engine"
 version = "2.1.0"
@@ -13,6 +20,7 @@ dependencies = [
     "torch>=2.0.0",
     "anonymeter>=1.1.0",
     "olefile>=0.47",
+    "python-hwpx==6.3.0",
 ]
 
 [tool.pytest.ini_options]

@@ -18,10 +18,13 @@ export interface DatasetProfile {
   detected_pii: Record<string, any>;
   suggested_categorical: string[];
   suggested_numerical: string[];
+  notebook_preset?: { name: string | null; options: Partial<SynthesisRequest> };
 }
 
 export interface SynthesisRequest {
+  review_metadata?: Record<string, string>;
   file_name: string;
+  original_filename?: string;
   department_name: string;
   project_purpose: string;
   model_type: "statistical" | "gaussian_copula" | "ctgan" | "tvae";
@@ -37,6 +40,34 @@ export interface SynthesisRequest {
   constraints?: Array<Record<string, any>>;
   epochs?: number;
   batch_size?: number;
+  pac?: number;
+  seed?: number;
+  sampling_batch_size?: number;
+  max_sampling_attempts?: number;
+  enable_gpu?: boolean;
+  evaluation_excluded_columns?: string[];
+  duplicate_policy?: 'balanced' | 'strict';
+}
+
+export interface BatchUploadItem {
+  original_filename: string;
+  filename?: string;
+  profile?: DatasetProfile;
+  error: string | null;
+}
+
+export interface BatchStatus {
+  id: string;
+  status: 'pending' | 'processing' | 'completed' | 'completed_with_errors' | 'failed' | 'canceled';
+  total: number;
+  finished: number;
+  completed: number;
+  failed: number;
+  canceled: number;
+  progress: number;
+  jobs: JobStatus[];
+  package_zip: string | null;
+  error: string | null;
 }
 
 export interface JobStatus {
@@ -54,10 +85,10 @@ export interface JobStatus {
   eps: number;
   quality_threshold: number;
   quality_score?: number;
-  reid_risk?: number;
+  reid_risk?: number | null;
   assessment_passed?: boolean;
   assessment_grade?: string;
-  assessment_score?: number;
+  assessment_score?: number | null;
   package_dir?: string;
   package_zip?: string;
   package_folders?: Record<string, string>;
@@ -74,4 +105,44 @@ export interface AuditLogEntry {
   actor: string;
   detail: string;
   created_at: string;
+}
+
+export interface DistributionBin {
+  label: string;
+  low?: number | null;
+  high?: number | null;
+  original_count: number;
+  synthetic_count: number;
+  original_pct: number;
+  synthetic_pct: number;
+  diff_pct: number;
+}
+
+export interface NumericStats {
+  count: number;
+  null_count?: number;
+  mean: number | null;
+  std: number;
+  median: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+export interface CategoricalStats {
+  count: number;
+  unique: number;
+  top: string;
+  top_pct: number;
+}
+
+export interface ColumnDistribution {
+  name: string;
+  type: "numerical" | "categorical";
+  jsd: number;
+  similarity_pct: number;
+  stats: {
+    original: NumericStats | CategoricalStats;
+    synthetic: NumericStats | CategoricalStats;
+  };
+  bins: DistributionBin[];
 }

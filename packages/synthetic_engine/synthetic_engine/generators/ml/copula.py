@@ -4,7 +4,9 @@ from typing import Any
 import pandas as pd
 from ...common.types import ColumnPlan
 from ..base import BaseSynthesizer
+from ..registry import register_synthesizer
 
+@register_synthesizer("gaussian_copula")
 class GaussianCopulaGenerator(BaseSynthesizer):
     def __init__(self):
         self.synthesizer = None

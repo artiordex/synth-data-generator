@@ -49,6 +49,21 @@ class RuleEngine:
             days = max((end - start).days, 0)
             return [(start + timedelta(days=random.randint(0, days))).date().isoformat() for _ in range(row_count)]
 
+        if rule_type == "pattern":
+            fmt = str(spec.get("format", "########"))
+            res = []
+            for _ in range(row_count):
+                chars = []
+                for ch in fmt:
+                    if ch == '#':
+                        chars.append(str(random.randint(0, 9)))
+                    elif ch == '?':
+                        chars.append(chr(random.randint(65, 90)))
+                    else:
+                        chars.append(ch)
+                res.append("".join(chars))
+            return res
+
         if rule_type == "constant":
             return [spec.get("value") for _ in range(row_count)]
 

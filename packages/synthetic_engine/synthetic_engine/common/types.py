@@ -22,3 +22,24 @@ class SynthesisConfig:
     dp_epsilon: float = 1.0
     dp_delta: float = 1e-5
     seed: int = 42
+    sampling_batch_size: int = 800
+    max_sampling_attempts: int = 10
+    enable_gpu: bool = False
+    duplicate_policy: str = 'balanced'
+
+    def __post_init__(self):
+        if self.duplicate_policy not in {'balanced', 'strict'}:
+            raise ValueError('duplicate_policy must be balanced or strict')
+        for name in ("sample_rows", "epochs", "batch_size", "pac", "sampling_batch_size", "max_sampling_attempts"):
+            if getattr(self, name) < 1:
+                raise ValueError(f"{name} must be positive")
+        if not 0 <= self.seed < 2**32:
+            raise ValueError("seed must be between 0 and 2**32 - 1")
+
+@dataclass
+class TableRelationship:
+    parent_table: str
+    child_table: str
+    parent_key: str
+    child_key: str
+

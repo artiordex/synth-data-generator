@@ -5,11 +5,14 @@ from typing import Any
 import pandas as pd
 from ...common.types import ColumnPlan
 from ..base import BaseSynthesizer
+from ..registry import register_synthesizer
 
+@register_synthesizer("tvae")
 class TVAEGenerator(BaseSynthesizer):
-    def __init__(self, epochs: int = 30, batch_size: int = 64):
+    def __init__(self, epochs: int = 30, batch_size: int = 64, enable_gpu: bool = False):
         self.epochs = max(1, epochs)
         self.batch_size = batch_size
+        self.enable_gpu = enable_gpu
         self.synthesizer = None
         self.plan = None
 
@@ -37,10 +40,12 @@ class TVAEGenerator(BaseSynthesizer):
             if column in training.columns:
                 metadata.update_column(column_name=column, sdtype="numerical")
 
+        self.batch_size = min(len(training), self.batch_size)
         self.synthesizer = TVAESynthesizer(
             metadata,
             epochs=self.epochs,
-            batch_size=min(len(training), self.batch_size),
+            batch_size=self.batch_size,
+            enable_gpu=self.enable_gpu,
         )
         self.synthesizer.fit(training)
 

@@ -21,8 +21,8 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["app*"]
+where = ["src"]
+include = ["synthetic_api*"]
 
 [tool.uv.sources]
 synthetic-engine = { workspace = true }

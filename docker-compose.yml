@@ -1,28 +1,33 @@
 version: '3.8'
 
 services:
-  api:
+  # 1. 통합 엔터프라이즈 합성데이터 플랫폼 (웹 UI + REST API + HWPX 생성기)
+  app:
     build:
       context: .
-      dockerfile: infra/docker/api.Dockerfile
-    container_name: synth-data-api
+      dockerfile: Dockerfile
+    container_name: synth-data-app
     ports:
       - "8000:8000"
     environment:
+      - PORT=8000
       - APP_ENV=production
       - DATABASE_URL=sqlite:///storage/local/app.db
       - STORAGE_DIR=/app/storage
     volumes:
+      # 로컬 PC의 storage 디렉토리와 컨테이너 바인딩 (생성된 HWPX 및 SQLite DB 영구 보존)
       - ./storage:/app/storage
     restart: unless-stopped
 
-  web:
-    build:
-      context: .
-      dockerfile: infra/docker/web.Dockerfile
-    container_name: synth-data-web
-    ports:
-      - "3000:80"
-    depends_on:
-      - api
+  # 2. Cloudflare Tunnel (외부 인터넷 접속용 무료 보안 터널)
+  # 실행 명령: docker compose --profile tunnel up -d
+  # 외부 주소 확인: docker compose logs -f tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: synth-data-tunnel
     restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://app:8000
+    depends_on:
+      - app
+    profiles:
+      - tunnel
