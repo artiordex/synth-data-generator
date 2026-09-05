@@ -46,7 +46,7 @@ work/
 │  └─ reference/                   # 구현 근거로 보존하는 원본 노트북
 ├─ tests/                          # E2E 파이프라인 통합 테스트 (test_full_pipeline.py)
 ├─ scripts/dev/                    # run_dev.bat, run_tests.bat
-├─ infra/                          # Dockerfiles, Nginx 설정
+├─ infra/nginx/                    # 사내망 Nginx 리버스 프록시 설정
 └─ run_server.bat / server.py      # 원클릭 단일 실행 호환 진입점
 ```
 
@@ -70,6 +70,17 @@ scripts\dev\run_dev.bat
 ```
 * **프론트엔드 Vite Dev 서버**: [http://localhost:5173](http://localhost:5173)
 * **백엔드 API 서버**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+### 방법 3. 사내망 Docker + Nginx 운영
+
+```powershell
+docker compose up -d --build
+```
+
+사내 PC에서는 `http://서버의-사내-IP`로 접속한다. Nginx가 80번 포트에서 웹과
+API를 통합 서버로 전달하며, 애플리케이션의 8000번 포트는 서버 로컬에서만 접근할
+수 있다. Windows 방화벽 설정과 운영 명령은
+[사내망 Nginx 운영 가이드](docs/intranet-nginx.md)를 참고한다.
 
 ---
 

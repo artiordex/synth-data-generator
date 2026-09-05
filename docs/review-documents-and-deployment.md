@@ -113,8 +113,8 @@ Dockerfile + render.yaml    Render 배포 진입점
   짧은 표준 파일명 3개를 기준으로 모을 수 있다. 루트에도 사본을 둘 필요는 없다.
 - `.venv`, `.uv`, `node_modules`, `__pycache__`, `.pytest_cache`, `apps/web/dist`:
   생성물/캐시다. 소스 관리·배포 이미지에 포함하지 않는다. 환경은 한 곳만 사용한다.
-- `infra/docker`, `infra/nginx`, `docker-compose.yml`: 로컬 API/웹 분리 실행용이다.
-  Render의 통합 Docker 배포에는 사용하지 않는다. 분리 실행을 폐기할 때 정리 가능하다.
+- `docker-compose.yml`과 `infra/nginx`: 사내망 Docker 운영에 사용한다. Nginx가
+  80번 포트에서 현재 통합 서버로 요청을 전달한다. 이전 API/웹 분리용 Dockerfile은 제거했다.
 - `docs/reference/합성데이터_수행_코드.ipynb`: 노트북 구현 근거이며 실행·배포에는 사용하지 않는다.
   실험용 샘플 데이터는 저장소에서 제거했다.
 - `apps/web/src/types/index.ts`와 `packages/contracts/src/index.ts`: 중복 타입 정의다.
