@@ -155,14 +155,14 @@ export default function App() {
                 setActiveJob(null);
                 setErrorMsg(null);
               }}
-              className="group flex min-w-0 flex-1 items-center gap-3 text-left focus:outline-none cursor-pointer"
+              className="group flex min-w-0 shrink-0 sm:flex-1 items-center gap-3 text-left focus:outline-none cursor-pointer"
               title="메인 화면으로 이동"
             >
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-fg shadow-xs transition-transform group-hover:scale-105">
                 <Layers className="h-6 w-6" />
               </div>
-              <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                <h1 className="truncate text-lg sm:text-2xl font-black tracking-tight text-fg transition-colors group-hover:text-accent leading-none">
+              <div className="hidden sm:flex min-w-0 items-center gap-2.5 sm:gap-3">
+                <h1 className="truncate text-xl sm:text-2xl font-black tracking-tight text-fg transition-colors group-hover:text-accent leading-none">
                   사내 데이터 생성기
                 </h1>
                 <span className="hidden md:inline-block rounded-md border border-subtle bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-fg-muted whitespace-nowrap">
