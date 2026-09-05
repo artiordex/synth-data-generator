@@ -34,6 +34,7 @@ def build_auto_assessment(
     anonymeter_report: dict[str, Any] | None = None,
     correlation_report: dict[str, Any] | None = None,
     guardrail_report: dict[str, Any] | None = None,
+    quality_threshold: float = 0.8,
 ) -> dict[str, Any]:
     anon_metrics = anonymeter_report or {}
     singling_risk = anon_metrics.get("singling_out_risk")
@@ -49,26 +50,81 @@ def build_auto_assessment(
     gr_metrics = guardrail_report or {}
     mem_risk = gr_metrics.get('memorization_risk_rate')
     dcr_ok = not plan.numerical or (mem_risk is not None and math.isfinite(mem_risk) and mem_risk <= .05)
+    distribution_quality = max(0.0, min(1.0, 1.0 - jsd_mean)) if math.isfinite(jsd_mean) else None
+    quality_threshold = max(0.0, min(1.0, float(quality_threshold)))
+    distribution_ok = distribution_quality is not None and distribution_quality >= quality_threshold
 
     score = 100
     for risk in risks:
         if risk is not None and risk > 0.05: score -= 15
-    if jsd_mean > 0.05: score -= 15
+    if not distribution_ok: score -= 15
     if corr_score < 0.70: score -= 10
     if mem_risk is not None and mem_risk > 0.05: score -= 10
     score = max(score, 0)
 
     privacy_ok = measured and all(value <= .05 for value in risks) and dcr_ok
-    quality_ok = math.isfinite(jsd_mean) and jsd_mean <= .05 and corr_score >= .70
+    quality_ok = distribution_ok and corr_score >= .70
     overall_status = 'PASS' if privacy_ok and quality_ok else ('FAIL' if measured and score < 60 else 'REVIEW')
+    issues: list[dict[str, Any]] = []
+    if not distribution_ok:
+        issues.append({
+            "code": "QUALITY_THRESHOLD",
+            "label": "분포 품질 기준 미달",
+            "severity": "review",
+            "detail": f"분포 품질 점수 {distribution_quality * 100:.1f}%가 기준 {quality_threshold * 100:.1f}%보다 낮습니다." if distribution_quality is not None else "분포 품질 점수를 계산하지 못했습니다.",
+            "value": distribution_quality,
+            "threshold": quality_threshold,
+        })
+    if corr_score < 0.70:
+        issues.append({
+            "code": "CORRELATION_LOW",
+            "label": "상관관계 보존율 낮음",
+            "severity": "review",
+            "detail": f"2D 상관관계 점수 {corr_score * 100:.1f}%가 기준 70.0%보다 낮습니다.",
+            "value": corr_score,
+            "threshold": 0.70,
+        })
+    if not measured:
+        errors = anon_metrics.get('errors') or {}
+        reason = anon_metrics.get('reason') or "안전성 평가가 완료되지 않았습니다."
+        issues.append({
+            "code": "ANONYMETER_UNMEASURED",
+            "label": "Anonymeter 평가 미측정/실패",
+            "severity": "review",
+            "detail": reason if not errors else f"{reason}: {', '.join(sorted(errors))}",
+            "errors": errors,
+        })
+    else:
+        for name, risk in (("singling_out", singling_risk), ("linkability", link_risk), ("inference", inf_risk)):
+            if risk is not None and risk > 0.05:
+                issues.append({
+                    "code": f"ANONYMETER_{name.upper()}",
+                    "label": f"Anonymeter {name} 위험도 검토",
+                    "severity": "review",
+                    "detail": f"{name} 위험도 {risk * 100:.2f}%가 기준 5.00%보다 높습니다.",
+                    "value": risk,
+                    "threshold": 0.05,
+                })
+    if plan.numerical and not dcr_ok:
+        issues.append({
+            "code": "DCR_MEMORIZATION",
+            "label": "DCR 근접 레코드 검토",
+            "severity": "review",
+            "detail": f"수치형 DCR 기억 위험도 {mem_risk * 100:.2f}%가 기준 5.00%보다 높습니다." if mem_risk is not None and math.isfinite(mem_risk) else "수치형 DCR 기억 위험도를 측정하지 못했습니다.",
+            "value": mem_risk,
+            "threshold": 0.05,
+        })
 
     return {
         "overall_status": overall_status,
         "overall_label": status_label(overall_status),
         "score": score if measured and (not plan.numerical or mem_risk is not None) else None,
+        "issues": issues,
         "summary": {
             "privacy_status": "통과" if privacy_ok else "검토 필요",
-            "quality_status": "통과" if jsd_mean <= 0.05 and corr_score >= 0.70 else "검토 필요",
+            "quality_status": "통과" if quality_ok else "검토 필요",
+            "quality_threshold": quality_threshold,
+            "distribution_quality": distribution_quality,
             "anonymeter_singling_out": singling_risk,
             "anonymeter_linkability": link_risk,
             "anonymeter_inference": inf_risk,
@@ -243,6 +299,7 @@ def evaluate(
     qbins: int = 20,
     run_anonymeter_eval: bool = True,
     control: pd.DataFrame | None = None,
+    quality_threshold: float = 0.8,
 ) -> dict[str, Any]:
     comparable_columns = [column for column in plan.categorical + plan.numerical if column in original.columns and column in synthetic.columns]
     original_eval = original[comparable_columns].copy()
@@ -280,7 +337,8 @@ def evaluate(
 
     assessment = build_auto_assessment(
         original_eval, synthetic_eval, plan, jsd_mean, single_out_rate,
-        pii_rescan_candidates, anonymeter_metrics, correlation_metrics, dcr_metrics
+        pii_rescan_candidates, anonymeter_metrics, correlation_metrics, dcr_metrics,
+        quality_threshold=quality_threshold,
     )
 
     return {

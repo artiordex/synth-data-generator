@@ -16,3 +16,11 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

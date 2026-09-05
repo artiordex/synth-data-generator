@@ -107,6 +107,36 @@ export interface AuditLogEntry {
   created_at: string;
 }
 
+export interface AssessmentIssue {
+  code: string;
+  label: string;
+  severity?: "pass" | "review" | "fail" | string;
+  detail: string;
+  value?: number | null;
+  threshold?: number | null;
+  errors?: Record<string, string>;
+}
+
+export interface JobAssessmentReport {
+  job_id: string;
+  assessment: {
+    overall_status?: string;
+    overall_label?: string;
+    score?: number | null;
+    grade?: string | null;
+    passed?: boolean;
+    recommendation?: string;
+    note?: string;
+    issues?: AssessmentIssue[];
+    summary?: Record<string, any>;
+  } | null;
+  quality_score?: number | null;
+  safety?: Record<string, any>;
+  utility?: Record<string, any>;
+  guardrails?: Record<string, any>;
+  config?: Record<string, any>;
+}
+
 export interface DistributionBin {
   label: string;
   low?: number | null;

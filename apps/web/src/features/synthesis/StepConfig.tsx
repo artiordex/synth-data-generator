@@ -52,12 +52,12 @@ export const StepConfig: React.FC<StepConfigProps> = ({
 }) => {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Left: General Settings */}
         <div className={`p-6 rounded-2xl border space-y-4 shadow-sm ${
           isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
-          <h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+          <h3 className={`flex items-center gap-2 break-keep text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
             <Sliders className="w-4 h-4 text-sky-500" />
             프로젝트 및 합성 대상 정보
           </h3>
@@ -116,7 +116,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
         <div className={`p-6 rounded-2xl border space-y-4 shadow-sm ${
           isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
-          <h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+          <h3 className={`flex items-center gap-2 break-keep text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
             <Cpu className="w-4 h-4 text-sky-500" />
             생성 모델 & 차분 프라이버시(DP)
           </h3>
@@ -124,7 +124,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
           {/* Model Selector */}
           <div>
             <label className={`block text-xs font-semibold mb-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>AI 합성 엔진 선택</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               {[
                 { id: 'statistical', label: '통계 샘플러', desc: '빠른 컬럼별 추출 · 컬럼 간 관계 학습 없음' },
                 { id: 'gaussian_copula', label: '가우시안 코퓰라', desc: '상관관계 보존 준모수 모델' },
@@ -135,7 +135,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                   key={m.id}
                   type="button"
                   onClick={() => setModelType(m.id as any)}
-                  className={`p-3 rounded-xl border text-left transition-all ${
+                  className={`min-h-[86px] rounded-xl border p-3 text-left transition-all ${
                     modelType === m.id 
                       ? isDarkMode
                         ? 'bg-sky-950/60 border-sky-500 text-white shadow'
@@ -145,8 +145,8 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
                   }`}
                 >
-                  <div className="text-xs font-bold">{m.label}</div>
-                  <div className={`text-[10px] mt-0.5 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{m.desc}</div>
+                  <div className="break-keep text-xs font-bold">{m.label}</div>
+                  <div className={`mt-0.5 break-keep text-[10px] leading-snug ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{m.desc}</div>
                 </button>
               ))}
             </div>
@@ -154,8 +154,8 @@ export const StepConfig: React.FC<StepConfigProps> = ({
 
           {/* Differential Privacy Toggle */}
           <div className={`pt-2 border-t space-y-3 ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <div className={`text-xs font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>차분 프라이버시 (Laplace DP) 적용</div>
                 <div className={`text-[10px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>수학적 라플라스 노이즈로 엄격한 개인정보 차단</div>
               </div>
@@ -197,7 +197,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
       <div className={`p-6 rounded-2xl border space-y-4 ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
         <h3 className="font-bold text-sm">심의자료 한글 문서 입력</h3>
         <p className="text-xs">데이터 규모·전체 항목·결측 현황·처리방법·측정결과는 자동 입력됩니다. 아래 내용은 문서에 함께 반영되며, 미입력 사항은 자동 분석 또는 담당자 확인 필요로 표시됩니다.</p>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {[
             ['dataset_name', '데이터명', '비워두면 파일명 사용'],
             ['special_notes', '특이사항', '희소 항목, 수집상 유의사항 등'],
@@ -217,7 +217,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
 
       <AdvancedSynthesisSettings options={synthesisOptions} onChange={setSynthesisOptions} profile={profile} isDarkMode={isDarkMode} />
       {/* Navigation Button */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           onClick={() => setStep(2)}
           className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${
@@ -230,7 +230,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
         </button>
         <button
           onClick={handleStartSynthesis}
-          className="px-8 py-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-sm font-bold text-white transition-all shadow-lg shadow-sky-600/30"
+          className="rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-sky-600/30 transition-all hover:from-sky-500 hover:to-indigo-500 sm:px-8"
         >
            실시간 합성 및 심의 패키지 파이프라인 가동
         </button>

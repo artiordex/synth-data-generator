@@ -1,18 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, Upload, Download, Table, RefreshCw, 
-  CheckCircle2, AlertCircle, FileText, ArrowRight, Eye, ShieldAlert,
-  History, Clock
+import React, { useState } from 'react';
+import {
+  ShieldCheck, Upload, Download, RefreshCw,
+  CheckCircle2, AlertCircle, FileText,
 } from 'lucide-react';
-import { uploadDataset, getDatasetProfile, pseudonymizeDataset, getDownloadUrl, getPseudonymHistory } from '../../services/api';
-import { DatasetProfile, ColumnInfo } from '../../types';
+import { uploadDataset, getDatasetProfile, pseudonymizeDataset, getDownloadUrl } from '../../services/api';
+import { DatasetProfile } from '../../types';
 
 interface Props {
   isDarkMode: boolean;
-  onOpenHistory?: () => void;
 }
 
-export const PseudonymStudio: React.FC<Props> = ({ isDarkMode, onOpenHistory }) => {
+export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
   const [file, setFile] = useState<File | null>(null);
   const [uploadedFilename, setUploadedFilename] = useState<string>('');
   const [profile, setProfile] = useState<DatasetProfile | null>(null);
@@ -23,22 +21,6 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode, onOpenHistory }) 
   // Column PII Actions: { [colName]: "faker" | "mask" | "hash" | "drop" }
   const [piiActions, setPiiActions] = useState<Record<string, string>>({});
   const [exportFormat, setExportFormat] = useState<string>('csv');
-
-  // History state
-  const [historyList, setHistoryList] = useState<any[]>([]);
-
-  const loadHistory = async () => {
-    try {
-      const hist = await getPseudonymHistory();
-      setHistoryList(hist);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    loadHistory();
-  }, []);
 
   // Result state
   const [result, setResult] = useState<{
@@ -91,7 +73,6 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode, onOpenHistory }) 
         export_format: exportFormat
       });
       setResult(res);
-      loadHistory();
     } catch (err: any) {
       setErrorMsg(err.message || '가명화 처리에 실패했습니다.');
     } finally {
@@ -464,139 +445,6 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode, onOpenHistory }) 
         </div>
       )}
 
-      {/* Recent Pseudonymization History Section */}
-      {onOpenHistory && <button onClick={onOpenHistory} className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">가명처리 이력을 통합 작업 이력에서 보기 →</button>}
-      <div className={`p-6 rounded-2xl border transition-colors ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className={`p-2 rounded-xl ${
-              isDarkMode ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-            }`}>
-              <History className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                최근 가명처리 이력
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                  isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
-                }`}>
-                  {historyList.length}건
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                개인정보보호법 제28조의4 가명정보 안전조치의무에 따른 처리 이력 관리대장
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={loadHistory}
-            className={`p-2 rounded-xl transition-colors border ${
-              isDarkMode 
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
-                : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200 shadow-sm'
-            }`}
-            title="이력 새로고침"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-
-        {historyList.length === 0 ? (
-          <div className="text-center py-8 border border-dashed rounded-xl dark:border-slate-800">
-            <Clock className="w-8 h-8 mx-auto text-slate-400 mb-2 opacity-60" />
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">수행된 가명처리 이력이 없습니다.</p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">상단에서 데이터셋을 업로드하고 가명화를 실행하시면 자동으로 이력이 기록됩니다.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border dark:border-slate-800">
-            <table className="w-full text-left text-xs">
-              <thead className={`border-b ${isDarkMode ? 'bg-slate-950/80 text-slate-300 border-slate-800' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-                <tr>
-                  <th className="py-2.5 px-3 font-semibold">처리 일시</th>
-                  <th className="py-2.5 px-3 font-semibold">원본 파일</th>
-                  <th className="py-2.5 px-3 font-semibold">산출 파일명</th>
-                  <th className="py-2.5 px-3 font-semibold">적용 PII 규칙</th>
-                  <th className="py-2.5 px-3 font-semibold">행 수</th>
-                  <th className="py-2.5 px-3 font-semibold">포맷</th>
-                  <th className="py-2.5 px-3 font-semibold text-right">산출물 다운로드</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {historyList.map((h, idx) => {
-                  const summary = h.pii_summary || {};
-                  const actionsCount: Record<string, number> = {};
-                  Object.values(summary).forEach((v: any) => {
-                    const act = v.action || 'faker';
-                    actionsCount[act] = (actionsCount[act] || 0) + 1;
-                  });
-
-                  return (
-                    <tr key={h.id || idx} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50/80'}`}>
-                      <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        {h.created_at}
-                      </td>
-                      <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-white max-w-[140px] truncate" title={h.original_file}>
-                        {h.original_file}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300 max-w-[180px] truncate" title={h.file_name}>
-                        {h.file_name}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex flex-wrap items-center gap-1">
-                          {actionsCount['faker'] && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-                              가명 {actionsCount['faker']}
-                            </span>
-                          )}
-                          {actionsCount['mask'] && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
-                              마스킹 {actionsCount['mask']}
-                            </span>
-                          )}
-                          {actionsCount['hash'] && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
-                              해시 {actionsCount['hash']}
-                            </span>
-                          )}
-                          {actionsCount['drop'] && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60">
-                              삭제 {actionsCount['drop']}
-                            </span>
-                          )}
-                          {Object.keys(actionsCount).length === 0 && (
-                            <span className="text-[11px] text-slate-400">-</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-300">
-                        {h.rows_count ? Number(h.rows_count).toLocaleString() : '-'}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase">
-                          {h.export_format || 'CSV'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <a
-                          href={getDownloadUrl(h.download_url)}
-                          download={h.file_name}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors shadow-sm"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>다운로드</span>
-                        </a>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   );
 };

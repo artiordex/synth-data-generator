@@ -20,6 +20,7 @@ dist-ssr/
 *.local
 .npm
 .eslintcache
+.wrangler/
 
 # Storage & Runtime Data (Enterprise Isolation)
 storage/uploads/*
@@ -45,6 +46,7 @@ flowhunt_*
 # Environment & Secrets
 .env
 .env.local
+.cloudflared/
 *.pem
 *.key
 

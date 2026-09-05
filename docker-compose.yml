@@ -1,12 +1,11 @@
-version: '3.8'
-
 services:
   # 1. 통합 엔터프라이즈 합성데이터 플랫폼 (웹 UI + REST API + HWPX 생성기)
-  app:
+  synth-data-generator:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: synth-data-app
+    image: synth-data-generator:latest
+    container_name: synth-data-generator
     ports:
       - "8000:8000"
     environment:
@@ -24,10 +23,10 @@ services:
   # 외부 주소 확인: docker compose logs -f tunnel
   tunnel:
     image: cloudflare/cloudflared:latest
-    container_name: synth-data-tunnel
+    container_name: synth-data-generator-tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://app:8000
+    command: tunnel --no-autoupdate --url http://synth-data-generator:8000
     depends_on:
-      - app
+      - synth-data-generator
     profiles:
       - tunnel

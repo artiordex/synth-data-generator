@@ -21,6 +21,7 @@ class SynthesisConfig:
     dp_enabled: bool = False
     dp_epsilon: float = 1.0
     dp_delta: float = 1e-5
+    quality_threshold: float = 0.8
     seed: int = 42
     sampling_batch_size: int = 800
     max_sampling_attempts: int = 10
@@ -35,6 +36,8 @@ class SynthesisConfig:
                 raise ValueError(f"{name} must be positive")
         if not 0 <= self.seed < 2**32:
             raise ValueError("seed must be between 0 and 2**32 - 1")
+        if not 0 <= self.quality_threshold <= 1:
+            raise ValueError("quality_threshold must be between 0 and 1")
 
 @dataclass
 class TableRelationship:
@@ -42,4 +45,3 @@ class TableRelationship:
     child_table: str
     parent_key: str
     child_key: str
-

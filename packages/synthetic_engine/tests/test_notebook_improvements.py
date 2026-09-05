@@ -36,6 +36,29 @@ def test_no_control_or_small_data_is_unmeasured_not_safe():
         assert assessment['overall_status'] == 'REVIEW' and assessment['score'] is None
 
 
+def test_quality_threshold_controls_distribution_pass_status():
+    frame = pd.DataFrame({'x': range(30), 'y': range(30)})
+    plan = ColumnPlan([], list(frame), [], {}, {})
+    anonymeter = {
+        'evaluated_with_anonymeter': True,
+        'errors': {},
+        'singling_out_risk': 0.01,
+        'linkability_risk': 0.01,
+        'inference_risk': 0.01,
+    }
+    correlation = {'overall_correlation_score': 0.9}
+    dcr = {'memorization_risk_rate': 0.01}
+
+    relaxed = build_auto_assessment(
+        frame, frame, plan, .15, 0, {}, anonymeter, correlation, dcr, quality_threshold=.8)
+    strict = build_auto_assessment(
+        frame, frame, plan, .15, 0, {}, anonymeter, correlation, dcr, quality_threshold=.9)
+
+    assert relaxed['overall_status'] == 'PASS'
+    assert strict['overall_status'] == 'REVIEW'
+    assert strict['issues'][0]['code'] == 'QUALITY_THRESHOLD'
+
+
 def test_evaluator_failure_does_not_become_zero_risk(monkeypatch):
     import anonymeter.evaluators as evaluators
     class Failed:

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Sparkles, Zap, Plus, Trash2, Download, Table, Layers, 
-  CheckCircle2, FileText, Database, RefreshCw, ChevronRight, Search, X,
-  History, Clock
+  Sparkles, Zap, Plus, Trash2, Download, Table,
+  CheckCircle2, Database, RefreshCw, ChevronRight, Search, X,
 } from 'lucide-react';
-import { getDummyDomains, getDummyTemplates, inferDummyColumn, generateDummyData, getDummyHistory, getDownloadUrl } from '../../services/api';
+import { getDummyDomains, getDummyTemplates, inferDummyColumn, generateDummyData } from '../../services/api';
 
 interface ColumnItem {
   id: string;
@@ -18,10 +17,9 @@ interface ColumnItem {
 
 interface Props {
   isDarkMode: boolean;
-  onOpenHistory?: () => void;
 }
 
-export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode, onOpenHistory }) => {
+export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
   const [templates, setTemplates] = useState<any[]>([]);
   const [allDomains, setAllDomains] = useState<any[]>([]);
   const [groupedDomains, setGroupedDomains] = useState<Record<string, any[]>>({});
@@ -51,27 +49,14 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode, onOpenHistory }
   const [pickerSearch, setPickerSearch] = useState<string>('');
   const [pickerCategory, setPickerCategory] = useState<string>('전체');
 
-  // History state
-  const [dummyHistory, setDummyHistory] = useState<any[]>([]);
-
-  const loadHistory = async () => {
-    try {
-      const hist = await getDummyHistory();
-      setDummyHistory(hist);
-    } catch (e) {
-      console.error('더미 이력 로드 오류:', e);
-    }
-  };
-
   useEffect(() => {
     async function initData() {
       try {
-        const [domRes, tmplRes, hist] = await Promise.all([getDummyDomains(), getDummyTemplates(), getDummyHistory()]);
+        const [domRes, tmplRes] = await Promise.all([getDummyDomains(), getDummyTemplates()]);
         setAllDomains(domRes.domains);
         setGroupedDomains(domRes.grouped_domains);
         setCategories(['전체', ...domRes.categories]);
         setTemplates(tmplRes.templates);
-        setDummyHistory(hist);
       } catch (e) {
         console.error('도메인 데이터 로드 오류:', e);
       }
@@ -193,7 +178,6 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode, onOpenHistory }
       };
       const res = await generateDummyData(payload);
       setGenerationResult(res);
-      loadHistory();
     } catch (err: any) {
       setErrorMsg(err.message || '더미 데이터 생성 실패');
     } finally {
@@ -517,107 +501,6 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode, onOpenHistory }
           </div>
         </div>
       )}
-
-      {/* Recent Dummy Generation History Section */}
-      {onOpenHistory && <button onClick={onOpenHistory} className="text-sm font-semibold text-amber-600 dark:text-amber-400">더미데이터 생성 이력을 통합 작업 이력에서 보기 →</button>}
-      <div className={`p-6 rounded-2xl border transition-colors ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className={`p-2 rounded-xl ${
-              isDarkMode ? 'bg-amber-950/60 text-amber-400 border border-amber-800/50' : 'bg-amber-50 text-amber-700 border border-amber-200'
-            }`}>
-              <History className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                최근 더미데이터 생성 이력
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                  isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
-                }`}>
-                  {dummyHistory.length}건
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                개발 및 테스트용 목 데이터(SQL, CSV, Excel, JSON) 최근 생성 기록
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={loadHistory}
-            className={`p-2 rounded-xl transition-colors border ${
-              isDarkMode 
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
-                : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200 shadow-sm'
-            }`}
-            title="이력 새로고침"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-
-        {dummyHistory.length === 0 ? (
-          <div className="text-center py-8 border border-dashed rounded-xl dark:border-slate-800">
-            <Clock className="w-8 h-8 mx-auto text-slate-400 mb-2 opacity-60" />
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">수행된 더미데이터 생성 이력이 없습니다.</p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">상단에서 스키마 컬럼을 구성하고 생성을 실행하시면 자동으로 이력이 기록됩니다.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border dark:border-slate-800">
-            <table className="w-full text-left text-xs">
-              <thead className={`border-b ${isDarkMode ? 'bg-slate-950/80 text-slate-300 border-slate-800' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-                <tr>
-                  <th className="py-2.5 px-3 font-semibold">생성 일시</th>
-                  <th className="py-2.5 px-3 font-semibold">테이블명</th>
-                  <th className="py-2.5 px-3 font-semibold">산출 파일명</th>
-                  <th className="py-2.5 px-3 font-semibold">컬럼 수</th>
-                  <th className="py-2.5 px-3 font-semibold">생성 건수</th>
-                  <th className="py-2.5 px-3 font-semibold">포맷</th>
-                  <th className="py-2.5 px-3 font-semibold text-right">산출물 다운로드</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {dummyHistory.map((h, idx) => (
-                  <tr key={h.id || idx} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50/80'}`}>
-                    <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                      {h.created_at}
-                    </td>
-                    <td className="py-2.5 px-3 font-bold text-sky-600 dark:text-sky-400">
-                      {h.table_name}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300 max-w-[180px] truncate" title={h.file_name}>
-                      {h.file_name}
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
-                      {h.columns_count ? `${h.columns_count}개 컬럼` : '-'}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono font-semibold text-amber-600 dark:text-amber-400">
-                      {h.rows_generated ? `${Number(h.rows_generated).toLocaleString()}건` : '-'}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase">
-                        {h.export_format || 'CSV'}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <a
-                        href={getDownloadUrl(h.download_url)}
-                        download={h.file_name}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white transition-colors shadow-sm"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>다운로드</span>
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
 
       {/* 5. Domain Picker Modal */}
       {isPickerOpen && (

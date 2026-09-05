@@ -121,7 +121,8 @@ class SynthesisService:
                 max_sampling_attempts=req.max_sampling_attempts,
                 enable_gpu=req.enable_gpu,
                 dp_enabled=req.dp_enabled,
-                dp_epsilon=req.eps
+                dp_epsilon=req.eps,
+                quality_threshold=req.quality_threshold
             )
 
             pipeline = SyntheticPipeline(config=config)

@@ -16,7 +16,7 @@ export const StepProfile: React.FC<StepProfileProps> = ({
   return (
     <div className="space-y-6">
       {/* Summary Bar */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
           <div className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>파일명</div>
           <div className={`text-sm font-bold truncate mt-0.5 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{profile.filename}</div>
@@ -39,14 +39,14 @@ export const StepProfile: React.FC<StepProfileProps> = ({
       <div className={`border rounded-2xl overflow-hidden shadow-sm ${
         isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
-        <div className={`px-6 py-4 border-b flex justify-between items-center ${
+        <div className={`flex flex-col gap-2 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 ${
           isDarkMode ? 'border-slate-800' : 'border-slate-200 bg-slate-50/50'
         }`}>
-          <h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+          <h3 className={`flex items-center gap-2 break-keep text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
             <Database className="w-4 h-4 text-sky-500" />
             컬럼 스키마 및 가명화 변환 계획
           </h3>
-          <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>한국형 Faker 10종 고유 식별자 일관 매핑</span>
+          <span className={`break-keep text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>한국형 Faker 10종 고유 식별자 일관 매핑</span>
         </div>
         <div className="overflow-x-auto max-h-80">
           <table className="w-full text-left text-xs">

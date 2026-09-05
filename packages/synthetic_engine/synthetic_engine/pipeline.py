@@ -133,11 +133,29 @@ class SyntheticPipeline:
         synth_hash = calculate_sha256(synthetic)
 
         report_progress(88, "다차원 품질(JSD, 2D 상관관계) 및 안전성(Anonymeter, DCR) 종합 평가 중...")
-        evaluation = evaluate(training, synthetic, eval_plan, qbins=20, control=control)
+        evaluation = evaluate(
+            training,
+            synthetic,
+            eval_plan,
+            qbins=20,
+            control=control,
+            quality_threshold=self.config.quality_threshold,
+        )
         if duplicate_report.get('final_exact_duplicates', 0):
             evaluation['assessment']['overall_status'] = 'REVIEW'
             evaluation['assessment']['overall_label'] = '검토 필요'
             evaluation['assessment']['note'] += ' 원본의 빈번한 조합과 일치하는 생성 행이 포함되어 있습니다.'
+            evaluation['assessment'].setdefault('issues', []).append({
+                "code": "FINAL_EXACT_DUPLICATES",
+                "label": "원본 조합 일치 레코드 감지",
+                "severity": "review",
+                "detail": (
+                    f"생성 결과 {duplicate_report.get('final_exact_duplicates')}건이 "
+                    "원본의 빈번한 값 조합과 일치합니다. 범주형 조합이 적은 데이터에서는 정상 패턴일 수 있어 수동 검토가 필요합니다."
+                ),
+                "value": duplicate_report.get('final_exact_duplicate_rate'),
+                "threshold": 0,
+            })
         evaluation['guardrails'] = duplicate_report
 
         report_progress(94, "심의위원회 한글(HWPX) 3종 문서 생성 및 패키징 중...")

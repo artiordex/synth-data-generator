@@ -62,3 +62,34 @@ async def get_job_distributions(job_id: str, repo: JobRepository = Depends(get_j
 
     return {"job_id": job_id, "columns": []}
 
+@router.get("/{job_id}/assessment")
+async def get_job_assessment(job_id: str, repo: JobRepository = Depends(get_job_repo)):
+    job = repo.get_by_id(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="작업을 찾을 수 없습니다.")
+
+    review_folder = job.package_folders.get("심의위원회 심의자료") if job.package_folders else None
+    if not review_folder:
+        return {"job_id": job_id, "assessment": None}
+
+    rev_path = Path(review_folder)
+    if not rev_path.exists():
+        return {"job_id": job_id, "assessment": None}
+
+    for report_file in rev_path.glob("*evaluation_report.json"):
+        try:
+            with report_file.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            return {
+                "job_id": job_id,
+                "assessment": data.get("auto_assessment") or data.get("assessment"),
+                "quality_score": data.get("quality_score") or data.get("overall_quality"),
+                "safety": data.get("safety", {}),
+                "utility": data.get("utility", {}),
+                "guardrails": data.get("guardrails", {}),
+                "config": data.get("config", {}),
+            }
+        except Exception:
+            pass
+
+    return {"job_id": job_id, "assessment": None}

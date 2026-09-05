@@ -1,4 +1,4 @@
-import { DatasetProfile, JobStatus, SynthesisRequest, AuditLogEntry, ColumnDistribution, BatchStatus, BatchUploadItem } from '../types';
+import { DatasetProfile, JobStatus, SynthesisRequest, AuditLogEntry, ColumnDistribution, BatchStatus, BatchUploadItem, JobAssessmentReport } from '../types';
 
 const BASE_URL = '/api/v1';
 
@@ -143,6 +143,12 @@ export async function getJobDistributions(jobId: string): Promise<{ job_id: stri
   return res.json();
 }
 
+export async function getJobAssessment(jobId: string): Promise<JobAssessmentReport> {
+  const res = await fetch(`${BASE_URL}/jobs/${jobId}/assessment`);
+  if (!res.ok) throw new Error('자동 심의 판정 데이터 조회 실패');
+  return res.json();
+}
+
 export async function pseudonymizeDataset(payload: {
   file_name: string;
   pii_actions: Record<string, string>;
@@ -183,4 +189,3 @@ export async function getJobsList(): Promise<JobStatus[]> {
   if (!res.ok) throw new Error('합성 작업 이력 조회 실패');
   return res.json();
 }
-
