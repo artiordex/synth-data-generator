@@ -24,5 +24,8 @@ dependencies = [
 where = ["src"]
 include = ["synthetic_api*"]
 
+[tool.setuptools.package-data]
+synthetic_api = ["data/*.json"]
+
 [tool.uv.sources]
 synthetic-engine = { workspace = true }

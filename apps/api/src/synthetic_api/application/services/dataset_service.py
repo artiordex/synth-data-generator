@@ -6,8 +6,8 @@ from synthetic_engine.profiling.notebook_presets import notebook_settings
 from pathlib import Path
 from typing import Dict, Any, List
 from synthetic_api.core.config import settings
-from synthetic_api.core.security import calculate_sha256
 from synthetic_engine import (
+    calculate_sha256,
     read_table,
     infer_columns,
     scan_pii_columns
