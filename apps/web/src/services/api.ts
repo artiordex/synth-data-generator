@@ -88,6 +88,7 @@ export async function getAuditLogs(jobId: string): Promise<AuditLogEntry[]> {
 }
 
 export function getDownloadUrl(path: string): string {
+  if (path.startsWith(`${BASE_URL}/files/download`)) return path;
   return `${BASE_URL}/files/download?path=${encodeURIComponent(path)}`;
 }
 
@@ -115,9 +116,10 @@ export async function inferDummyColumn(columnName: string): Promise<{ column_nam
 
 export async function generateDummyData(payload: {
   table_name: string;
-  columns: { name: string; domain_id?: string; rule?: any }[];
+  columns: { name: string; domain_id?: string; rule?: any; primary_key?: boolean; unique?: boolean; nullable?: boolean; constraints?: any }[];
   target_rows: number;
   export_format: string;
+  scenario?: string;
 }): Promise<{
   status: string;
   table_name: string;
@@ -137,6 +139,57 @@ export async function generateDummyData(payload: {
   return res.json();
 }
 
+export async function compareSynthesisModels(fileName: string): Promise<any> {
+  const res = await fetch(`${BASE_URL}/synthesis/compare-models`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_name: fileName, sample_rows: 300 }),
+  });
+  if (!res.ok) throw new Error('모델 비교 실패: ' + await res.text());
+  return res.json();
+}
+
+export async function importDummySchema(sourceType: 'ddl' | 'json-schema' | 'openapi', content: string): Promise<any> {
+  const res = await fetch(`${BASE_URL}/dummy/import-schema`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_type: sourceType, content }),
+  });
+  if (!res.ok) throw new Error('스키마 가져오기 실패: ' + await res.text());
+  return res.json();
+}
+
+export async function generateDummySchema(schemaDefinition: any, targetRows: number, scenario: string): Promise<any> {
+  const res = await fetch(`${BASE_URL}/dummy/generate-schema`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ schema_definition: schemaDefinition, target_rows: targetRows, scenario }),
+  });
+  if (!res.ok) throw new Error('다중 테이블 더미 생성 실패: ' + await res.text());
+  return res.json();
+}
+
+export async function profileRelational(payload: any): Promise<any> {
+  const res = await fetch(`${BASE_URL}/relational/profile`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('관계 분석 실패: ' + await res.text());
+  return res.json();
+}
+
+export async function generateRelational(payload: any): Promise<any> {
+  const res = await fetch(`${BASE_URL}/relational/generate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('관계형 합성 실패: ' + await res.text());
+  return res.json();
+}
+
+export async function generateTimeSeries(payload: any): Promise<any> {
+  const res = await fetch(`${BASE_URL}/time-series/generate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('시계열 합성 실패: ' + await res.text());
+  return res.json();
+}
+
 export async function getJobDistributions(jobId: string): Promise<{ job_id: string; columns: ColumnDistribution[] }> {
   const res = await fetch(`${BASE_URL}/jobs/${jobId}/distributions`);
   if (!res.ok) throw new Error('분포 비교 데이터 조회 실패');
@@ -153,6 +206,10 @@ export async function pseudonymizeDataset(payload: {
   file_name: string;
   pii_actions: Record<string, string>;
   export_format: string;
+  project_id?: string;
+  token_key_version?: string;
+  quasi_identifiers?: string[];
+  sensitive_columns?: string[];
 }): Promise<{
   status: string;
   file_name: string;
@@ -162,6 +219,7 @@ export async function pseudonymizeDataset(payload: {
   summary: Record<string, any>;
   original_preview: Record<string, any>[];
   pseudonymized_preview: Record<string, any>[];
+  privacy_metrics?: Record<string, any>;
 }> {
   const res = await fetch(`${BASE_URL}/datasets/pseudonymize`, {
     method: 'POST',

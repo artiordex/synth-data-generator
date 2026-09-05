@@ -1,5 +1,6 @@
-import React from 'react';
-import { Sliders, Cpu } from 'lucide-react';
+import React, { useState } from 'react';
+import { Sliders, Cpu, RefreshCw } from 'lucide-react';
+import { compareSynthesisModels } from '../../services/api';
 import { DatasetProfile } from '../../types';
 import { AdvancedSynthesisSettings, SynthesisOptions } from './AdvancedSynthesisSettings';
 
@@ -7,6 +8,7 @@ interface StepConfigProps {
   synthesisOptions: SynthesisOptions;
   setSynthesisOptions: (value: SynthesisOptions) => void;
   profile: DatasetProfile | null;
+  fileName: string;
   reviewMetadata: Record<string, string>;
   setReviewMetadata: (value: Record<string, string>) => void;
   isDarkMode: boolean;
@@ -29,7 +31,7 @@ interface StepConfigProps {
 }
 
 export const StepConfig: React.FC<StepConfigProps> = ({
-  synthesisOptions, setSynthesisOptions, profile,
+  synthesisOptions, setSynthesisOptions, profile, fileName,
   reviewMetadata,
   setReviewMetadata,
   isDarkMode,
@@ -50,6 +52,18 @@ export const StepConfig: React.FC<StepConfigProps> = ({
   setStep,
   handleStartSynthesis,
 }) => {
+  const [comparison, setComparison] = useState<any>(null);
+  const [comparing, setComparing] = useState(false);
+  const [compareError, setCompareError] = useState('');
+  const runComparison = async () => {
+    setComparing(true); setCompareError('');
+    try {
+      const result = await compareSynthesisModels(fileName);
+      setComparison(result);
+      if (result.recommended_model) setModelType(result.recommended_model);
+    } catch (e: any) { setCompareError(e.message || '모델 비교 실패'); }
+    finally { setComparing(false); }
+  };
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -150,6 +164,15 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                 </button>
               ))}
             </div>
+            <button type="button" disabled={comparing} onClick={runComparison} className="mt-3 rounded-xl border border-sky-500 px-4 py-2 text-xs font-bold text-sky-600 disabled:opacity-40">
+              {comparing && <RefreshCw className="mr-2 inline h-3.5 w-3.5 animate-spin"/>}4개 모델 축소 학습 비교 및 자동 선택
+            </button>
+            {compareError && <p className="mt-2 text-xs text-rose-500">{compareError}</p>}
+            {comparison && <div className="mt-3 rounded-xl bg-sky-500/10 p-3 text-xs">
+              <div className="font-bold">추천: {comparison.recommended_model?.toUpperCase()}</div>
+              <div className="mt-2 grid grid-cols-2 gap-2">{comparison.leaderboard.map((item: any) => <div key={item.model_type} className="rounded-lg border border-slate-500/20 p-2"><b>{item.model_type.toUpperCase()}</b><br/>{item.score == null ? '실패' : `종합 ${(item.score * 100).toFixed(1)}% · ${item.duration_seconds}초`}</div>)}</div>
+              <p className="mt-2 text-slate-400">{comparison.note}</p>
+            </div>}
           </div>
 
           {/* Differential Privacy Toggle */}

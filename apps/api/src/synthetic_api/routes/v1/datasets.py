@@ -2,12 +2,12 @@ from pathlib import Path
 import uuid
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import pandas as pd
 
 from synthetic_api.application.services.dataset_service import DatasetService
 from synthetic_api.core.config import settings
-from synthetic_engine import read_table, scan_pii_columns, ColumnPlan, apply_pii
+from synthetic_engine import read_table, scan_pii_columns, ColumnPlan, apply_pii, evaluate_klt
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
@@ -15,6 +15,13 @@ class PseudonymizeRequest(BaseModel):
     file_name: str
     pii_actions: Dict[str, str] = {}  # col_name -> "faker" | "mask" | "hash" | "drop"
     export_format: str = "csv"  # csv, xlsx
+    project_id: str = Field(default="default", min_length=1, max_length=100)
+    token_key_version: str = Field(default="v1", min_length=1, max_length=30)
+    quasi_identifiers: list[str] = Field(default_factory=list)
+    sensitive_columns: list[str] = Field(default_factory=list)
+    k_threshold: int = Field(default=5, ge=2, le=100)
+    l_threshold: int = Field(default=2, ge=2, le=100)
+    t_threshold: float = Field(default=0.2, gt=0, le=1)
 
 @router.post("/upload")
 async def upload_dataset(file: UploadFile = File(...)):
@@ -82,7 +89,8 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
     )
 
     try:
-        pseudo_df, summary = apply_pii(raw_df, plan)
+        pseudo_df, summary = apply_pii(
+            raw_df, plan, project_id=req.project_id, key_version=req.token_key_version)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"가명화 처리 실패: {str(e)}")
 
@@ -102,6 +110,9 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
         out_path = pseudo_dir / out_name
         pseudo_df.to_csv(out_path, index=False, encoding="utf-8-sig")
     download_url = f"/api/v1/files/download?path={out_path.as_posix()}"
+    privacy_metrics = evaluate_klt(
+        pseudo_df, req.quasi_identifiers, req.sensitive_columns,
+        k_threshold=req.k_threshold, l_threshold=req.l_threshold, t_threshold=req.t_threshold)
 
     # Record history
     hist_file = pseudo_dir / "pseudonym_history.json"
@@ -123,6 +134,8 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
         "rows_count": len(pseudo_df),
         "columns_count": len(pseudo_df.columns),
         "pii_summary": summary,
+        "privacy_metrics": privacy_metrics,
+        "project_id": req.project_id,
         "export_format": fmt.upper(),
         "download_url": download_url
     }
@@ -143,6 +156,7 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
         "rows_count": len(pseudo_df),
         "columns": list(pseudo_df.columns),
         "summary": summary,
+        "privacy_metrics": privacy_metrics,
         "original_preview": raw_df.head(15).fillna("").to_dict(orient="records"),
         "pseudonymized_preview": pseudo_df.head(15).fillna("").to_dict(orient="records")
     }

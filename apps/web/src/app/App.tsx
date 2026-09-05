@@ -14,6 +14,8 @@ import { StepConfig } from '../features/synthesis/StepConfig';
 import { defaultSynthesisOptions, SynthesisOptions } from '../features/synthesis/AdvancedSynthesisSettings';
 import { StepProgress } from '../features/synthesis/StepProgress';
 import { BatchSynthesisPanel, ACTIVE_BATCH_KEY } from '../features/synthesis/BatchSynthesisPanel';
+import { RelationalSynthesisPanel } from '../features/synthesis/RelationalSynthesisPanel';
+import { TimeSeriesPanel } from '../features/synthesis/TimeSeriesPanel';
 import { StepReport } from '../features/reports/StepReport';
 import { QuickDummyBuilder } from '../features/dummy/QuickDummyBuilder';
 import { PseudonymStudio } from '../features/pseudonym/PseudonymStudio';
@@ -45,6 +47,8 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [historyType, setHistoryType] = useState<HistoryType>('all');
   const [batchViewKey, setBatchViewKey] = useState(0);
+  const [relationalOpen, setRelationalOpen] = useState(false);
+  const [timeSeriesOpen, setTimeSeriesOpen] = useState(false);
 
   // Form Config
   const [departmentName, setDepartmentName] = useState<string>('범용 데이터분석팀');
@@ -305,7 +309,7 @@ export default function App() {
         {activeTab === 'dummy' && (
           <QuickDummyBuilder isDarkMode={isDarkMode} />
         )}
-        {activeTab === 'synthetic' && (batchFiles !== null ? <BatchSynthesisPanel key={batchViewKey} initialFiles={batchFiles}
+        {activeTab === 'synthetic' && (timeSeriesOpen ? <TimeSeriesPanel isDarkMode={isDarkMode} onClose={() => setTimeSeriesOpen(false)} /> : relationalOpen ? <RelationalSynthesisPanel isDarkMode={isDarkMode} onClose={() => setRelationalOpen(false)} /> : batchFiles !== null ? <BatchSynthesisPanel key={batchViewKey} initialFiles={batchFiles}
           isDarkMode={isDarkMode} onClose={() => setBatchFiles(null)} onOpenJob={job => {
             setBatchFiles(null); setActiveJob(job); setStep(5);
           }} /> : (
@@ -383,7 +387,9 @@ export default function App() {
                   handleBatchFiles={setBatchFiles}
                 />
 
-                <button className="text-sky-600 text-sm font-bold" onClick={() => setBatchFiles([])}>파일 일괄 처리</button>
+                <div className="flex flex-wrap gap-5"><button className="text-sky-600 text-sm font-bold" onClick={() => setBatchFiles([])}>파일 일괄 처리</button>
+                  <button className="text-indigo-600 text-sm font-bold" onClick={() => setRelationalOpen(true)}>관계형 다중 테이블 합성</button>
+                  <button className="text-violet-600 text-sm font-bold" onClick={() => setTimeSeriesOpen(true)}>시계열·패널 합성</button></div>
               </div>
             )}
 
@@ -402,6 +408,7 @@ export default function App() {
                 synthesisOptions={synthesisOptions}
                 setSynthesisOptions={setSynthesisOptions}
                 profile={profile}
+                fileName={uploadedFilename}
                 isDarkMode={isDarkMode}
                 departmentName={departmentName}
                 setDepartmentName={setDepartmentName}

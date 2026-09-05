@@ -19,7 +19,8 @@ class DummyDataGenerator:
         random.seed(seed)
         np.random.seed(seed)
 
-    def generate(self, columns: list[dict[str, Any]], num_rows: int = 1000) -> pd.DataFrame:
+    def generate(self, columns: list[dict[str, Any]], num_rows: int = 1000,
+                 scenario: str = "normal") -> pd.DataFrame:
         """Generate a DataFrame based on column definitions and standard domain rules."""
         num_rows = max(1, min(num_rows, 500000))
         data: dict[str, list[Any]] = {}
@@ -39,7 +40,10 @@ class DummyDataGenerator:
             resolved_columns.append({
                 "name": col_name,
                 "domain": domain,
-                "rule": effective_rule
+                "rule": effective_rule,
+                "primary_key": bool(col_def.get("primary_key")),
+                "unique": bool(col_def.get("unique")),
+                "nullable": bool(col_def.get("nullable", True)),
             })
 
         # 2. Fast column-by-column generation
@@ -66,7 +70,50 @@ class DummyDataGenerator:
                 values = rule.get("values", ["A", "B", "C"])
                 col_data[col_name] = np.random.choice(values, size=num_rows)
 
-        return pd.DataFrame(col_data)
+        frame = pd.DataFrame(col_data)
+        for item in resolved_columns:
+            if not (item["primary_key"] or item["unique"]):
+                continue
+            name = item["name"]
+            seen: dict[str, int] = {}
+            unique_values = []
+            for value in frame[name]:
+                key = str(value)
+                occurrence = seen.get(key, 0)
+                seen[key] = occurrence + 1
+                unique_values.append(value if occurrence == 0 else f"{value}-{occurrence + 1}")
+            frame[name] = unique_values
+        return self._apply_scenario(frame, resolved_columns, scenario)
+
+    @staticmethod
+    def _apply_scenario(frame: pd.DataFrame, columns: list[dict[str, Any]], scenario: str) -> pd.DataFrame:
+        """Add deterministic boundary or intentionally invalid rows for test fixtures."""
+        if frame.empty or scenario == "normal":
+            return frame
+        output = frame.copy()
+        if scenario in {"boundary", "mixed"}:
+            for item in columns:
+                name, rule = item["name"], item["rule"]
+                if name not in output:
+                    continue
+                if rule.get("type") == "number_range":
+                    output.at[0, name] = rule.get("min", 0)
+                    if len(output) > 1:
+                        output.at[1, name] = rule.get("max", 1)
+                elif rule.get("type") in {"choice", "pattern", "faker"}:
+                    output.at[0, name] = ""
+        if scenario in {"invalid", "mixed"}:
+            count = max(1, min(len(output), round(len(output) * (1.0 if scenario == "invalid" else 0.05))))
+            for item in columns:
+                name, rule = item["name"], item["rule"]
+                if name not in output:
+                    continue
+                if rule.get("type") == "number_range":
+                    maximum = float(rule.get("max", 1))
+                    output.loc[:count - 1, name] = maximum + max(abs(maximum), 1) + 1
+                else:
+                    output.loc[:count - 1, name] = None
+        return output
 
     @staticmethod
     def to_sql_insert(df: pd.DataFrame, table_name: str = "dummy_table", limit: int = 10000) -> str:

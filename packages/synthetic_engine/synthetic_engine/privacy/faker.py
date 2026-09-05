@@ -6,6 +6,7 @@ from typing import Any
 import pandas as pd
 from faker import Faker
 from ..common.types import ColumnPlan
+from .token_vault import project_token
 
 class ContextAwareFaker:
     @staticmethod
@@ -191,7 +192,8 @@ class ContextAwareFaker:
         if provider == "account": return fake.bban()
         return fake.word()
 
-def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42) -> tuple[pd.DataFrame, dict[str, Any]]:
+def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42,
+              project_id: str = "default", key_version: str = "v1") -> tuple[pd.DataFrame, dict[str, Any]]:
     fake = Faker("ko_KR")
     Faker.seed(seed)
     random.seed(seed)
@@ -212,6 +214,12 @@ def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42) -> tuple[pd.Da
         if action == "hash":
             output[column] = output[column].map(lambda value: None if pd.isna(value) else hashlib.sha256(str(value).encode("utf-8")).hexdigest())
             summary[column] = {"action": "hash"}
+            continue
+        if action == "token":
+            output[column] = output[column].map(
+                lambda value: project_token(value, project_id=project_id, namespace=column, key_version=key_version))
+            summary[column] = {"action": "token", "project_id": project_id,
+                               "key_version": key_version, "consistent_mapping": True}
             continue
         provider = spec.get("faker", "word")
         fake = Faker("ko_KR")

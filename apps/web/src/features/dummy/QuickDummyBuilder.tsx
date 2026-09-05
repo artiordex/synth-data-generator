@@ -3,7 +3,7 @@ import {
   Sparkles, Zap, Plus, Trash2, Download, Table,
   CheckCircle2, Database, RefreshCw, ChevronRight, Search, X,
 } from 'lucide-react';
-import { getDummyDomains, getDummyTemplates, inferDummyColumn, generateDummyData } from '../../services/api';
+import { getDummyDomains, getDummyTemplates, inferDummyColumn, generateDummyData, importDummySchema, generateDummySchema } from '../../services/api';
 
 interface ColumnItem {
   id: string;
@@ -13,6 +13,11 @@ interface ColumnItem {
   category: string;
   source: string;
   sample: string;
+  rule?: any;
+  primary_key?: boolean;
+  unique?: boolean;
+  nullable?: boolean;
+  constraints?: any;
 }
 
 interface Props {
@@ -39,6 +44,11 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
 
   const [targetRows, setTargetRows] = useState<number>(10000);
   const [exportFormat, setExportFormat] = useState<string>('csv');
+  const [scenario, setScenario] = useState<string>('normal');
+  const [schemaType, setSchemaType] = useState<'ddl' | 'json-schema' | 'openapi'>('ddl');
+  const [schemaContent, setSchemaContent] = useState<string>('');
+  const [showSchemaImport, setShowSchemaImport] = useState<boolean>(false);
+  const [importedSchema, setImportedSchema] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generationResult, setGenerationResult] = useState<any | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -165,6 +175,29 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
   };
 
   // Generate data
+  const handleSchemaImport = async () => {
+    if (!schemaContent.trim()) return;
+    setErrorMsg(null);
+    try {
+      const result = await importDummySchema(schemaType, schemaContent);
+      setImportedSchema(result);
+      const table = result.tables[0];
+      setTableName(table.name);
+      setColumns(table.columns.map((column: any, index: number) => ({
+        id: `schema-${index}`, name: column.name, domain_id: '',
+        domain_name: column.data_type + (column.primary_key ? ' · PK' : ''),
+        category: column.nullable ? '선택' : '필수', source: schemaType.toUpperCase(),
+        sample: column.rule?.type || column.data_type, rule: column.rule,
+        primary_key: column.primary_key, unique: column.unique,
+        nullable: column.nullable, constraints: column.constraints,
+      })));
+      setShowSchemaImport(false);
+      setGenerationResult(null);
+    } catch (err: any) {
+      setErrorMsg(err.message || '스키마 가져오기 실패');
+    }
+  };
+
   const handleGenerate = async () => {
     if (columns.length === 0) return;
     setIsGenerating(true);
@@ -172,11 +205,15 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
     try {
       const payload = {
         table_name: tableName,
-        columns: columns.map(c => ({ name: c.name, domain_id: c.domain_id })),
+        columns: columns.map(c => ({ name: c.name, domain_id: c.domain_id || undefined, rule: c.rule,
+          primary_key: c.primary_key, unique: c.unique, nullable: c.nullable, constraints: c.constraints })),
         target_rows: Number(targetRows),
-        export_format: exportFormat
+        export_format: exportFormat,
+        scenario,
       };
-      const res = await generateDummyData(payload);
+      const res = importedSchema?.tables?.length > 1
+        ? await generateDummySchema(importedSchema, Number(targetRows), scenario)
+        : await generateDummyData(payload);
       setGenerationResult(res);
     } catch (err: any) {
       setErrorMsg(err.message || '더미 데이터 생성 실패');
@@ -220,6 +257,20 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
             <div className="text-[11px] text-slate-400 font-medium">표준 컬럼 도메인 지원</div>
           </div>
         </div>
+      </div>
+
+      <div className={`rounded-2xl border p-5 ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+        <div className="flex items-center justify-between">
+          <div><div className="text-sm font-bold">DDL · JSON Schema · OpenAPI 가져오기</div>
+            <div className="text-xs text-slate-400">스키마를 붙여 넣으면 컬럼 타입과 PK·필수·범위 규칙을 자동 구성합니다.</div></div>
+          <button onClick={() => setShowSchemaImport(!showSchemaImport)} className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white">{showSchemaImport ? '닫기' : '스키마 가져오기'}</button>
+        </div>
+        {showSchemaImport && <div className="mt-4 space-y-3">
+          <div className="flex gap-2">{(['ddl', 'json-schema', 'openapi'] as const).map(type => <button key={type} onClick={() => setSchemaType(type)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${schemaType === type ? 'border-indigo-500 bg-indigo-500/10 text-indigo-500' : 'border-slate-300 dark:border-slate-700'}`}>{type.toUpperCase()}</button>)}</div>
+          <textarea value={schemaContent} onChange={e => setSchemaContent(e.target.value)} rows={9} placeholder="CREATE TABLE ...; 또는 JSON 문서를 붙여 넣으세요."
+            className={`w-full rounded-xl border p-3 font-mono text-xs ${isDarkMode ? 'border-slate-700 bg-slate-950' : 'border-slate-300 bg-slate-50'}`} />
+          <button onClick={handleSchemaImport} className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white">분석하여 컬럼에 적용</button>
+        </div>}
       </div>
 
       {/* 1. Template Presets */}
@@ -407,6 +458,14 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className={`block text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>테스트 시나리오</label>
+            <select value={scenario} onChange={e => setScenario(e.target.value)} className={`rounded-xl border px-3 py-2 text-xs font-bold ${isDarkMode ? 'border-slate-700 bg-slate-950' : 'border-slate-300 bg-white'}`}>
+              <option value="normal">정상 데이터</option><option value="boundary">경계값 포함</option>
+              <option value="invalid">오류 데이터</option><option value="mixed">정상 95% + 오류 5%</option>
+            </select>
           </div>
 
           {/* Generate button */}

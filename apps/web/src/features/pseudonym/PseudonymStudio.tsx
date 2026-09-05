@@ -21,6 +21,9 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
   // Column PII Actions: { [colName]: "faker" | "mask" | "hash" | "drop" }
   const [piiActions, setPiiActions] = useState<Record<string, string>>({});
   const [exportFormat, setExportFormat] = useState<string>('csv');
+  const [projectId, setProjectId] = useState<string>('default-project');
+  const [quasiIdentifiers, setQuasiIdentifiers] = useState<string[]>([]);
+  const [sensitiveColumns, setSensitiveColumns] = useState<string[]>([]);
 
   // Result state
   const [result, setResult] = useState<{
@@ -31,6 +34,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
     summary: Record<string, any>;
     original_preview: Record<string, any>[];
     pseudonymized_preview: Record<string, any>[];
+    privacy_metrics?: Record<string, any>;
   } | null>(null);
 
   const [previewTab, setPreviewTab] = useState<'after' | 'before'>('after');
@@ -70,7 +74,10 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
       const res = await pseudonymizeDataset({
         file_name: uploadedFilename,
         pii_actions: piiActions,
-        export_format: exportFormat
+        export_format: exportFormat,
+        project_id: projectId,
+        quasi_identifiers: quasiIdentifiers,
+        sensitive_columns: sensitiveColumns,
       });
       setResult(res);
     } catch (err: any) {
@@ -298,6 +305,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                               }`}
                             >
                               <option value="faker">가명 치환 (한국형 Faker 가상값)</option>
+                              <option value="token">프로젝트 일관 토큰 (HMAC)</option>
                               <option value="mask">마스킹 (*** 대체)</option>
                               <option value="hash">일방향 암호화 (SHA-256 해시)</option>
                               <option value="drop">컬럼 삭제 (완전 제거)</option>
@@ -309,6 +317,24 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className={`grid gap-4 rounded-xl border p-4 md:grid-cols-3 ${isDarkMode ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200 bg-slate-50'}`}>
+              <label className="text-xs font-bold">프로젝트 토큰 영역
+                <input value={projectId} onChange={e => setProjectId(e.target.value)}
+                  className={`mt-1 w-full rounded-lg border px-3 py-2 font-mono ${isDarkMode ? 'border-slate-700 bg-slate-950' : 'border-slate-300 bg-white'}`} />
+                <span className="mt-1 block font-normal text-slate-400">같은 프로젝트·컬럼·원본값은 여러 파일에서도 같은 토큰이 됩니다.</span>
+              </label>
+              <div className="text-xs"><div className="mb-2 font-bold">준식별자 (k 평가)</div>
+                <div className="max-h-28 space-y-1 overflow-auto">{profile.columns.map(col => <label key={col.name} className="flex gap-2">
+                  <input type="checkbox" checked={quasiIdentifiers.includes(col.name)} onChange={e => setQuasiIdentifiers(e.target.checked ? [...quasiIdentifiers, col.name] : quasiIdentifiers.filter(x => x !== col.name))} />{col.name}
+                </label>)}</div>
+              </div>
+              <div className="text-xs"><div className="mb-2 font-bold">민감정보 (l/t 평가)</div>
+                <div className="max-h-28 space-y-1 overflow-auto">{profile.columns.map(col => <label key={col.name} className="flex gap-2">
+                  <input type="checkbox" checked={sensitiveColumns.includes(col.name)} onChange={e => setSensitiveColumns(e.target.checked ? [...sensitiveColumns, col.name] : sensitiveColumns.filter(x => x !== col.name))} />{col.name}
+                </label>)}</div>
+              </div>
             </div>
 
             {/* Execution Controls */}
@@ -355,7 +381,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
           </div>
 
           {/* Step 3: Result & Preview Grid */}
-          {result && (
+              {result && (
             <div className={`p-6 rounded-2xl border space-y-4 ${
               isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
             }`}>
@@ -372,6 +398,12 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                   <h3 className={`font-bold text-sm mt-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                     가명데이터 생성 결과 확인 및 다운로드
                   </h3>
+                  {result.privacy_metrics && <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    <span className={`rounded-full px-2 py-1 font-bold ${result.privacy_metrics.status === 'PASS' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>{result.privacy_metrics.status === 'PASS' ? 'k/l/t 통과' : 'k/l/t 검토 필요'}</span>
+                    {result.privacy_metrics.k != null && <span>k={result.privacy_metrics.k}</span>}
+                    {result.privacy_metrics.l != null && <span>l={result.privacy_metrics.l}</span>}
+                    {result.privacy_metrics.t != null && <span>t={Number(result.privacy_metrics.t).toFixed(3)}</span>}
+                  </div>}
                 </div>
 
                 <a

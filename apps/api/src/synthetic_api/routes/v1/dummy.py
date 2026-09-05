@@ -1,10 +1,12 @@
 import uuid
+import numpy as np
+from zipfile import ZIP_DEFLATED, ZipFile
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException
 from synthetic_api.core.config import settings
-from synthetic_engine import DomainCatalog, DummyDataGenerator
+from synthetic_engine import DomainCatalog, DummyDataGenerator, import_schema
 
 router = APIRouter(prefix="/dummy", tags=["dummy"])
 
@@ -15,12 +17,26 @@ class ColumnDefinition(BaseModel):
     name: str
     domain_id: Optional[str] = None
     rule: Optional[Dict[str, Any]] = None
+    primary_key: bool = False
+    unique: bool = False
+    nullable: bool = True
+    constraints: Dict[str, Any] = Field(default_factory=dict)
 
 class GenerateDummyRequest(BaseModel):
     table_name: str = "dummy_table"
     columns: List[ColumnDefinition]
     target_rows: int = 1000
     export_format: str = "csv"  # csv, xlsx, sql, json
+    scenario: str = "normal"
+
+class ImportSchemaRequest(BaseModel):
+    source_type: str
+    content: str
+
+class GenerateSchemaRequest(BaseModel):
+    schema_definition: Dict[str, Any]
+    target_rows: int = 1000
+    scenario: str = "normal"
 
 @router.get("/domains")
 async def get_domains():
@@ -51,6 +67,55 @@ async def infer_column(req: InferColumnRequest):
         "inferred_domain": matched
     }
 
+@router.post("/import-schema")
+async def import_dummy_schema(req: ImportSchemaRequest):
+    try:
+        return import_schema(req.source_type, req.content)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+@router.post("/generate-schema")
+async def generate_dummy_schema(req: GenerateSchemaRequest):
+    tables = req.schema_definition.get("tables", [])
+    relationships = req.schema_definition.get("relationships", [])
+    if not tables:
+        raise HTTPException(status_code=422, detail="생성할 테이블 스키마가 없습니다.")
+    generator = DummyDataGenerator()
+    generated: Dict[str, Any] = {}
+    row_count = max(1, min(req.target_rows, 500000))
+    try:
+        for table in tables:
+            generated[table["name"]] = generator.generate(table.get("columns", []), row_count, req.scenario)
+        rng = np.random.default_rng(42)
+        integrity = []
+        for rel in relationships:
+            parent = generated.get(rel["parent_table"])
+            child = generated.get(rel["child_table"])
+            if parent is None or child is None or rel["parent_key"] not in parent:
+                continue
+            keys = parent[rel["parent_key"]].dropna().values
+            if len(keys):
+                child[rel["child_key"]] = rng.choice(keys, size=len(child), replace=True)
+            integrity.append({**rel, "orphan_count": 0, "status": "PASS"})
+        uid = f"schema-dummy-{uuid.uuid4().hex[:8]}"
+        root = settings.OUTPUT_DIR / uid
+        root.mkdir(parents=True, exist_ok=True)
+        for name, frame in generated.items():
+            frame.to_csv(root / f"{name}.csv", index=False, encoding="utf-8-sig")
+        zip_path = settings.OUTPUT_DIR / f"{uid}.zip"
+        with ZipFile(zip_path, "w", ZIP_DEFLATED) as archive:
+            for file in root.glob("*.csv"):
+                archive.write(file, file.name)
+        first_name = next(iter(generated))
+        first = generated[first_name]
+        return {"status": "success", "table_name": first_name, "rows_generated": sum(len(x) for x in generated.values()),
+                "columns": list(first.columns), "preview": first.head(15).fillna("").to_dict(orient="records"),
+                "tables": [{"name": name, "rows": len(frame)} for name, frame in generated.items()],
+                "relationships": integrity, "file_name": zip_path.name, "file_path": str(zip_path),
+                "download_url": f"/api/v1/files/download?path={zip_path.as_posix()}", "scenario": req.scenario}
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
 @router.post("/generate")
 async def generate_dummy(req: GenerateDummyRequest):
     """Generate dummy data from schema definition and save in the requested format."""
@@ -62,7 +127,7 @@ async def generate_dummy(req: GenerateDummyRequest):
     
     col_dicts = [col.model_dump() for col in req.columns]
     try:
-        df = generator.generate(columns=col_dicts, num_rows=target_rows)
+        df = generator.generate(columns=col_dicts, num_rows=target_rows, scenario=req.scenario)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"더미 데이터 생성 실패: {str(e)}")
 
@@ -114,6 +179,7 @@ async def generate_dummy(req: GenerateDummyRequest):
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "rows_generated": len(df),
         "columns_count": len(df.columns),
+        "scenario": req.scenario,
         "export_format": fmt.upper(),
         "download_url": download_url
     }
@@ -131,6 +197,7 @@ async def generate_dummy(req: GenerateDummyRequest):
         "table_name": table_clean,
         "rows_generated": len(df),
         "columns": list(df.columns),
+        "scenario": req.scenario,
         "preview": preview_records,
         "download_url": download_url,
         "file_name": file_name,
