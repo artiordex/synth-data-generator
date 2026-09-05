@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Zap, Plus, Trash2, Download, Table,
-  CheckCircle2, Database, RefreshCw, ChevronRight, Search, X,
+  CheckCircle2, Database, RefreshCw, ChevronRight, Search, X, FileCode,
 } from 'lucide-react';
 import { getDummyDomains, getDummyTemplates, inferDummyColumn, generateDummyData, importDummySchema, generateDummySchema } from '../../services/api';
 
@@ -233,133 +233,200 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
 
   return (
     <div className="space-y-6">
-      {/* Hero Banner */}
-      <div className={`p-6 rounded-2xl border ${
-        isDarkMode ? 'bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border-indigo-900/50' : 'bg-gradient-to-r from-sky-50 via-indigo-50/50 to-white border-sky-200 shadow-sm'
-      }`}>
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-bold flex items-center gap-1">
-                <Zap className="w-3.5 h-3.5" /> No-File Instant Dummy Generator
-              </span>
-              <span className="text-xs text-slate-400">행안부 공통표준 · Mockaroo · 마이데이터 100+ 도메인 탑재</span>
+      {/* 0. Schema Import Panel */}
+      <div className="ui-panel p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="text-sm font-bold text-fg flex items-center gap-1.5">
+              <FileCode className="w-4 h-4 text-accent" />
+              DDL · JSON Schema · OpenAPI 스키마 가져오기
             </div>
-            <h2 className={`text-xl font-black ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-              원본 파일 없는 '초고속 퀵 더미 생성기'
-            </h2>
-            <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-              사내 개발자/QA 테스트용 대량 데이터(1만~10만 건)를 3초 만에 생성하고 CSV, Excel, SQL INSERT 구문으로 즉시 다운로드하세요.
-            </p>
+            <div className="text-xs text-fg-muted mt-0.5 break-keep">
+              기존 데이터베이스 DDL 또는 스키마 명세를 붙여 넣으면 컬럼 타입과 규칙을 자동 구성합니다.
+            </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{allDomains.length}개+</div>
-            <div className="text-[11px] text-slate-400 font-medium">표준 컬럼 도메인 지원</div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowSchemaImport(!showSchemaImport)}
+            className="ui-button-secondary whitespace-nowrap self-start sm:self-auto shrink-0"
+          >
+            {showSchemaImport ? '닫기' : '스키마 가져오기'}
+          </button>
         </div>
-      </div>
 
-      <div className={`rounded-2xl border p-5 ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
-        <div className="flex items-center justify-between">
-          <div><div className="text-sm font-bold">DDL · JSON Schema · OpenAPI 가져오기</div>
-            <div className="text-xs text-slate-400">스키마를 붙여 넣으면 컬럼 타입과 PK·필수·범위 규칙을 자동 구성합니다.</div></div>
-          <button onClick={() => setShowSchemaImport(!showSchemaImport)} className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white">{showSchemaImport ? '닫기' : '스키마 가져오기'}</button>
-        </div>
-        {showSchemaImport && <div className="mt-4 space-y-3">
-          <div className="flex gap-2">{(['ddl', 'json-schema', 'openapi'] as const).map(type => <button key={type} onClick={() => setSchemaType(type)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${schemaType === type ? 'border-indigo-500 bg-indigo-500/10 text-indigo-500' : 'border-slate-300 dark:border-slate-700'}`}>{type.toUpperCase()}</button>)}</div>
-          <textarea value={schemaContent} onChange={e => setSchemaContent(e.target.value)} rows={9} placeholder="CREATE TABLE ...; 또는 JSON 문서를 붙여 넣으세요."
-            className={`w-full rounded-xl border p-3 font-mono text-xs ${isDarkMode ? 'border-slate-700 bg-slate-950' : 'border-slate-300 bg-slate-50'}`} />
-          <button onClick={handleSchemaImport} className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white">분석하여 컬럼에 적용</button>
-        </div>}
+        {showSchemaImport && (
+          <div className="mt-4 space-y-3 pt-3 border-t border-subtle">
+            <div className="flex flex-wrap gap-2">
+              {(['ddl', 'json-schema', 'openapi'] as const).map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setSchemaType(type)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+                    schemaType === type
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-subtle text-fg-muted hover:text-fg hover:bg-surface-muted'
+                  }`}
+                >
+                  {type.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={schemaContent}
+              onChange={e => setSchemaContent(e.target.value)}
+              rows={7}
+              placeholder="CREATE TABLE ...; 또는 JSON 문서를 붙여 넣으세요."
+              className="ui-field p-3 font-mono text-xs"
+            />
+            <button
+              type="button"
+              onClick={handleSchemaImport}
+              className="ui-button-primary px-5 py-2 text-xs"
+            >
+              분석하여 컬럼에 적용
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 1. Template Presets */}
-      <div className={`p-5 rounded-2xl border space-y-3 ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
-        <div className="flex items-center justify-between">
-          <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-            <Sparkles className="w-4 h-4 text-amber-500" />
+      <div className="ui-panel space-y-3 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-fg">
+            <Sparkles className="w-4 h-4 text-accent shrink-0" />
             사내 표준 추천 템플릿 (1초 완성)
           </span>
-          <span className="text-[11px] text-slate-400">클릭 시 컬럼 스키마가 즉시 세팅됩니다</span>
+          <span className="text-[11px] text-fg-muted">클릭 시 추천 컬럼 스키마가 즉시 세팅됩니다</span>
         </div>
-        <div className="grid grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {templates.map(tmpl => (
             <button
               key={tmpl.id}
+              type="button"
               onClick={() => handleApplyTemplate(tmpl)}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all ${
                 tableName === tmpl.id
-                  ? isDarkMode ? 'bg-indigo-950/60 border-indigo-500 ring-1 ring-indigo-500' : 'bg-indigo-50/80 border-indigo-500 ring-1 ring-indigo-400 text-indigo-900'
-                  : isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-100/80'
+                  ? 'bg-accent/10 border-accent ring-1 ring-accent/40 text-fg'
+                  : 'bg-surface-muted/40 border-subtle text-fg-muted hover:text-fg hover:border-subtle hover:bg-surface-muted'
               }`}
             >
-              <div className="font-bold text-xs truncate">{tmpl.name}</div>
-              <div className="text-[10px] text-slate-400 mt-1 line-clamp-1">{tmpl.columns.length}개 컬럼</div>
+              <div className="font-bold text-xs truncate text-fg">{tmpl.name}</div>
+              <div className="text-[10px] text-fg-muted mt-1">{tmpl.columns.length}개 컬럼</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 2. Schema Builder Table */}
-      <div className={`rounded-2xl border overflow-hidden shadow-sm ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
-        <div className={`px-6 py-4 border-b flex justify-between items-center ${
-          isDarkMode ? 'border-slate-800 bg-slate-950/50' : 'border-slate-200 bg-slate-50/60'
-        }`}>
-          <div className="flex items-center gap-3">
-            <h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-              <Table className="w-4 h-4 text-sky-500" />
-              테이블 스키마 및 도메인 규칙 정의
+      {/* 2. Schema Builder Card / Table */}
+      <div className="ui-panel overflow-hidden">
+        {/* Header */}
+        <div className="px-4 sm:px-6 py-3.5 border-b border-subtle bg-surface-muted/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="font-bold text-sm flex items-center gap-2 text-fg">
+              <Table className="w-4 h-4 text-accent shrink-0" />
+              <span>테이블 스키마 및 도메인 정의</span>
             </h3>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400">테이블명:</span>
+            <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+              <span className="whitespace-nowrap">테이블명:</span>
               <input
                 type="text"
                 value={tableName}
                 onChange={(e) => setTableName(e.target.value)}
-                className={`px-2.5 py-1 rounded-lg border text-xs font-mono font-bold focus:outline-none focus:border-sky-500 ${
-                  isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                }`}
+                className="ui-field py-1 px-2.5 font-mono font-bold text-xs w-36 sm:w-44"
+                placeholder="table_name"
               />
             </div>
           </div>
           <button
+            type="button"
             onClick={handleAddColumn}
-            className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+            className="ui-button-primary min-h-0 px-3.5 py-1.5 text-xs whitespace-nowrap self-start sm:self-auto"
           >
             <Plus className="w-3.5 h-3.5" /> 컬럼 추가
           </button>
         </div>
 
-        <div className="overflow-x-auto max-h-96">
-          <table className="w-full text-left text-xs">
-            <thead className={`sticky top-0 font-bold ${
-              isDarkMode ? 'bg-slate-950 text-slate-400' : 'bg-slate-100 text-slate-600'
-            }`}>
+        {/* Mobile View (< md): Clean Touch Cards (No horizontal crushing!) */}
+        <div className="md:hidden divide-y divide-subtle">
+          {columns.map((col, idx) => (
+            <div key={col.id} className="p-4 space-y-3 hover:bg-surface-muted/20 transition-colors">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface-muted font-mono font-bold text-xs text-fg-muted border border-subtle">
+                    {idx + 1}
+                  </span>
+                  <input
+                    type="text"
+                    defaultValue={col.name}
+                    onBlur={(e) => handleColumnNameBlur(col.id, e.target.value)}
+                    className="ui-field py-1 px-2.5 font-mono font-bold text-xs flex-1 min-w-0"
+                    placeholder="컬럼명 (예: user_id, email)"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveColumn(col.id)}
+                  disabled={columns.length <= 1}
+                  className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="컬럼 삭제"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Mapped Domain Picker */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-fg-muted">
+                  <span>매핑 도메인</span>
+                  <span className="text-[10px] font-medium bg-surface-muted px-1.5 py-0.5 rounded border border-subtle text-fg-subtle">
+                    {col.category} · {col.source}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openDomainPicker(col.id)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-subtle bg-surface-muted/40 hover:border-accent text-left text-xs transition-all group"
+                >
+                  <span className="font-bold truncate text-fg group-hover:text-accent">{col.domain_name}</span>
+                  <ChevronRight className="w-4 h-4 text-fg-muted group-hover:text-accent shrink-0" />
+                </button>
+              </div>
+
+              {/* Sample Preview */}
+              <div className="flex items-center justify-between rounded-lg bg-surface-muted/30 px-3 py-1.5 text-[11px] border border-subtle">
+                <span className="text-fg-subtle text-[10px]">생성 샘플:</span>
+                <span className="font-mono text-accent font-medium truncate max-w-[200px]" title={col.sample}>
+                  {col.sample}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop View (>= md): Full Structured Table */}
+        <div className="hidden md:block overflow-x-auto max-h-[440px]">
+          <table className="w-full text-left text-xs min-w-[760px]">
+            <thead className="sticky top-0 font-bold bg-surface-muted text-fg-muted border-b border-subtle text-[11px] uppercase tracking-wider">
               <tr>
-                <th className="px-4 py-3 w-12">#</th>
-                <th className="px-4 py-3 w-48">컬럼명 (입력 시 자동추론)</th>
-                <th className="px-4 py-3 w-64">매핑된 표준 도메인</th>
-                <th className="px-4 py-3 w-32">분류 / 출처</th>
-                <th className="px-4 py-3">실제 생성 샘플 미리보기</th>
-                <th className="px-4 py-3 w-16 text-center">삭제</th>
+                <th className="px-4 py-3 w-12 text-center whitespace-nowrap">#</th>
+                <th className="px-4 py-3 w-52 whitespace-nowrap">컬럼명 (입력 시 자동추론)</th>
+                <th className="px-4 py-3 w-64 whitespace-nowrap">매핑된 표준 도메인</th>
+                <th className="px-4 py-3 w-36 whitespace-nowrap">분류 / 출처</th>
+                <th className="px-4 py-3 whitespace-nowrap min-w-[200px]">실제 생성 샘플 미리보기</th>
+                <th className="px-4 py-3 w-16 text-center whitespace-nowrap">삭제</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800/60' : 'divide-slate-200'}`}>
+            <tbody className="divide-y divide-subtle">
               {columns.map((col, idx) => (
-                <tr key={col.id} className={isDarkMode ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
-                  <td className="px-4 py-2.5 text-slate-400 font-mono text-center">{idx + 1}</td>
+                <tr key={col.id} className="hover:bg-surface-muted/40 transition-colors">
+                  <td className="px-4 py-2.5 text-fg-muted font-mono text-center">{idx + 1}</td>
                   <td className="px-4 py-2.5">
                     <input
                       type="text"
                       defaultValue={col.name}
                       onBlur={(e) => handleColumnNameBlur(col.id, e.target.value)}
-                      className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold focus:outline-none focus:border-sky-500 ${
-                        isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
+                      className="ui-field py-1.5 font-mono font-bold text-xs"
                       placeholder="컬럼명 입력..."
                     />
                   </td>
@@ -367,27 +434,27 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                     <button
                       type="button"
                       onClick={() => openDomainPicker(col.id)}
-                      className={`px-2.5 py-1.5 rounded-lg border text-left w-full flex items-center justify-between group transition-all ${
-                        isDarkMode ? 'bg-slate-950 border-slate-700 hover:border-sky-500 text-slate-200' : 'bg-slate-50 border-slate-300 hover:border-sky-500 text-slate-800'
-                      }`}
+                      className="px-2.5 py-1.5 rounded-lg border border-subtle text-left w-full flex items-center justify-between group transition-all bg-surface hover:border-accent hover:bg-surface-muted/30"
                     >
-                      <span className="font-bold text-xs truncate">{col.domain_name}</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-500" />
+                      <span className="font-bold text-xs truncate text-fg group-hover:text-accent">{col.domain_name}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-fg-muted group-hover:text-accent shrink-0" />
                     </button>
                   </td>
                   <td className="px-4 py-2.5">
-                    <div className="text-[11px] font-medium text-slate-400">{col.category}</div>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">
+                    <div className="text-[11px] font-medium text-fg">{col.category}</div>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-surface-muted text-fg-muted border border-subtle">
                       {col.source}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-sky-600 dark:text-sky-400 truncate">
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-accent truncate max-w-xs">
                     {col.sample}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     <button
+                      type="button"
                       onClick={() => handleRemoveColumn(col.id)}
-                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors"
+                      disabled={columns.length <= 1}
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       title="컬럼 삭제"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -401,14 +468,12 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
       </div>
 
       {/* 3. Generation Control Bar */}
-      <div className={`p-6 rounded-2xl border space-y-4 shadow-sm ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="ui-panel space-y-4 p-4 sm:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Target rows */}
           <div className="space-y-1.5">
-            <label className={`block text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>생성 레코드 수</label>
-            <div className="flex items-center gap-2">
+            <label className="block text-xs font-bold text-fg">생성 레코드 수</label>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {[1000, 10000, 50000, 100000].map(cnt => (
                 <button
                   key={cnt}
@@ -416,8 +481,8 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                   onClick={() => setTargetRows(cnt)}
                   className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
                     targetRows === cnt
-                      ? 'bg-sky-600 border-sky-600 text-white'
-                      : isDarkMode ? 'bg-slate-950 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-300 text-slate-700'
+                      ? 'bg-accent border-accent text-accent-fg shadow-xs'
+                      : 'border-subtle bg-surface-muted/40 text-fg-muted hover:text-fg hover:bg-surface-muted'
                   }`}
                 >
                   {cnt.toLocaleString()}건
@@ -427,17 +492,15 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                 type="number"
                 value={targetRows}
                 onChange={(e) => setTargetRows(Number(e.target.value))}
-                className={`w-28 px-3 py-1.5 rounded-xl border text-xs font-bold font-mono focus:outline-none focus:border-sky-500 ${
-                  isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                }`}
+                className="ui-field w-28 py-1.5 font-mono font-bold text-xs"
               />
             </div>
           </div>
 
           {/* Export format */}
           <div className="space-y-1.5">
-            <label className={`block text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>내보내기 파일 포맷</label>
-            <div className="flex items-center gap-2">
+            <label className="block text-xs font-bold text-fg">내보내기 파일 포맷</label>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {[
                 { id: 'csv', label: 'CSV (.csv)' },
                 { id: 'xlsx', label: 'Excel (.xlsx)' },
@@ -450,8 +513,8 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                   onClick={() => setExportFormat(f.id)}
                   className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
                     exportFormat === f.id
-                      ? 'bg-indigo-600 border-indigo-600 text-white'
-                      : isDarkMode ? 'bg-slate-950 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-300 text-slate-700'
+                      ? 'bg-accent border-accent text-accent-fg shadow-xs'
+                      : 'border-subtle bg-surface-muted/40 text-fg-muted hover:text-fg hover:bg-surface-muted'
                   }`}
                 >
                   {f.label}
@@ -460,38 +523,49 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
             </div>
           </div>
 
+          {/* Test scenario */}
           <div className="space-y-1.5">
-            <label className={`block text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>테스트 시나리오</label>
-            <select value={scenario} onChange={e => setScenario(e.target.value)} className={`rounded-xl border px-3 py-2 text-xs font-bold ${isDarkMode ? 'border-slate-700 bg-slate-950' : 'border-slate-300 bg-white'}`}>
-              <option value="normal">정상 데이터</option><option value="boundary">경계값 포함</option>
-              <option value="invalid">오류 데이터</option><option value="mixed">정상 95% + 오류 5%</option>
-            </select>
-          </div>
-
-          {/* Generate button */}
-          <div className="pt-4">
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="px-8 py-3 rounded-xl bg-gradient-to-r from-sky-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-sky-600/30 transition-all disabled:opacity-50"
+            <label className="block text-xs font-bold text-fg">테스트 시나리오</label>
+            <select
+              value={scenario}
+              onChange={e => setScenario(e.target.value)}
+              className="ui-field font-bold text-xs w-full sm:w-auto"
             >
-              {isGenerating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  더미 데이터 고속 생성 중...
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4 fill-current" />
-                   {targetRows.toLocaleString()}건 더미 생성 및 다운로드
-                </>
-              )}
-            </button>
+              <option value="normal">정상 데이터</option>
+              <option value="boundary">경계값 포함</option>
+              <option value="invalid">오류 데이터</option>
+              <option value="mixed">정상 95% + 오류 5%</option>
+            </select>
           </div>
         </div>
 
+        {/* Generate button */}
+        <div className="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-subtle">
+          <p className="text-xs text-fg-muted">
+            사내 개발 및 QA 부하 테스트용 대량 모의 데이터를 즉시 생성합니다.
+          </p>
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="ui-button-primary px-6 sm:px-8 py-2.5 text-sm font-bold w-full sm:w-auto justify-center"
+          >
+            {isGenerating ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                더미 데이터 고속 생성 중...
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 fill-current" />
+                {targetRows.toLocaleString()}건 더미 생성 및 다운로드
+              </>
+            )}
+          </button>
+        </div>
+
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs">
+          <div className="ui-error mt-2">
             {errorMsg}
           </div>
         )}
@@ -499,19 +573,17 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
 
       {/* 4. Result & Live Preview Grid */}
       {generationResult && (
-        <div className={`p-6 rounded-2xl border space-y-4 shadow-sm animate-in fade-in-50 duration-300 ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
-          <div className="flex items-center justify-between">
+        <div className="ui-panel animate-in space-y-4 p-4 sm:p-6 duration-300 fade-in-50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
                 <div className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
                   더미 데이터 생성 완료 ({generationResult.rows_generated.toLocaleString()}건)
                 </div>
-                <div className="text-xs text-slate-400">
+                <div className="text-xs text-fg-muted">
                   테이블: {generationResult.table_name} / 컬럼: {generationResult.columns.length}개
                 </div>
               </div>
@@ -519,7 +591,7 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
 
             <a
               href={generationResult.download_url}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all self-start sm:self-auto w-full sm:w-auto"
             >
               <Download className="w-4 h-4" />
               {generationResult.file_name} 다운로드
@@ -527,28 +599,24 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
           </div>
 
           {/* Preview table */}
-          <div className="border rounded-xl overflow-hidden">
-            <div className={`px-4 py-2 border-b text-xs font-bold ${
-              isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-            }`}>
+          <div className="border border-subtle rounded-xl overflow-hidden">
+            <div className="px-4 py-2 border-b border-subtle text-xs font-bold bg-surface-muted text-fg">
               생성 결과 상위 15건 실시간 미리보기 (Live Data Grid)
             </div>
             <div className="overflow-x-auto max-h-64">
-              <table className="w-full text-left text-xs">
-                <thead className={`sticky top-0 font-bold ${
-                  isDarkMode ? 'bg-slate-950 text-slate-400' : 'bg-slate-100 text-slate-600'
-                }`}>
+              <table className="w-full text-left text-xs min-w-[500px]">
+                <thead className="sticky top-0 font-bold bg-surface-muted text-fg-muted border-b border-subtle">
                   <tr>
                     {generationResult.columns.map((c: string) => (
                       <th key={c} className="px-4 py-2.5 whitespace-nowrap">{c}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800/60' : 'divide-slate-200'}`}>
+                <tbody className="divide-y divide-subtle">
                   {generationResult.preview.map((row: any, rIdx: number) => (
-                    <tr key={rIdx} className={isDarkMode ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
+                    <tr key={rIdx} className="hover:bg-surface-muted/30 transition-colors">
                       {generationResult.columns.map((c: string) => (
-                        <td key={c} className="px-4 py-2 font-mono text-[11px] whitespace-nowrap text-slate-300 dark:text-slate-300">
+                        <td key={c} className="px-4 py-2 font-mono text-[11px] whitespace-nowrap text-fg">
                           {String(row[c] !== undefined ? row[c] : '')}
                         </td>
                       ))}
@@ -563,54 +631,52 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
 
       {/* 5. Domain Picker Modal */}
       {isPickerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className={`w-full max-w-3xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] ${
-            isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-subtle bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
             {/* Header */}
-            <div className="p-4 border-b flex items-center justify-between">
+            <div className="p-4 border-b border-subtle flex items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-sm flex items-center gap-2">
-                  <Database className="w-4 h-4 text-sky-500" />
+                <h3 className="font-bold text-sm flex items-center gap-2 text-fg">
+                  <Database className="w-4 h-4 text-accent" />
                   100+ 국가/금융/글로벌 표준 컬럼 도메인 사전
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-fg-muted mt-0.5 break-keep">
                   행정안전부 공통표준용어 · Mockaroo 필드 규격 · 금융보안원 마이데이터 통합 사전
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setIsPickerOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-muted transition-colors shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Filter and search */}
-            <div className="p-4 border-b space-y-3 bg-slate-50/50 dark:bg-slate-950/40">
+            <div className="p-4 border-b border-subtle space-y-3 bg-surface-muted/40">
               <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-fg-muted" />
                 <input
                   type="text"
                   value={pickerSearch}
                   onChange={(e) => setPickerSearch(e.target.value)}
                   placeholder="도메인명, 유의어(핸드폰, amount, 주민 등) 검색..."
-                  className={`w-full pl-9 pr-4 py-2 rounded-xl border text-xs focus:outline-none focus:border-sky-500 ${
-                    isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                  }`}
+                  className="ui-field pl-9 pr-4 py-2 text-xs"
                 />
               </div>
 
               {/* Category tags */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
                 {categories.map(cat => (
                   <button
                     key={cat}
+                    type="button"
                     onClick={() => setPickerCategory(cat)}
                     className={`px-3 py-1 rounded-lg font-medium whitespace-nowrap text-xs transition-all ${
                       pickerCategory === cat
-                        ? 'bg-sky-600 text-white font-bold'
-                        : isDarkMode ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-200/80 text-slate-700 hover:bg-slate-300'
+                        ? 'bg-accent text-accent-fg font-bold shadow-xs'
+                        : 'bg-surface-muted text-fg-muted hover:text-fg hover:bg-surface-muted/80'
                     }`}
                   >
                     {cat}
@@ -620,25 +686,23 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
             </div>
 
             {/* Domain list */}
-            <div className="overflow-y-auto p-4 flex-1 grid grid-cols-2 gap-3">
+            <div className="overflow-y-auto p-3 sm:p-4 flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
               {filteredPickerDomains.map(d => (
                 <div
                   key={d.id}
                   onClick={() => handleSelectDomain(d)}
-                  className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
-                    isDarkMode ? 'bg-slate-950 border-slate-800 hover:border-sky-500 hover:bg-slate-800/40' : 'bg-slate-50 border-slate-200 hover:border-sky-500 hover:bg-sky-50/50'
-                  }`}
+                  className="p-3 rounded-xl border border-subtle bg-surface-muted/30 hover:border-accent hover:bg-accent/5 text-left cursor-pointer transition-all"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">{d.name}</span>
-                    <span className="text-[10px] text-slate-400 font-mono">{d.english_name}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-xs text-fg truncate">{d.name}</span>
+                    <span className="text-[10px] text-fg-muted font-mono shrink-0">{d.english_name}</span>
                   </div>
-                  <div className="text-[11px] text-sky-600 dark:text-sky-400 font-mono mt-1 truncate">
+                  <div className="text-[11px] text-accent font-mono mt-1 truncate">
                     샘플: {d.sample}
                   </div>
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/40 text-[10px] text-slate-400">
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-subtle text-[10px] text-fg-muted">
                     <span>{d.category}</span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                    <span className="px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted border border-subtle">
                       {d.source}
                     </span>
                   </div>

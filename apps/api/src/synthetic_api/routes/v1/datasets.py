@@ -48,8 +48,8 @@ def upload_batch(files: list[UploadFile] = File(...)):
     results = []
     for file in files:
         try:
-            if Path(file.filename or '').suffix.lower() not in {'.csv', '.xlsx', '.xls', '.tsv', '.txt'}:
-                raise ValueError('CSV, XLSX, XLS, TSV, TXT 파일을 지원합니다.')
+            if Path(file.filename or '').suffix.lower() not in {'.csv', '.xlsx', '.xls', '.tsv', '.txt', '.json', '.jsonl', '.parquet', '.pq'}:
+                raise ValueError('CSV, XLSX, XLS, TSV, JSON, Parquet 파일을 지원합니다.')
             saved = DatasetService.save_upload_file(file.file, file.filename, unique=True)
             profile = DatasetService.inspect_file(saved['filename'])
             results.append({**saved, 'profile': profile, 'error': None})
@@ -101,10 +101,22 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
     stem = Path(req.file_name).stem
     fmt = req.export_format.lower()
 
-    if fmt == "xlsx":
+    if fmt in ("xlsx", "xls"):
         out_name = f"pseudonymized_{stem}_{uid}.xlsx"
         out_path = pseudo_dir / out_name
         pseudo_df.to_excel(out_path, index=False)
+    elif fmt == "tsv":
+        out_name = f"pseudonymized_{stem}_{uid}.tsv"
+        out_path = pseudo_dir / out_name
+        pseudo_df.to_csv(out_path, sep="\t", index=False, encoding="utf-8-sig")
+    elif fmt == "json":
+        out_name = f"pseudonymized_{stem}_{uid}.json"
+        out_path = pseudo_dir / out_name
+        pseudo_df.to_json(out_path, orient="records", force_ascii=False, indent=2)
+    elif fmt in ("parquet", "pq"):
+        out_name = f"pseudonymized_{stem}_{uid}.parquet"
+        out_path = pseudo_dir / out_name
+        pseudo_df.to_parquet(out_path, index=False)
     else:
         out_name = f"pseudonymized_{stem}_{uid}.csv"
         out_path = pseudo_dir / out_name

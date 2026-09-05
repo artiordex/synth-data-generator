@@ -21,7 +21,7 @@ export function AdvancedSynthesisSettings({ options, onChange, profile, isDarkMo
   const toggle = (key: 'preserve_null_columns' | 'evaluation_excluded_columns', name: string, selected: boolean) => {
     onChange({ ...options, [key]: selected ? [...(options[key] || []), name] : (options[key] || []).filter(c => c !== name) });
   };
-  return <details className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
+  return <details className="ui-panel p-6">
     <summary className="cursor-pointer font-bold text-sm">학습·평가 상세 설정</summary>
     {profile?.notebook_preset?.name && <p className="text-sm mt-3 text-sky-600">노트북 설정 자동 적용: {profile.notebook_preset.name}. 아래에서 변경한 값이 우선합니다.</p>}
     <p className="text-xs my-3">결측치가 ‘비적용’을 뜻하는 항목은 의미 보존을 선택하세요. sin/cos 등 학습용 파생변수는 평가에서 제외할 수 있습니다.</p>

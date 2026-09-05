@@ -11,12 +11,15 @@ import {
   Database, 
   Filter, 
   Clock, 
-  FileSpreadsheet 
+  FileSpreadsheet,
+  Trash2,
+  ArrowLeftRight,
+  Layers,
 } from 'lucide-react';
 import { JobStatus } from '../../types';
-import { getPseudonymHistory, getDummyHistory, getJobsList, getBatchesList, getDownloadUrl } from '../../services/api';
+import { clearAllHistory, getPseudonymHistory, getDummyHistory, getJobsList, getBatchesList, getConverterHistory, getDownloadUrl } from '../../services/api';
 
-export type HistoryType = 'all' | 'pseudo' | 'synthetic' | 'dummy' | 'batch';
+export type HistoryType = 'all' | 'pseudo' | 'synthetic' | 'dummy' | 'batch' | 'converter';
 const statusLabels: Record<string, string> = { pending: '대기', processing: '처리 중', completed: '완료', completed_with_errors: '일부 실패·취소', failed: '실패', canceled: '취소' };
 const actionLabels: Record<string, string> = { mask: '마스킹', hash: '해시', faker: '가명 대체', drop: '삭제' };
 
@@ -62,15 +65,32 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedType, setSelectedType] = useState<HistoryType>('all');
   const [loadError, setLoadError] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('통합 작업 이력 전체를 삭제할까요? 생성 결과 파일과 템플릿은 유지됩니다.')) return;
+    setIsClearing(true);
+    setLoadError('');
+    try {
+      await clearAllHistory();
+      setItems([]);
+      setSearchTerm('');
+      setSelectedType('all');
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : '이력 삭제 실패');
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   const loadAllHistory = async () => {
     setIsLoading(true);
     try {
       const results = await Promise.allSettled([
-        getPseudonymHistory(), getDummyHistory(), getJobsList(), getBatchesList()
+        getPseudonymHistory(), getDummyHistory(), getJobsList(), getBatchesList(), getConverterHistory()
       ]);
-      const [pseudoList, dummyList, jobsList, batchesList] = results.map(result => result.status === 'fulfilled' ? result.value : []);
-      const names = ['가명처리', '더미데이터', 'AI 합성', '일괄 처리'];
+      const [pseudoList, dummyList, jobsList, batchesList, converterList] = results.map(result => result.status === 'fulfilled' ? result.value : []);
+      const names = ['가명처리', '더미데이터', 'AI 합성', '일괄 처리', '데이터 변환'];
       setLoadError(results.flatMap((result, index) => result.status === 'rejected' ? [names[index]] : []).join(', '));
 
       const unified: UnifiedHistoryItem[] = [];
@@ -162,6 +182,36 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
         downloadFilename: `${batch.id}.zip`,
       }));
 
+      // 5. Converter items
+      (converterList || []).forEach((item: any) => {
+        const d = item.created_at ? new Date(item.created_at) : new Date();
+        const sizeStr = item.file_size
+          ? (item.file_size < 1024
+              ? `${item.file_size} B`
+              : item.file_size < 1024 * 1024
+              ? `${(item.file_size / 1024).toFixed(1)} KB`
+              : `${(item.file_size / (1024 * 1024)).toFixed(2)} MB`)
+          : '';
+
+        unified.push({
+          id: `conv-${item.id || Math.random()}`,
+          type: 'converter',
+          typeName: '데이터 변환',
+          targetName: item.output_filename || item.original_filename || '변환 파일',
+          subName: `${item.source_format} → ${item.target_format} (${item.category === 'document' ? '문서' : '데이터셋'})`,
+          createdAt: item.created_at || '-',
+          timestamp: isNaN(d.getTime()) ? 0 : d.getTime(),
+          rowsCount: item.rows_count || 0,
+          specSummary: `${item.category === 'document' ? '문서 서식 변환' : `${item.columns_count || 0}개 컬럼 · `}${sizeStr}`,
+          resultBadge: {
+            text: `${item.target_format} 완료`,
+            variant: 'sky'
+          },
+          downloadUrl: item.download_url,
+          downloadFilename: item.output_filename || item.original_filename
+        });
+      });
+
       // Sort newest first
       unified.sort((a, b) => b.timestamp - a.timestamp);
       setItems(unified);
@@ -208,6 +258,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
       synthetic: items.filter(i => i.type === 'synthetic').length,
       dummy: items.filter(i => i.type === 'dummy').length,
       batch: items.filter(i => i.type === 'batch').length,
+      converter: items.filter(i => i.type === 'converter').length,
     };
   }, [items]);
 
@@ -241,19 +292,13 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-3 sm:p-6 transition-all">
-      <div 
-        className={`relative w-full max-w-6xl h-[92vh] flex flex-col rounded-2xl shadow-2xl border transition-colors overflow-hidden ${
-          isDarkMode 
-            ? 'bg-slate-900 border-slate-700/80 text-slate-100' 
-            : 'bg-white border-slate-200 text-slate-900'
-        }`}
-      >
+      <div className="ui-panel relative flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden shadow-2xl">
         {/* Modal Header */}
         <div className={`px-6 py-4 border-b flex items-center justify-between transition-colors ${
           isDarkMode ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-slate-50/80'
         }`}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-sky-600 flex items-center justify-center shadow-md shadow-emerald-500/20 text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-700 text-white shadow-sm dark:bg-sky-600">
               <History className="w-5 h-5" />
             </div>
             <div>
@@ -271,7 +316,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
                     ? 'bg-slate-800 text-slate-400 border-slate-700' 
                     : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}>
-                  가명처리 · AI 합성 · 더미데이터 · 일괄 처리
+                  가명처리 · AI 합성 · 더미데이터 · 일괄 처리 · 데이터 변환
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -282,12 +327,17 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
 
           <div className="flex items-center gap-2">
             <button
+              onClick={handleClearHistory}
+              disabled={isClearing || items.length === 0}
+              className="ui-button-danger"
+              title="통합 작업 이력 전체 삭제"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">이력 전체 삭제</span>
+            </button>
+            <button
               onClick={handleExportAuditCSV}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
-                isDarkMode 
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' 
-                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-sm'
-              }`}
+              className="ui-button-secondary"
               title="관리대장 CSV 파일 다운로드"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
@@ -296,11 +346,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
 
             <button
               onClick={onClose}
-              className={`p-2 rounded-xl transition-colors ${
-                isDarkMode 
-                  ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' 
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-              }`}
+              className="ui-button-secondary px-2"
               title="닫기"
             >
               <X className="w-5 h-5" />
@@ -312,7 +358,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
         <div className={`px-6 py-3.5 border-b flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors ${
           isDarkMode ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200/80 bg-white'
         }`}>
-          {/* 3 Tracks Filter Tabs */}
+          {/* Tracks Filter Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none text-xs">
             <button
               onClick={() => setSelectedType('all')}
@@ -389,11 +435,45 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
                 {counts.dummy}
               </span>
             </button>
-          </div>
 
-          <button onClick={() => setSelectedType('batch')} className={`px-3 py-1.5 rounded-lg text-xs whitespace-nowrap ${selectedType === 'batch' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}>
-            일괄 처리 {counts.batch}
-          </button>
+            <button
+              onClick={() => setSelectedType('converter')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-all border ${
+                selectedType === 'converter'
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm font-semibold'
+                  : isDarkMode 
+                    ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700/80' 
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/80'
+              }`}
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span>데이터 변환</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                selectedType === 'converter' ? 'bg-white/20 text-white' : 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400'
+              }`}>
+                {counts.converter}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setSelectedType('batch')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-all border ${
+                selectedType === 'batch'
+                  ? 'bg-sky-700 text-white border-sky-700 shadow-sm font-semibold'
+                  : isDarkMode 
+                    ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700/80' 
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/80'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>일괄 처리</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                selectedType === 'batch' ? 'bg-white/20 text-white' : 'bg-sky-500/20 text-sky-600 dark:text-sky-400'
+              }`}>
+                {counts.batch}
+              </span>
+            </button>
+          </div>
 
           {/* Search Input & Refresh */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -470,14 +550,17 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
                     const isPseudo = item.type === 'pseudo';
                     const isSynth = item.type === 'synthetic';
                     const isDummy = item.type === 'dummy';
+                    const isConverter = item.type === 'converter';
 
                     const typeBadgeClass = isPseudo
                       ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
                       : isSynth
                       ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border-sky-200 dark:border-sky-800/60'
+                      : isConverter
+                      ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60'
                       : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800/60';
 
-                    const TypeIcon = isPseudo ? ShieldCheck : isSynth ? Cpu : Database;
+                    const TypeIcon = isPseudo ? ShieldCheck : isSynth ? Cpu : isConverter ? ArrowLeftRight : Database;
 
                     return (
                       <tr 
@@ -556,12 +639,13 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
                                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-white transition-colors shadow-sm ${
                                   isPseudo ? 'bg-emerald-600 hover:bg-emerald-500' :
                                   isSynth ? 'bg-indigo-600 hover:bg-indigo-500' :
+                                  isConverter ? 'bg-indigo-600 hover:bg-indigo-500' :
                                   'bg-amber-600 hover:bg-amber-500'
                                 }`}
-                                title={isSynth ? "HWPX 및 심의패키지 다운로드" : "산출 데이터 파일 다운로드"}
+                                title={isSynth ? "HWPX 및 심의패키지 다운로드" : isConverter ? "변환 완료 파일 다운로드" : "산출 데이터 파일 다운로드"}
                               >
                                 <Download className="w-3.5 h-3.5" />
-                                <span>{isSynth ? 'HWPX' : '다운로드'}</span>
+                                <span>{isSynth ? 'HWPX' : isConverter ? '변환파일' : '다운로드'}</span>
                               </a>
                             )}
                           </div>

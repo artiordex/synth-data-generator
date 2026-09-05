@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -7,6 +8,40 @@ export default {
   theme: {
     extend: {
       colors: {
+        canvas: 'var(--color-bg-canvas)',
+        surface: {
+          DEFAULT: 'var(--color-bg-surface)',
+          muted: 'var(--color-bg-surface-muted)',
+          hover: 'var(--color-bg-surface-hover)',
+        },
+        border: {
+          subtle: 'var(--color-border-subtle)',
+          DEFAULT: 'var(--color-border-default)',
+          strong: 'var(--color-border-strong)',
+        },
+        fg: {
+          DEFAULT: 'var(--color-fg-default)',
+          muted: 'var(--color-fg-muted)',
+          subtle: 'var(--color-fg-subtle)',
+        },
+        accent: {
+          DEFAULT: 'var(--color-accent)',
+          hover: 'var(--color-accent-hover)',
+          subtle: 'var(--color-accent-subtle)',
+          fg: 'var(--color-accent-fg)',
+        },
+        success: {
+          DEFAULT: 'var(--color-success)',
+          subtle: 'var(--color-success-subtle)',
+        },
+        warning: {
+          DEFAULT: 'var(--color-warning)',
+          subtle: 'var(--color-warning-subtle)',
+        },
+        danger: {
+          DEFAULT: 'var(--color-danger)',
+          subtle: 'var(--color-danger-subtle)',
+        },
         primary: {
           50: '#f0f7ff',
           100: '#e0effe',

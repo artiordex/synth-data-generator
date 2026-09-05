@@ -61,8 +61,28 @@ def read_table(path: Path, sheet_name: str | int = 0) -> pd.DataFrame:
             except UnicodeDecodeError as exc:
                 last_error = exc
         raise last_error or ValueError(f"Unable to read delimited text file: {path}")
+    if suffix in {".json", ".jsonl"}:
+        try:
+            return pd.read_json(path)
+        except Exception:
+            try:
+                return pd.read_json(path, lines=True)
+            except Exception:
+                import json
+                with open(path, "r", encoding="utf-8") as jf:
+                    data = json.load(jf)
+                if isinstance(data, list):
+                    return pd.json_normalize(data)
+                elif isinstance(data, dict):
+                    for k in ["data", "records", "items", "rows", "values"]:
+                        if k in data and isinstance(data[k], list):
+                            return pd.json_normalize(data[k])
+                    return pd.DataFrame(data)
+                raise ValueError(f"Unable to parse JSON file as tabular dataset: {path}")
+    if suffix in {".parquet", ".pq"}:
+        return pd.read_parquet(path)
 
-    raise ValueError(f"Unsupported input file type: {suffix}")
+    raise ValueError(f"Unsupported input file type: {suffix} (지원 형식: CSV, XLSX, XLS, TSV, JSON, PARQUET)")
 
 def infer_columns(df: pd.DataFrame, ignored: list[str]) -> tuple[list[str], list[str]]:
     categorical: list[str] = []

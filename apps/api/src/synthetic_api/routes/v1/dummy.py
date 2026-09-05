@@ -138,7 +138,7 @@ async def generate_dummy(req: GenerateDummyRequest):
     fmt = req.export_format.lower()
     table_clean = "".join(c for c in req.table_name if c.isalnum() or c in ("_", "-")) or "dummy_data"
     
-    if fmt == "xlsx":
+    if fmt in ("xlsx", "xls"):
         file_name = f"{table_clean}_{uid}.xlsx"
         file_path = dummy_dir / file_name
         df.to_excel(file_path, index=False)
@@ -151,6 +151,14 @@ async def generate_dummy(req: GenerateDummyRequest):
         file_name = f"{table_clean}_{uid}.json"
         file_path = dummy_dir / file_name
         df.to_json(file_path, orient="records", force_ascii=False, indent=2)
+    elif fmt in ("parquet", "pq"):
+        file_name = f"{table_clean}_{uid}.parquet"
+        file_path = dummy_dir / file_name
+        df.to_parquet(file_path, index=False)
+    elif fmt == "tsv":
+        file_name = f"{table_clean}_{uid}.tsv"
+        file_path = dummy_dir / file_name
+        df.to_csv(file_path, sep="\t", index=False, encoding="utf-8-sig")
     else:  # default csv
         file_name = f"{table_clean}_{uid}.csv"
         file_path = dummy_dir / file_name

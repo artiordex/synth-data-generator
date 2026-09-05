@@ -3,7 +3,6 @@ import { FileText, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AssessmentIssue, JobAssessmentReport, JobStatus } from '../../types';
 import { getDownloadUrl, getJobAssessment } from '../../services/api';
 import { DistributionComparisonChart } from './DistributionComparisonChart';
-import { RecentJobsHistory } from './RecentJobsHistory';
 
 interface StepReportProps {
   isDarkMode: boolean;
@@ -109,9 +108,7 @@ export const StepReport: React.FC<StepReportProps> = ({
     <div className="space-y-6">
       {/* Scorecard Hero */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className={`flex min-w-0 flex-col gap-4 rounded-2xl border p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+        <div className="ui-panel flex min-w-0 flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>심의 종합 판정</div>
             <div className={`mt-1 break-keep text-2xl font-black leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
@@ -126,9 +123,7 @@ export const StepReport: React.FC<StepReportProps> = ({
           </div>
         </div>
 
-        <div className={`min-w-0 rounded-2xl border p-5 shadow-sm ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+        <div className="ui-panel min-w-0 p-5">
           <div className={`break-keep text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>분포 품질 지수 (1 − 평균 JSD)</div>
           <div className="mt-1 break-keep text-2xl font-black leading-tight text-sky-600 dark:text-sky-400">
             {activeJob.quality_score == null ? '미측정' : `${(activeJob.quality_score * 100).toFixed(1)}%`}
@@ -136,9 +131,7 @@ export const StepReport: React.FC<StepReportProps> = ({
           <div className={`mt-0.5 break-keep text-[10px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>수치형 공통 20구간·결측 포함</div>
         </div>
 
-        <div className={`min-w-0 rounded-2xl border p-5 shadow-sm ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+        <div className="ui-panel min-w-0 p-5">
           <div className={`break-keep text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Anonymeter 재식별 위험도</div>
           <div className="mt-1 break-keep text-2xl font-black leading-tight text-amber-600 dark:text-amber-400">
             {activeJob.reid_risk == null ? '미측정' : `${(activeJob.reid_risk * 100).toFixed(2)}%`}
@@ -146,9 +139,7 @@ export const StepReport: React.FC<StepReportProps> = ({
           <div className={`mt-0.5 break-keep text-[10px] leading-snug ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>독립 대조 데이터를 이용한 단일 식별 위험도</div>
         </div>
 
-        <div className={`min-w-0 rounded-2xl border p-5 shadow-sm ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+        <div className="ui-panel min-w-0 p-5">
           <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>생성 레코드 수</div>
           <div className="mt-1 break-keep text-2xl font-black leading-tight text-indigo-600 dark:text-indigo-400">
             {activeJob.target_rows.toLocaleString()} 건
@@ -157,9 +148,7 @@ export const StepReport: React.FC<StepReportProps> = ({
         </div>
       </div>
 
-      <div className={`rounded-2xl border p-5 shadow-sm ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+      <div className="ui-panel p-5">
         <div className="flex flex-col gap-3 border-b pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className={`flex items-center gap-2 text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
@@ -222,9 +211,7 @@ export const StepReport: React.FC<StepReportProps> = ({
       <DistributionComparisonChart jobId={activeJob.id} isDarkMode={isDarkMode} />
 
       {/* Submission Package Directory Structure & Download Box */}
-      <div className={`p-6 rounded-2xl border space-y-4 shadow-sm ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+      <div className="ui-panel space-y-4 p-6">
         <div className="flex items-center justify-between">
           <div>
             <h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
@@ -238,7 +225,7 @@ export const StepReport: React.FC<StepReportProps> = ({
           {activeJob.package_zip && (
             <a
               href={getDownloadUrl(activeJob.package_zip)}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all"
+              className="ui-button-primary px-5 py-2.5"
             >
               <Download className="w-4 h-4" />
               전체 패키지 압축 ZIP 다운로드
@@ -291,15 +278,6 @@ export const StepReport: React.FC<StepReportProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Recent AI Synthetic Jobs History Section */}
-      <RecentJobsHistory 
-        isDarkMode={isDarkMode}
-        currentJobId={activeJob.id}
-        onSelectJob={(job) => {
-          setActiveJob(job);
-        }}
-      />
 
       {/* Restart Button */}
       <div className="text-center pt-2">

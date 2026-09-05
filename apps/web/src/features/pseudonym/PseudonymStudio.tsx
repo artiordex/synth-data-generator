@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { uploadDataset, getDatasetProfile, pseudonymizeDataset, getDownloadUrl } from '../../services/api';
 import { DatasetProfile } from '../../types';
+import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 
 interface Props {
   isDarkMode: boolean;
@@ -92,47 +93,6 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
 
   return (
     <div className="space-y-6">
-      {/* Studio Header Banner */}
-      <div className={`p-6 rounded-2xl border ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              }`}>
-                사내 분석 및 연구용 원본 1:1 보존형
-              </span>
-              <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                개인정보보호법 가명정보 처리 가이드라인 준수
-              </span>
-            </div>
-            <h2 className={`text-lg font-bold mt-1.5 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-              가명데이터 스튜디오 (Pseudonymization Studio)
-            </h2>
-            <p className={`text-xs mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              원본 레코드의 통계적 정밀성과 1:1 행 관계를 유지하며, 14종 개인식별정보(PII)만 문맥 기반 가명치환·마스킹·암호화 처리합니다.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-xl border text-center ${
-              isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <div className="text-[10px] text-slate-400">탐지 지원 식별자</div>
-              <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">14종 한국형 PII</div>
-            </div>
-            <div className={`p-3 rounded-xl border text-center ${
-              isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <div className="text-[10px] text-slate-400">행 보존율</div>
-              <div className="text-sm font-bold text-sky-600 dark:text-sky-400">100% 1:1 유지</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {errorMsg && (
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -145,52 +105,27 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
 
       {/* Step 1: Upload Section */}
       {!profile && (
-        <div className={`p-8 rounded-2xl border border-dashed text-center transition-all ${
-          isDarkMode ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-300 hover:border-slate-400'
-        }`}>
-          <div className="max-w-md mx-auto space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
-              <Upload className="w-6 h-6" />
-            </div>
-            <div>
-              <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                가명처리할 원본 데이터 파일 업로드
-              </div>
-              <div className={`text-xs mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                CSV 또는 Excel (XLSX) 파일을 선택하세요. 업로드 즉시 14종 PII 자동 탐지가 수행됩니다.
-              </div>
-            </div>
-
-            <label className="inline-block cursor-pointer">
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                className="hidden"
-                disabled={isUploading}
-                onChange={e => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFileUpload(e.target.files[0]);
-                  }
-                }}
-              />
-              <span className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 inline-flex items-center gap-2 transition-all">
-                {isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                <span>{isUploading ? '파일 분석 중...' : '파일 선택 및 업로드'}</span>
-              </span>
-            </label>
-          </div>
-        </div>
+        <UnifiedFileUploader
+          title="가명처리할 데이터 파일 업로드"
+          subtitle="CSV, Excel(XLSX/XLS), TSV, JSON, Parquet 등 원본 데이터를 업로드하면 즉시 14종 PII 자동 탐지 및 가명화 계획을 수립합니다."
+          isUploading={isUploading}
+          busyText="파일 업로드 및 PII 자동 탐지 중..."
+          onFilesSelected={([selectedFile]) => {
+            if (selectedFile) handleFileUpload(selectedFile);
+          }}
+          onError={msg => setErrorMsg(msg)}
+        />
       )}
 
       {/* Step 2: Inspection & Action Configuration */}
       {profile && (
         <div className="space-y-6">
           {/* File Meta bar */}
-          <div className={`p-4 rounded-xl border flex items-center justify-between ${
+          <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
             isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
           }`}>
             <div className="flex items-center gap-3">
-              <FileText className="w-5 h-5 text-emerald-500" />
+              <FileText className="w-5 h-5 text-emerald-500 shrink-0" />
               <div>
                 <div className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                   {profile.filename}
@@ -207,7 +142,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                 setFile(null);
                 setResult(null);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all self-start sm:self-auto ${
                 isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -216,13 +151,13 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
           </div>
 
           {/* PII Action Rules Card */}
-          <div className={`p-6 rounded-2xl border space-y-4 ${
+          <div className={`p-4 sm:p-6 rounded-2xl border space-y-4 ${
             isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
           }`}>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
                   개인식별정보(PII) 가명처리 규칙 설정
                 </h3>
                 <p className={`text-xs mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -231,7 +166,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
               </div>
 
               {/* Quick Batch Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-[11px] font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>일괄 적용:</span>
                 <button
                   onClick={() => {
@@ -262,7 +197,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
 
             {/* PII Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[640px]">
                 <thead>
                   <tr className={`border-b text-[11px] font-bold ${
                     isDarkMode ? 'border-slate-800 text-slate-400 bg-slate-950/60' : 'border-slate-200 text-slate-500 bg-slate-50'
@@ -449,7 +384,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
 
               {/* Data Grid */}
               <div className="overflow-x-auto max-h-72 border rounded-xl dark:border-slate-800">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[500px]">
                   <thead className={`sticky top-0 ${isDarkMode ? 'bg-slate-950 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
                     <tr>
                       {result.columns.map(c => (

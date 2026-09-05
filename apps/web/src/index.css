@@ -2,19 +2,265 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    color-scheme: light;
+
+    /* Commercial Design Tokens - Light */
+    --color-bg-canvas: #f8fafc;
+    --color-bg-surface: #ffffff;
+    --color-bg-surface-muted: #f1f5f9;
+    --color-bg-surface-hover: #e2e8f0;
+
+    --color-border-subtle: #e2e8f0;
+    --color-border-default: #cbd5e1;
+    --color-border-strong: #94a3b8;
+
+    --color-fg-default: #0f172a;
+    --color-fg-muted: #475569;
+    --color-fg-subtle: #94a3b8;
+
+    --color-accent: #0284c7;
+    --color-accent-hover: #0369a1;
+    --color-accent-subtle: rgba(2, 132, 199, 0.08);
+    --color-accent-fg: #ffffff;
+
+    --color-success: #059669;
+    --color-success-subtle: rgba(5, 150, 105, 0.08);
+
+    --color-warning: #d97706;
+    --color-warning-subtle: rgba(217, 119, 6, 0.08);
+
+    --color-danger: #dc2626;
+    --color-danger-subtle: rgba(220, 38, 38, 0.08);
+
+    /* Legacy mapping */
+    --ui-canvas: var(--color-bg-canvas);
+    --ui-surface: var(--color-bg-surface);
+    --ui-surface-muted: var(--color-bg-surface-muted);
+    --ui-border: var(--color-border-subtle);
+    --ui-border-strong: var(--color-border-default);
+    --ui-text: var(--color-fg-default);
+    --ui-muted: var(--color-fg-muted);
+    --ui-primary: var(--color-accent);
+    --ui-primary-hover: var(--color-accent-hover);
+    --ui-focus: rgba(2, 132, 199, 0.25);
+    --ui-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 10px 24px -4px rgba(15, 23, 42, 0.04);
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    /* Commercial Design Tokens - Dark */
+    --color-bg-canvas: #090d16;
+    --color-bg-surface: #101726;
+    --color-bg-surface-muted: #172033;
+    --color-bg-surface-hover: #1e293b;
+
+    --color-border-subtle: #1e293b;
+    --color-border-default: #2a374e;
+    --color-border-strong: #3b4d6b;
+
+    --color-fg-default: #f8fafc;
+    --color-fg-muted: #94a3b8;
+    --color-fg-subtle: #64748b;
+
+    --color-accent: #38bdf8;
+    --color-accent-hover: #0ea5e9;
+    --color-accent-subtle: rgba(56, 189, 248, 0.12);
+    --color-accent-fg: #090d16;
+
+    --color-success: #34d399;
+    --color-success-subtle: rgba(52, 211, 153, 0.12);
+
+    --color-warning: #fbbf24;
+    --color-warning-subtle: rgba(251, 191, 36, 0.12);
+
+    --color-danger: #f87171;
+    --color-danger-subtle: rgba(248, 113, 113, 0.12);
+
+    /* Legacy mapping */
+    --ui-canvas: var(--color-bg-canvas);
+    --ui-surface: var(--color-bg-surface);
+    --ui-surface-muted: var(--color-bg-surface-muted);
+    --ui-border: var(--color-border-subtle);
+    --ui-border-strong: var(--color-border-default);
+    --ui-text: var(--color-fg-default);
+    --ui-muted: var(--color-fg-muted);
+    --ui-primary: #0284c7;
+    --ui-primary-hover: #0ea5e9;
+    --ui-focus: rgba(56, 189, 248, 0.25);
+    --ui-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 12px 30px -4px rgba(0, 0, 0, 0.4);
+  }
+
+  html {
+    background: var(--ui-canvas);
+    font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", "Segoe UI", sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-width: 320px;
+    margin: 0;
+    background: var(--ui-canvas);
+    color: var(--ui-text);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
+
+  :focus-visible {
+    outline: 2px solid #0ea5e9;
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgba(14, 165, 233, 0.2);
+  }
+}
+
+@layer components {
+  .ui-panel {
+    border: 1px solid var(--ui-border);
+    border-radius: 1rem;
+    background: var(--ui-surface);
+    box-shadow: var(--ui-shadow);
+  }
+
+  .ui-panel-muted {
+    border: 1px solid var(--ui-border);
+    border-radius: 0.75rem;
+    background: var(--ui-surface-muted);
+  }
+
+  .ui-section-title {
+    @apply flex items-center gap-2 text-sm font-bold tracking-tight;
+    color: var(--ui-text);
+  }
+
+  .ui-help-text {
+    @apply break-keep text-xs leading-relaxed;
+    color: var(--ui-muted);
+  }
+
+  .ui-button {
+    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-50;
+  }
+
+  .ui-button-primary {
+    @apply ui-button border-transparent text-white;
+    background: var(--ui-primary);
+  }
+
+  .ui-button-primary:hover:not(:disabled) {
+    background: var(--ui-primary-hover);
+  }
+
+  .ui-button-secondary {
+    @apply ui-button;
+    border-color: var(--ui-border-strong);
+    background: var(--ui-surface);
+    color: var(--ui-text);
+  }
+
+  .ui-button-secondary:hover:not(:disabled) {
+    background: var(--ui-surface-muted);
+  }
+
+  .ui-button-danger {
+    @apply ui-button border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/70;
+  }
+
+  .ui-field {
+    @apply w-full rounded-lg border px-3 py-2 text-xs transition-colors;
+    border-color: var(--ui-border-strong);
+    background: var(--ui-surface-muted);
+    color: var(--ui-text);
+  }
+
+  .ui-field:focus {
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 3px var(--ui-focus);
+    outline: none;
+  }
+
+  .ui-label {
+    @apply mb-1 block text-xs font-semibold;
+    color: var(--ui-muted);
+  }
+
+  .ui-upload-zone {
+    @apply flex cursor-pointer items-center justify-center rounded-xl border border-dashed p-6 text-center transition-colors;
+    border-color: var(--ui-border-strong);
+    background: var(--ui-surface-muted);
+  }
+
+  .ui-upload-zone:hover {
+    border-color: #0ea5e9;
+    background: color-mix(in srgb, var(--ui-surface-muted) 92%, #38bdf8 8%);
+  }
+
+  .ui-error {
+    @apply flex items-center justify-between gap-3 rounded-xl border border-rose-300/60 bg-rose-50 px-4 py-3 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/35 dark:text-rose-300;
+  }
+
+  .ui-table-shell {
+    @apply overflow-auto rounded-xl border;
+    border-color: var(--ui-border);
+  }
+
+  .ui-table {
+    @apply w-full text-left text-xs;
+  }
+
+  .ui-table thead {
+    background: var(--ui-surface-muted);
+    color: var(--ui-muted);
+  }
+
+  .ui-table th {
+    @apply whitespace-nowrap px-4 py-3 font-semibold;
+  }
+
+  .ui-table td {
+    @apply border-t px-4 py-3;
+    border-color: var(--ui-border);
+  }
+
+  .app-shell :where(input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+    accent-color: var(--ui-primary);
+  }
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: var(--ui-canvas);
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--ui-border-strong);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--ui-muted);
 }
 
 .scrollbar-none {
@@ -23,4 +269,89 @@
 
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Tooltip Speech Bubble - Always Maximum Contrast */
+.ui-tooltip-bubble {
+  background-color: #0f172a !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+}
+.ui-tooltip-bubble,
+.ui-tooltip-bubble * {
+  color: #f8fafc !important;
+}
+.ui-tooltip-bubble .tooltip-title,
+.ui-tooltip-bubble .tooltip-title * {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+.ui-tooltip-bubble .tooltip-desc {
+  color: #f1f5f9 !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+  word-break: keep-all !important;
+}
+.ui-tooltip-arrow {
+  background-color: #0f172a !important;
+  border-top: 1px solid #334155 !important;
+  border-left: 1px solid #334155 !important;
+}
+
+/* Light mode contrast guardrails.
+   Legacy feature screens still use Tailwind palette classes directly, so keep
+   secondary copy and semantic status text readable on white surfaces here. */
+html:not(.dark) .app-shell .text-slate-200,
+html:not(.dark) .app-shell .text-slate-300 {
+  color: #475569;
+}
+
+html:not(.dark) .app-shell .text-slate-400 {
+  color: #64748b;
+}
+
+html:not(.dark) .app-shell .text-slate-500 {
+  color: #526176;
+}
+
+html:not(.dark) .app-shell .text-sky-400,
+html:not(.dark) .app-shell .text-sky-500,
+html:not(.dark) .app-shell .text-sky-600 {
+  color: #0369a1;
+}
+
+html:not(.dark) .app-shell .text-emerald-400,
+html:not(.dark) .app-shell .text-emerald-500,
+html:not(.dark) .app-shell .text-emerald-600 {
+  color: #047857;
+}
+
+html:not(.dark) .app-shell .text-amber-400,
+html:not(.dark) .app-shell .text-amber-500,
+html:not(.dark) .app-shell .text-amber-600 {
+  color: #b45309;
+}
+
+html:not(.dark) .app-shell .text-rose-400,
+html:not(.dark) .app-shell .text-rose-500,
+html:not(.dark) .app-shell .text-rose-600 {
+  color: #be123c;
+}
+
+html:not(.dark) .app-shell .text-indigo-400,
+html:not(.dark) .app-shell .text-indigo-500,
+html:not(.dark) .app-shell .text-indigo-600 {
+  color: #4338ca;
+}
+
+html:not(.dark) .app-shell .text-violet-400,
+html:not(.dark) .app-shell .text-violet-500,
+html:not(.dark) .app-shell .text-violet-600 {
+  color: #6d28d9;
+}
+
+html:not(.dark) .app-shell .placeholder-slate-400::placeholder,
+html:not(.dark) .app-shell .placeholder-slate-500::placeholder {
+  color: #64748b;
+  opacity: 1;
 }

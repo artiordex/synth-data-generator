@@ -247,3 +247,63 @@ export async function getJobsList(): Promise<JobStatus[]> {
   if (!res.ok) throw new Error('합성 작업 이력 조회 실패');
   return res.json();
 }
+
+export async function clearAllHistory(): Promise<{ status: string; deleted: Record<string, number> }> {
+  const res = await fetch(`${BASE_URL}/history`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('통합 작업 이력 삭제 실패: ' + await res.text());
+  return res.json();
+}
+
+export interface ConvertResponse {
+  status: string;
+  category: 'document' | 'dataset';
+  file_name: string;
+  original_filename: string;
+  download_url: string;
+  file_size: number;
+  source_format: string;
+  target_format: string;
+  rows_count?: number;
+  columns_count?: number;
+  columns?: string[];
+  preview?: Record<string, any>[];
+  markdown_preview?: string;
+  html_preview?: string;
+  message: string;
+}
+
+export async function convertFile(params: {
+  file: File;
+  targetFormat: string;
+  encoding?: string;
+  tableName?: string;
+}): Promise<ConvertResponse> {
+  const formData = new FormData();
+  formData.append('file', params.file);
+  formData.append('target_format', params.targetFormat);
+  if (params.encoding) formData.append('encoding', params.encoding);
+  if (params.tableName) formData.append('table_name', params.tableName);
+
+  const res = await fetch(`${BASE_URL}/converter/convert`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    let errMsg = '변환 실패';
+    try {
+      const errJson = await res.json();
+      errMsg = errJson.detail || errMsg;
+    } catch {
+      errMsg = await res.text() || errMsg;
+    }
+    throw new Error(errMsg);
+  }
+  return res.json();
+}
+
+export async function getConverterHistory(): Promise<any[]> {
+  const res = await fetch(`${BASE_URL}/converter/history`);
+  if (!res.ok) throw new Error('변환 이력 조회 실패');
+  return res.json();
+}
+

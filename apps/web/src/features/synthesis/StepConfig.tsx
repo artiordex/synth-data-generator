@@ -68,9 +68,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Left: General Settings */}
-        <div className={`p-6 rounded-2xl border space-y-4 shadow-sm ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+        <div className="ui-panel space-y-4 p-6">
           <h3 className={`flex items-center gap-2 break-keep text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
             <Sliders className="w-4 h-4 text-sky-500" />
             프로젝트 및 합성 대상 정보
@@ -82,9 +80,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                 type="text" 
                 value={departmentName} 
                 onChange={(e) => setDepartmentName(e.target.value)} 
-                className={`w-full px-3 py-2 border rounded-xl text-xs focus:outline-none focus:border-sky-500 ${
-                  isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                }`}
+                className="ui-field"
               />
             </div>
             <div>
@@ -93,9 +89,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                 type="text" 
                 value={projectPurpose} 
                 onChange={(e) => setProjectPurpose(e.target.value)} 
-                className={`w-full px-3 py-2 border rounded-xl text-xs focus:outline-none focus:border-sky-500 ${
-                  isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                }`}
+                className="ui-field"
               />
             </div>
             <div>
@@ -104,9 +98,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                 type="number" 
                 value={targetRows} 
                 onChange={(e) => setTargetRows(Number(e.target.value))} 
-                className={`w-full px-3 py-2 border rounded-xl text-xs focus:outline-none focus:border-sky-500 ${
-                  isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                }`}
+                className="ui-field"
               />
             </div>
             <div>
@@ -118,18 +110,14 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                 max="0.99"
                 value={qualityThreshold} 
                 onChange={(e) => setQualityThreshold(Number(e.target.value))} 
-                className={`w-full px-3 py-2 border rounded-xl text-xs focus:outline-none focus:border-sky-500 ${
-                  isDarkMode ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                }`}
+                className="ui-field"
               />
             </div>
           </div>
         </div>
 
         {/* Right: AI Model & Privacy */}
-        <div className={`p-6 rounded-2xl border space-y-4 shadow-sm ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+        <div className="ui-panel space-y-4 p-6">
           <h3 className={`flex items-center gap-2 break-keep text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
             <Cpu className="w-4 h-4 text-sky-500" />
             생성 모델 & 차분 프라이버시(DP)
@@ -164,7 +152,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                 </button>
               ))}
             </div>
-            <button type="button" disabled={comparing} onClick={runComparison} className="mt-3 rounded-xl border border-sky-500 px-4 py-2 text-xs font-bold text-sky-600 disabled:opacity-40">
+            <button type="button" disabled={comparing} onClick={runComparison} className="ui-button-secondary mt-3 border-sky-500 text-sky-700 dark:text-sky-400">
               {comparing && <RefreshCw className="mr-2 inline h-3.5 w-3.5 animate-spin"/>}4개 모델 축소 학습 비교 및 자동 선택
             </button>
             {compareError && <p className="mt-2 text-xs text-rose-500">{compareError}</p>}
@@ -217,7 +205,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
         </div>
       </div>
 
-      <div className={`p-6 rounded-2xl border space-y-4 ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}>
+      <div className="ui-panel space-y-4 p-6">
         <h3 className="font-bold text-sm">심의자료 한글 문서 입력</h3>
         <p className="text-xs">데이터 규모·전체 항목·결측 현황·처리방법·측정결과는 자동 입력됩니다. 아래 내용은 문서에 함께 반영되며, 미입력 사항은 자동 분석 또는 담당자 확인 필요로 표시됩니다.</p>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -231,7 +219,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
               {label}
               <textarea value={reviewMetadata[key] || ''} placeholder={placeholder} rows={3}
                 onChange={(event) => setReviewMetadata({ ...reviewMetadata, [key]: event.target.value })}
-                className={`mt-1 w-full rounded-lg border p-2 ${isDarkMode ? 'bg-slate-950 border-slate-700' : 'bg-slate-50 border-slate-300'}`} />
+                className="ui-field mt-1" />
             </label>
           ))}
         </div>
@@ -243,17 +231,13 @@ export const StepConfig: React.FC<StepConfigProps> = ({
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           onClick={() => setStep(2)}
-          className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${
-            isDarkMode 
-              ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
-              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-sm'
-          }`}
+          className="ui-button-secondary"
         >
           ← 이전 단계
         </button>
         <button
           onClick={handleStartSynthesis}
-          className="rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-sky-600/30 transition-all hover:from-sky-500 hover:to-indigo-500 sm:px-8"
+          className="ui-button-primary px-6 py-3 text-sm sm:px-8"
         >
            실시간 합성 및 심의 패키지 파이프라인 가동
         </button>

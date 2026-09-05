@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, Shield } from 'lucide-react';
+import { Database, Shield, FileSpreadsheet, ArrowRight, ArrowLeft } from 'lucide-react';
 import { DatasetProfile } from '../../types';
 
 interface StepProfileProps {
@@ -13,97 +13,127 @@ export const StepProfile: React.FC<StepProfileProps> = ({
   profile,
   setStep,
 }) => {
+  const piiCount = Object.keys(profile.detected_pii).length;
+
   return (
     <div className="space-y-6">
-      {/* Summary Bar */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-          <div className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>파일명</div>
-          <div className={`text-sm font-bold truncate mt-0.5 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{profile.filename}</div>
+      {/* File Meta Strip (Replaces 4-box dashboard cards) */}
+      <div className="bg-surface border border-subtle rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-accent-subtle border border-accent/20 text-accent flex items-center justify-center shrink-0">
+            <FileSpreadsheet className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold text-fg truncate tracking-tight">{profile.filename}</h2>
+              <span className="px-2.5 py-0.5 rounded-md text-[11px] font-mono font-medium bg-surface-muted text-fg-muted border border-subtle">
+                {profile.row_count.toLocaleString()} 행 · {profile.column_count} 컬럼
+              </span>
+              {piiCount > 0 ? (
+                <span className="px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-warning-subtle text-warning border border-warning/20 flex items-center gap-1">
+                  <Shield className="w-3 h-3" />
+                  PII {piiCount}개 컬럼 감지됨
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-success-subtle text-success border border-success/20">
+                  안전 (PII 미감지)
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] font-mono text-fg-subtle truncate">
+              무결성 해시: {profile.sha256}
+            </p>
+          </div>
         </div>
-        <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-          <div className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>레코드 및 컬럼 수</div>
-          <div className="text-sm font-bold text-sky-600 dark:text-sky-400 mt-0.5">{profile.row_count.toLocaleString()} 행 / {profile.column_count} 컬럼</div>
-        </div>
-        <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-          <div className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>개인정보(PII) 감지</div>
-          <div className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-0.5">{Object.keys(profile.detected_pii).length}개 컬럼 감지됨</div>
-        </div>
-        <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-          <div className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>SHA-256 무결성 해시</div>
-          <div className={`text-xs font-mono truncate mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{profile.sha256}</div>
+
+        <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center">
+          <button
+            onClick={() => setStep(1)}
+            className="px-3.5 py-2 rounded-xl border border-default hover:bg-surface-muted text-xs font-medium text-fg transition-colors flex items-center gap-1.5"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            파일 다시 선택
+          </button>
+          <button
+            onClick={() => setStep(3)}
+            className="px-4 py-2 rounded-xl bg-accent hover:bg-accent-hover text-accent-fg text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5"
+          >
+            합성 모델 설정
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
       {/* Column Schema Table */}
-      <div className={`border rounded-2xl overflow-hidden shadow-sm ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
-        <div className={`flex flex-col gap-2 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 ${
-          isDarkMode ? 'border-slate-800' : 'border-slate-200 bg-slate-50/50'
-        }`}>
-          <h3 className={`flex items-center gap-2 break-keep text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
-            <Database className="w-4 h-4 text-sky-500" />
+      <div className="bg-surface border border-subtle rounded-2xl shadow-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-subtle bg-surface-muted/40 gap-2">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-fg">
+            <Database className="w-4 h-4 text-accent" />
             컬럼 스키마 및 가명화 변환 계획
           </h3>
-          <span className={`break-keep text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>한국형 Faker 10종 고유 식별자 일관 매핑</span>
+          <span className="text-xs text-fg-subtle font-mono">
+            총 {profile.columns.length}개 컬럼
+          </span>
         </div>
-        <div className="overflow-x-auto max-h-80">
+        <div className="overflow-x-auto max-h-96">
           <table className="w-full text-left text-xs">
-            <thead className={`uppercase font-bold sticky top-0 ${
-              isDarkMode ? 'bg-slate-950/90 text-slate-400' : 'bg-slate-100 text-slate-600'
-            }`}>
+            <thead className="sticky top-0 bg-surface-muted text-fg-muted font-medium border-b border-subtle text-[11px] uppercase tracking-wider">
               <tr>
-                <th className="px-4 py-3">컬럼명</th>
-                <th className="px-4 py-3">추론 유형</th>
-                <th className="px-4 py-3">결측치 수</th>
-                <th className="px-4 py-3">고유값 수</th>
-                <th className="px-4 py-3">PII 판별 및 가명화 조치</th>
-                <th className="px-4 py-3">값 예시 (중복 제외)</th>
+                <th className="px-5 py-3">컬럼명</th>
+                <th className="px-5 py-3">유형</th>
+                <th className="px-5 py-3 text-right">결측치</th>
+                <th className="px-5 py-3 text-right">고유값</th>
+                <th className="px-5 py-3">PII 판별 및 조치</th>
+                <th className="px-5 py-3">값 샘플 미리보기</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800/60' : 'divide-slate-200'}`}>
+            <tbody className="divide-y divide-subtle">
               {profile.columns.map((c) => (
-                <tr key={c.name} className={isDarkMode ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
-                  <td className={`px-4 py-2.5 font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{c.name}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      c.inferred_type === 'numerical' 
-                        ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20' 
-                        : c.inferred_type === 'pii' 
-                        ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' 
-                        : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+                <tr key={c.name} className="hover:bg-surface-muted/40 transition-colors">
+                  <td className="px-5 py-3 font-semibold text-fg font-mono">
+                    {c.name}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-medium border ${
+                      c.inferred_type === 'numerical'
+                        ? 'bg-accent-subtle text-accent border-accent/20'
+                        : c.inferred_type === 'pii'
+                        ? 'bg-danger-subtle text-danger border-danger/20'
+                        : 'bg-surface-muted text-fg-muted border-default'
                     }`}>
                       {c.inferred_type}
                     </span>
                   </td>
-                  <td className={`px-4 py-2.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>{c.null_count}</td>
-                  <td className={`px-4 py-2.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>{c.unique_count}</td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-5 py-3 text-right font-mono text-fg-muted">
+                    {c.null_count.toLocaleString()}
+                  </td>
+                  <td className="px-5 py-3 text-right font-mono text-fg-muted">
+                    {c.unique_count.toLocaleString()}
+                  </td>
+                  <td className="px-5 py-3">
                     {c.pii_detected ? (
-                      <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1 w-fit">
+                      <span className="px-2.5 py-0.5 rounded-md bg-warning-subtle text-warning border border-warning/20 text-[11px] font-medium flex items-center gap-1 w-fit">
                         <Shield className="w-3 h-3" />
                         Faker ({c.pii_type || '가명화'})
                       </span>
                     ) : (
-                      <span className={isDarkMode ? 'text-slate-500 text-[11px]' : 'text-slate-400 text-[11px]'}>통계/AI 모델링</span>
+                      <span className="text-fg-subtle text-[11px]">
+                        AI 합성 모델링
+                      </span>
                     )}
                   </td>
-                  <td className={`px-4 py-2.5 text-[11px] min-w-[240px] max-w-lg ${
-                    isDarkMode ? 'text-slate-400' : 'text-slate-600'
-                  }`}>
+                  <td className="px-5 py-3 min-w-[240px] max-w-lg">
                     <div className="flex flex-wrap gap-1.5">
-                      {c.samples.length ? c.samples.map(value => (
-                        <span key={value} className={`rounded px-2 py-1 whitespace-normal break-words max-w-full ${
-                          isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
-                        }`}>{value}</span>
-                      )) : <span className="text-slate-400">값 없음</span>}
+                      {c.samples.length ? c.samples.map((value, idx) => (
+                        <span 
+                          key={idx} 
+                          className="rounded-md px-2 py-0.5 text-[11px] font-mono bg-surface-muted text-fg-muted border border-subtle truncate max-w-[200px]"
+                          title={String(value)}
+                        >
+                          {String(value)}
+                        </span>
+                      )) : <span className="text-fg-subtle">값 없음</span>}
                     </div>
-                    {c.unique_count > c.samples.length && (
-                      <div className="mt-1.5 text-[10px] text-slate-400">
-                        전체 고유값 {c.unique_count.toLocaleString()}개 중 일부 표시
-                      </div>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -112,23 +142,21 @@ export const StepProfile: React.FC<StepProfileProps> = ({
         </div>
       </div>
 
-      {/* Navigation Button */}
-      <div className="flex justify-between items-center">
+      {/* Bottom Action Bar */}
+      <div className="flex justify-between items-center pt-2">
         <button
           onClick={() => setStep(1)}
-          className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${
-            isDarkMode 
-              ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
-              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-sm'
-          }`}
+          className="px-4 py-2.5 rounded-xl border border-default hover:bg-surface-muted text-xs font-medium text-fg transition-colors flex items-center gap-2"
         >
-          ← 파일 다시 선택
+          <ArrowLeft className="w-4 h-4" />
+          파일 다시 선택
         </button>
         <button
           onClick={() => setStep(3)}
-          className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white transition-all shadow-md shadow-sky-600/30"
+          className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-accent-fg text-xs font-semibold shadow-sm transition-colors flex items-center gap-2"
         >
-          합성 모델 및 파라미터 설정 →
+          합성 모델 및 파라미터 설정
+          <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>

@@ -14,9 +14,7 @@ export const StepProgress: React.FC<StepProgressProps> = ({
   handleCancelJob,
 }) => {
   return (
-    <div className={`p-8 rounded-2xl border text-center space-y-6 max-w-2xl mx-auto shadow-xl ${
-      isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-    }`}>
+    <div className="ui-panel mx-auto max-w-2xl space-y-6 p-8 text-center">
       <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto animate-pulse ${
         isDarkMode ? 'bg-sky-500/10 border border-sky-500/30 text-sky-400' : 'bg-sky-100 border border-sky-200 text-sky-600'
       }`}>
@@ -36,7 +34,7 @@ export const StepProgress: React.FC<StepProgressProps> = ({
           isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
         }`}>
           <div 
-            className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full transition-all duration-300"
+            className="h-full rounded-full bg-sky-600 transition-all duration-300"
             style={{ width: `${activeJob.progress}%` }}
           />
         </div>
@@ -49,7 +47,7 @@ export const StepProgress: React.FC<StepProgressProps> = ({
       {/* Cancel Button */}
       <button
         onClick={handleCancelJob}
-        className="px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs font-bold transition-colors"
+        className="ui-button-danger mx-auto"
       >
         작업 중단 (Cancel Job)
       </button>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Upload, Database, Sliders, Play, CheckCircle2,
   AlertCircle, BookOpen, Layers, Sun, Moon, FileCode, Zap,
-  ShieldCheck, Cpu, History
+  ShieldCheck, Cpu, History, Info, HelpCircle, ArrowLeftRight
 } from 'lucide-react';
 import { DatasetProfile, JobStatus, SynthesisRequest } from '../types';
 import { uploadDataset, getDatasetProfile, startSynthesis, cancelSynthesis, getJobStatus } from '../services/api';
@@ -13,12 +13,14 @@ import { StepProfile } from '../features/dataset/StepProfile';
 import { StepConfig } from '../features/synthesis/StepConfig';
 import { defaultSynthesisOptions, SynthesisOptions } from '../features/synthesis/AdvancedSynthesisSettings';
 import { StepProgress } from '../features/synthesis/StepProgress';
-import { BatchSynthesisPanel, ACTIVE_BATCH_KEY } from '../features/synthesis/BatchSynthesisPanel';
+import { BatchSynthesisPanel } from '../features/synthesis/BatchSynthesisPanel';
 import { RelationalSynthesisPanel } from '../features/synthesis/RelationalSynthesisPanel';
 import { TimeSeriesPanel } from '../features/synthesis/TimeSeriesPanel';
+import { SynthesisWorkflowSelector, SyntheticWorkflow } from '../features/synthesis/SynthesisWorkflowSelector';
 import { StepReport } from '../features/reports/StepReport';
 import { QuickDummyBuilder } from '../features/dummy/QuickDummyBuilder';
 import { PseudonymStudio } from '../features/pseudonym/PseudonymStudio';
+import { DataConverterStudio } from '../features/converter/DataConverterStudio';
 
 export default function App() {
   // Theme state (Default: Light mode, saved in localStorage)
@@ -37,8 +39,10 @@ export default function App() {
   }, [isDarkMode]);
 
   const [step, setStep] = useState<number>(1);
-  const [batchFiles, setBatchFiles] = useState<File[] | null>(() => localStorage.getItem(ACTIVE_BATCH_KEY) ? [] : null);
-  const [activeTab, setActiveTab] = useState<'pseudo' | 'synthetic' | 'dummy'>('synthetic');
+  const [syntheticWorkflow, setSyntheticWorkflow] = useState<SyntheticWorkflow>('single');
+  const [batchFiles] = useState<File[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'pseudo' | 'synthetic' | 'dummy' | 'converter'>('synthetic');
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadedFilename, setUploadedFilename] = useState<string>('');
   const [profile, setProfile] = useState<DatasetProfile | null>(null);
@@ -47,8 +51,6 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [historyType, setHistoryType] = useState<HistoryType>('all');
   const [batchViewKey, setBatchViewKey] = useState(0);
-  const [relationalOpen, setRelationalOpen] = useState(false);
-  const [timeSeriesOpen, setTimeSeriesOpen] = useState(false);
 
   // Form Config
   const [departmentName, setDepartmentName] = useState<string>('범용 데이터분석팀');
@@ -139,18 +141,15 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-200 ${
-      isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
-    }`}>
+    <div className="app-shell min-h-screen flex flex-col bg-[var(--ui-canvas)] text-[var(--ui-text)] transition-colors duration-200">
       {/* Header */}
-      <header className={`sticky top-0 z-40 border-b px-4 py-3 backdrop-blur transition-colors sm:px-6 ${
-        isDarkMode ? 'border-slate-800/80 bg-slate-900/80' : 'border-slate-200 bg-white/90 shadow-sm'
-      }`}>
+      <header className="sticky top-0 z-40 border-b border-[var(--ui-border)] bg-[color:var(--ui-surface)]/95 px-4 py-3 shadow-sm backdrop-blur transition-colors sm:px-6">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-3">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <button
               onClick={() => {
                 setActiveTab('synthetic');
+                setSyntheticWorkflow('single');
                 setStep(1);
                 setProfile(null);
                 setActiveJob(null);
@@ -159,15 +158,16 @@ export default function App() {
               className="group flex min-w-0 flex-1 items-center gap-3 text-left focus:outline-none cursor-pointer"
               title="메인 화면으로 이동"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 shadow-lg shadow-sky-500/20 transition-transform group-hover:scale-105">
-                <Layers className="h-5 w-5 text-white" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-fg shadow-xs transition-transform group-hover:scale-105">
+                <Layers className="h-6 w-6" />
               </div>
-              <div className="min-w-0">
-                <h1 className={`truncate text-sm font-bold tracking-tight transition-colors sm:text-base ${
-                  isDarkMode ? 'text-white group-hover:text-sky-400' : 'text-slate-900 group-hover:text-sky-600'
-                }`}>
-                  범용 AI 합성데이터 생성 플랫폼
+              <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+                <h1 className="truncate text-lg sm:text-2xl font-black tracking-tight text-fg transition-colors group-hover:text-accent leading-none">
+                  사내 데이터 생성기
                 </h1>
+                <span className="hidden md:inline-block rounded-md border border-subtle bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-fg-muted whitespace-nowrap">
+                  가명 · 합성 · 더미 · 변환
+                </span>
               </div>
             </button>
 
@@ -175,11 +175,7 @@ export default function App() {
               {/* Light / Dark Mode Toggle Button */}
               <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
-                  isDarkMode
-                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700 shadow-sm'
-                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-sm'
-                }`}
+                className="ui-button-secondary shrink-0 whitespace-nowrap px-3"
                 title={isDarkMode ? "밝은 화면(라이트 모드)으로 전환" : "어두운 화면(다크 모드)으로 전환"}
               >
                 {isDarkMode ? (
@@ -198,11 +194,7 @@ export default function App() {
               {/* AI & Data Glossary Button */}
               <button
                 onClick={() => setIsDictionaryOpen(true)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
-                  isDarkMode
-                    ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
-                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-sm'
-                }`}
+                className="ui-button-secondary shrink-0 whitespace-nowrap px-3"
                 title="FlowHunt 350여 종 표준 AI·데이터 전문 용어사전 열기"
               >
                 <BookOpen className="w-4 h-4 text-sky-500" />
@@ -213,11 +205,7 @@ export default function App() {
               {/* Unified History Modal Button */}
               <button
                 onClick={() => { setHistoryType('all'); setIsHistoryOpen(true); }}
-                className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
-                  isDarkMode
-                    ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
-                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-sm'
-                }`}
+                className="ui-button-secondary shrink-0 whitespace-nowrap px-3"
                 title="가명·합성·더미 3대 데이터 통합 작업 이력 및 감사 로그 열람"
               >
                 <History className="w-4 h-4 text-emerald-500" />
@@ -230,71 +218,181 @@ export default function App() {
                 href="/docs"
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
-                  isDarkMode
-                    ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
-                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-sm'
-                }`}
+                className="ui-button-secondary shrink-0 whitespace-nowrap px-3"
                 title="Swagger 대화형 API 문서 열기"
               >
                 <FileCode className="w-4 h-4 text-emerald-500" />
-                <span className="hidden md:inline">API 문서 (Swagger)</span>
+                <span className="hidden md:inline">API 문서</span>
                 <span className="md:hidden">API</span>
               </a>
             </div>
           </div>
 
-          {/* 3 Main Tracks Navigation Tabs (No emojis) */}
-          <div className="flex justify-center">
-            <div className={`grid w-full max-w-3xl grid-cols-3 gap-1 rounded-xl border p-1 ${
-              isDarkMode ? 'bg-slate-800/90 border-slate-700/80' : 'bg-slate-100 border-slate-200'
-            }`}>
+          {/* 4 Main Tracks Navigation Tabs with Black Tooltip Speech Bubbles */}
+          <div className="flex justify-center pt-0.5">
+            <div className="grid w-full max-w-3xl grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl border border-subtle bg-surface-muted p-1 shadow-xs">
+              {/* Tab 1: 가명데이터 */}
               <button
                 onClick={() => setActiveTab('pseudo')}
-                className={`flex min-w-0 items-center justify-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
+                aria-label="가명데이터"
+                className={`group relative flex items-center justify-center gap-2 rounded-lg px-3 py-2 transition-all ${
                   activeTab === 'pseudo'
-                    ? isDarkMode
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'bg-white text-emerald-700 shadow-sm'
-                    : isDarkMode
-                      ? 'text-slate-400 hover:text-slate-200'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-accent text-accent-fg shadow-sm font-bold'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface/60 font-medium'
                 }`}
               >
-                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">가명데이터 (Pseudonymized)</span>
+                <ShieldCheck className="h-4 w-4 shrink-0" />
+                <span className="text-sm sm:text-base font-bold tracking-tight">가명데이터</span>
+
+                {/* Circle Help Icon with High Contrast Black Speech Bubble */}
+                <div className="relative group/tooltip inline-flex items-center ml-0.5">
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    className={`p-0.5 rounded-full transition-colors cursor-help ${
+                      activeTab === 'pseudo' ? 'text-accent-fg/80 hover:text-accent-fg' : 'text-fg-muted hover:text-accent'
+                    }`}
+                    title="가명데이터 설명 보기"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </span>
+
+                  {/* 검은 말풍선 (Black Speech Bubble) - 최고대비 순백색 텍스트 */}
+                  <div className="ui-tooltip-bubble pointer-events-none absolute top-full left-0 sm:left-1/2 sm:-translate-x-1/2 mt-2.5 hidden group-hover/tooltip:block w-80 sm:w-96 rounded-xl p-4 shadow-2xl z-50">
+                    <div className="ui-tooltip-arrow absolute -top-1.5 left-5 sm:left-1/2 sm:-translate-x-1/2 w-3 h-3 rotate-45" />
+                    <div className="relative z-10 space-y-2 text-left">
+                      <div className="tooltip-title flex items-center gap-2 text-sm font-bold text-white">
+                        <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                        <span style={{ color: '#ffffff', fontWeight: 700 }}>가명데이터 (Pseudonymization)</span>
+                      </div>
+                      <p className="tooltip-desc text-[13px] leading-relaxed break-keep" style={{ color: '#f8fafc', fontWeight: 400 }}>
+                        이름, 전화번호, 주민번호 등 개인식별정보를 한국형 Faker 가명값 및 암호화 기법으로 치환합니다. 원본의 행 구조와 통계적 상관관계를 유지하면서 사내 분석·통계에 안전하게 활용합니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </button>
 
+              {/* Tab 2: 합성데이터 */}
               <button
                 onClick={() => setActiveTab('synthetic')}
-                className={`flex min-w-0 items-center justify-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
+                aria-label="합성데이터"
+                className={`group relative flex items-center justify-center gap-2 rounded-lg px-3 py-2 transition-all ${
                   activeTab === 'synthetic'
-                    ? isDarkMode
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'bg-white text-sky-700 shadow-sm'
-                    : isDarkMode
-                      ? 'text-slate-400 hover:text-slate-200'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-accent text-accent-fg shadow-sm font-bold'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface/60 font-medium'
                 }`}
               >
-                <Cpu className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">AI 합성데이터 (Synthetic)</span>
+                <Cpu className="h-4 w-4 shrink-0" />
+                <span className="text-sm sm:text-base font-bold tracking-tight">합성데이터</span>
+
+                {/* Circle Help Icon with High Contrast Black Speech Bubble */}
+                <div className="relative group/tooltip inline-flex items-center ml-0.5">
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    className={`p-0.5 rounded-full transition-colors cursor-help ${
+                      activeTab === 'synthetic' ? 'text-accent-fg/80 hover:text-accent-fg' : 'text-fg-muted hover:text-accent'
+                    }`}
+                    title="합성데이터 설명 보기"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </span>
+
+                  {/* 검은 말풍선 (Black Speech Bubble) - 최고대비 순백색 텍스트 */}
+                  <div className="ui-tooltip-bubble pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2.5 hidden group-hover/tooltip:block w-80 sm:w-96 rounded-xl p-4 shadow-2xl z-50">
+                    <div className="ui-tooltip-arrow absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45" />
+                    <div className="relative z-10 space-y-2 text-left">
+                      <div className="tooltip-title flex items-center gap-2 text-sm font-bold text-white">
+                        <Cpu className="w-4 h-4 text-sky-400 shrink-0" />
+                        <span style={{ color: '#ffffff', fontWeight: 700 }}>합성데이터 (Synthetic Data)</span>
+                      </div>
+                      <p className="tooltip-desc text-[13px] leading-relaxed break-keep" style={{ color: '#f8fafc', fontWeight: 400 }}>
+                        CTGAN, TVAE, Copula 등 AI 딥러닝 모델이 원본의 통계적 패턴과 상관관계만 학습하여 100% 새로 생성한 가상 데이터입니다. 실제 개인정보가 전혀 없어 사외 반출이나 AI 학습에 가장 안전합니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </button>
 
+              {/* Tab 3: 더미데이터 */}
               <button
                 onClick={() => setActiveTab('dummy')}
-                className={`flex min-w-0 items-center justify-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
+                aria-label="더미데이터"
+                className={`group relative flex items-center justify-center gap-2 rounded-lg px-3 py-2 transition-all ${
                   activeTab === 'dummy'
-                    ? isDarkMode
-                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                      : 'bg-white text-amber-700 shadow-sm font-bold'
-                    : isDarkMode
-                      ? 'text-slate-400 hover:text-slate-200'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-accent text-accent-fg shadow-sm font-bold'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface/60 font-medium'
                 }`}
               >
-                <Database className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">더미데이터 (Mock Dummy)</span>
+                <Database className="h-4 w-4 shrink-0" />
+                <span className="text-sm sm:text-base font-bold tracking-tight">더미데이터</span>
+
+                {/* Circle Help Icon with High Contrast Black Speech Bubble */}
+                <div className="relative group/tooltip inline-flex items-center ml-0.5">
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    className={`p-0.5 rounded-full transition-colors cursor-help ${
+                      activeTab === 'dummy' ? 'text-accent-fg/80 hover:text-accent-fg' : 'text-fg-muted hover:text-accent'
+                    }`}
+                    title="더미데이터 설명 보기"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </span>
+
+                  {/* 검은 말풍선 (Black Speech Bubble) - 최고대비 순백색 텍스트 */}
+                  <div className="ui-tooltip-bubble pointer-events-none absolute top-full right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 mt-2.5 hidden group-hover/tooltip:block w-80 sm:w-96 rounded-xl p-4 shadow-2xl z-50">
+                    <div className="ui-tooltip-arrow absolute -top-1.5 right-5 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 w-3 h-3 rotate-45" />
+                    <div className="relative z-10 space-y-2 text-left">
+                      <div className="tooltip-title flex items-center gap-2 text-sm font-bold text-white">
+                        <Database className="w-4 h-4 text-sky-400 shrink-0" />
+                        <span style={{ color: '#ffffff', fontWeight: 700 }}>더미데이터 (Dummy Data)</span>
+                      </div>
+                      <p className="tooltip-desc text-[13px] leading-relaxed break-keep" style={{ color: '#f8fafc', fontWeight: 400 }}>
+                        원본 데이터 없이도 사전에 정의된 규칙(인적사항, 결제정보, 주소 등)에 따라 시스템 개발, 기능 검증 및 QA 부하 테스트를 위해 즉시 대량으로 생성하는 모의 데이터입니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              {/* Tab 4: 데이터변환 */}
+              <button
+                onClick={() => setActiveTab('converter')}
+                aria-label="데이터변환"
+                className={`group relative flex items-center justify-center gap-2 rounded-lg px-3 py-2 transition-all ${
+                  activeTab === 'converter'
+                    ? 'bg-accent text-accent-fg shadow-sm font-bold'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface/60 font-medium'
+                }`}
+              >
+                <ArrowLeftRight className="h-4 w-4 shrink-0" />
+                <span className="text-sm sm:text-base font-bold tracking-tight">데이터변환</span>
+
+                {/* Circle Help Icon with High Contrast Black Speech Bubble */}
+                <div className="relative group/tooltip inline-flex items-center ml-0.5">
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    className={`p-0.5 rounded-full transition-colors cursor-help ${
+                      activeTab === 'converter' ? 'text-accent-fg/80 hover:text-accent-fg' : 'text-fg-muted hover:text-accent'
+                    }`}
+                    title="데이터변환 설명 보기"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </span>
+
+                  {/* 검은 말풍선 (Black Speech Bubble) - 최고대비 순백색 텍스트 */}
+                  <div className="ui-tooltip-bubble pointer-events-none absolute top-full right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 mt-2.5 hidden group-hover/tooltip:block w-80 sm:w-96 rounded-xl p-4 shadow-2xl z-50">
+                    <div className="ui-tooltip-arrow absolute -top-1.5 right-5 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 w-3 h-3 rotate-45" />
+                    <div className="relative z-10 space-y-2 text-left">
+                      <div className="tooltip-title flex items-center gap-2 text-sm font-bold text-white">
+                        <ArrowLeftRight className="w-4 h-4 text-sky-400 shrink-0" />
+                        <span style={{ color: '#ffffff', fontWeight: 700 }}>데이터변환 (Data & Doc Converter)</span>
+                      </div>
+                      <p className="tooltip-desc text-[13px] leading-relaxed break-keep" style={{ color: '#f8fafc', fontWeight: 400 }}>
+                        CSV, Excel, Parquet, JSON, SQL 등 이기종 데이터 포맷 상호 변환 및 HWP, HWPX, Word(DOCX) 사내 문서를 원본 서식 그대로 PDF/HWPX로 고속 변환합니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </button>
             </div>
           </div>
@@ -309,11 +407,42 @@ export default function App() {
         {activeTab === 'dummy' && (
           <QuickDummyBuilder isDarkMode={isDarkMode} />
         )}
-        {activeTab === 'synthetic' && (timeSeriesOpen ? <TimeSeriesPanel isDarkMode={isDarkMode} onClose={() => setTimeSeriesOpen(false)} /> : relationalOpen ? <RelationalSynthesisPanel isDarkMode={isDarkMode} onClose={() => setRelationalOpen(false)} /> : batchFiles !== null ? <BatchSynthesisPanel key={batchViewKey} initialFiles={batchFiles}
-          isDarkMode={isDarkMode} onClose={() => setBatchFiles(null)} onOpenJob={job => {
-            setBatchFiles(null); setActiveJob(job); setStep(5);
-          }} /> : (
+        {activeTab === 'converter' && (
+          <DataConverterStudio isDarkMode={isDarkMode} />
+        )}
+        {activeTab === 'synthetic' && (
           <>
+            <SynthesisWorkflowSelector
+              value={syntheticWorkflow}
+              onChange={workflow => {
+                setSyntheticWorkflow(workflow);
+                if (workflow === 'batch') setSelectedBatchId(null);
+              }}
+              isDarkMode={isDarkMode}
+            />
+
+            {syntheticWorkflow === 'timeseries' ? (
+              <TimeSeriesPanel isDarkMode={isDarkMode} onClose={() => setSyntheticWorkflow('single')} />
+            ) : syntheticWorkflow === 'relational' ? (
+              <RelationalSynthesisPanel isDarkMode={isDarkMode} onClose={() => setSyntheticWorkflow('single')} />
+            ) : syntheticWorkflow === 'batch' ? (
+              <BatchSynthesisPanel
+                key={batchViewKey}
+                initialFiles={batchFiles}
+                initialBatchId={selectedBatchId}
+                isDarkMode={isDarkMode}
+                onClose={() => {
+                  setSelectedBatchId(null);
+                  setSyntheticWorkflow('single');
+                }}
+                onOpenJob={job => {
+                  setSyntheticWorkflow('single');
+                  setActiveJob(job);
+                  setStep(5);
+                }}
+              />
+            ) : (
+              <>
             {/* Step Indicator */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {[
@@ -343,7 +472,7 @@ export default function App() {
                           : 'bg-white border-slate-200 text-slate-700 shadow-sm'
                         : isDarkMode
                         ? 'bg-slate-900/20 border-slate-800/40 text-slate-600 opacity-60'
-                        : 'bg-slate-100/50 border-slate-200 text-slate-400 opacity-60'
+                        : 'bg-slate-100/70 border-slate-200 text-slate-600 opacity-80'
                     }`}
                   >
                     <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold ${
@@ -384,12 +513,7 @@ export default function App() {
                   setStep={setStep}
                   setErrorMsg={setErrorMsg}
                   handleFileUpload={handleFileUpload}
-                  handleBatchFiles={setBatchFiles}
                 />
-
-                <div className="flex flex-wrap gap-5"><button className="text-sky-600 text-sm font-bold" onClick={() => setBatchFiles([])}>파일 일괄 처리</button>
-                  <button className="text-indigo-600 text-sm font-bold" onClick={() => setRelationalOpen(true)}>관계형 다중 테이블 합성</button>
-                  <button className="text-violet-600 text-sm font-bold" onClick={() => setTimeSeriesOpen(true)}>시계열·패널 합성</button></div>
               </div>
             )}
 
@@ -450,8 +574,10 @@ export default function App() {
                 setActiveJob={setActiveJob}
               />
             )}
+              </>
+            )}
           </>
-        ))}
+        )}
       </main>
 
       {/* Data Dictionary Modal */}
@@ -465,9 +591,9 @@ export default function App() {
       <IntegratedHistoryModal
         initialType={historyType}
         onSelectBatch={(id) => {
-          localStorage.setItem(ACTIVE_BATCH_KEY, id);
+          setSelectedBatchId(id);
           setBatchViewKey(value => value + 1);
-          setBatchFiles([]);
+          setSyntheticWorkflow('batch');
           setActiveTab('synthetic');
           setIsHistoryOpen(false);
         }}
@@ -475,7 +601,7 @@ export default function App() {
         onClose={() => setIsHistoryOpen(false)}
         isDarkMode={isDarkMode}
         onSelectJob={(job) => {
-          setBatchFiles(null);
+          setSyntheticWorkflow('single');
           setActiveJob(job);
           setActiveTab('synthetic');
           setStep(5);
