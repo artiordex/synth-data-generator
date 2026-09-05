@@ -115,7 +115,8 @@ Dockerfile + render.yaml    Render 배포 진입점
   생성물/캐시다. 소스 관리·배포 이미지에 포함하지 않는다. 환경은 한 곳만 사용한다.
 - `infra/docker`, `infra/nginx`, `docker-compose.yml`: 로컬 API/웹 분리 실행용이다.
   Render의 통합 Docker 배포에는 사용하지 않는다. 분리 실행을 폐기할 때 정리 가능하다.
-- `experiments/samples`, `experiments/notebooks`: 실험용으로 유지 가능하며 배포에서 제외한다.
+- `docs/reference/합성데이터_수행_코드.ipynb`: 노트북 구현 근거이며 실행·배포에는 사용하지 않는다.
+  실험용 샘플 데이터는 저장소에서 제거했다.
 - `apps/web/src/types/index.ts`와 `packages/contracts/src/index.ts`: 중복 타입 정의다.
   추후 앱이 contracts 패키지를 직접 가져오도록 통합할 수 있다.
 - `exporters/hwp_exporter.py`: 이전 고정 문자열 치환 방식의 호환 코드다.

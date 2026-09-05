@@ -42,7 +42,8 @@ work/
 │  ├─ synthetic_engine/            # AI 합성 / DP 노이즈 / Anonymeter / HWP 빌더 코어 패키지
 │  └─ contracts/                   # 공통 인터페이스 스키마 및 DTO
 ├─ storage/                        # 데이터 격리 저장소 (uploads, outputs, temp, local/app.db)
-├─ experiments/                    # 연구용 노트북(notebooks), 샘플 데이터셋(samples)
+├─ docs/
+│  └─ reference/                   # 구현 근거로 보존하는 원본 노트북
 ├─ tests/                          # E2E 파이프라인 통합 테스트 (test_full_pipeline.py)
 ├─ scripts/dev/                    # run_dev.bat, run_tests.bat
 ├─ infra/                          # Dockerfiles, Nginx 설정

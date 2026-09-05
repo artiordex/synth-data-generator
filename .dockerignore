@@ -13,6 +13,5 @@ storage/uploads
 storage/outputs
 storage/temp
 storage/local
-experiments
 /*.hwp
 tests
