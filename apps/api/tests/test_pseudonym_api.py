@@ -2,8 +2,18 @@ import pytest
 import io
 from fastapi.testclient import TestClient
 from synthetic_api.main import app
+from synthetic_api.core.config import settings
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def isolated_storage(tmp_path, monkeypatch):
+    uploads, outputs = tmp_path / 'uploads', tmp_path / 'outputs'
+    uploads.mkdir()
+    outputs.mkdir()
+    monkeypatch.setattr(settings, 'UPLOAD_DIR', uploads)
+    monkeypatch.setattr(settings, 'OUTPUT_DIR', outputs)
 
 def test_pseudonymize_flow():
     # 1. Upload sample CSV with PII
@@ -44,6 +54,16 @@ def test_pseudonymize_flow():
 
     # Check that name is not equal to original 홍길동
     assert first_row["name"] != "홍길동"
+
+    history = client.get('/api/v1/datasets/pseudonymize/history').json()
+    assert len(history) == 1
+    latest = history[0]
+    assert latest['original_file'] == uploaded_filename
+    assert latest['pii_summary']['phone']['action'] == 'mask'
+    download = client.get(latest['download_url'])
+    assert download.status_code == 200
+    exported = download.content.decode('utf-8-sig')
+    assert '***' in exported and '홍길동' not in exported
 
 def test_pseudonymize_xlsx_format():
     csv_data = "name,amount\n홍길동,1000\n"

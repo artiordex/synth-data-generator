@@ -1,8 +1,16 @@
 import pytest
 from fastapi.testclient import TestClient
 from synthetic_api.main import app
+from synthetic_api.core.config import settings
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def isolated_storage(tmp_path, monkeypatch):
+    output = tmp_path / 'outputs'
+    output.mkdir()
+    monkeypatch.setattr(settings, 'OUTPUT_DIR', output)
 
 def test_dummy_domains_endpoint():
     res = client.get("/api/v1/dummy/domains")
@@ -42,3 +50,9 @@ def test_dummy_generate_endpoint():
     assert data["rows_generated"] == 20
     assert len(data["preview"]) > 0
     assert data["file_name"].endswith(".sql")
+    history = client.get('/api/v1/dummy/history').json()
+    assert len(history) == 1
+    assert history[0]['table_name'] == 'test_members'
+    assert history[0]['rows_generated'] == 20
+    assert history[0]['columns_count'] == 3
+    assert client.get(history[0]['download_url']).status_code == 200
