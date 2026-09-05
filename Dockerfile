@@ -19,7 +19,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.9 /uv /uvx /bin/
 WORKDIR /app
 
 # Install minimal system dependencies for C-extensions
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_NO_CACHE=1
 
 # Copy package configurations and source modules
 COPY pyproject.toml uv.lock README.md ./
