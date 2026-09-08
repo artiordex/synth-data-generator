@@ -45,9 +45,9 @@ def test_pseudonymize_flow():
     assert data["rows_count"] == 3
     assert len(data["pseudonymized_preview"]) == 3
 
-    # Check that phone is masked with ***
+    # Check that phone is smart-masked with format preserved (e.g. 010-****-5678)
     first_row = data["pseudonymized_preview"][0]
-    assert first_row["phone"] == "***"
+    assert first_row["phone"] == "010-****-5678"
 
     # Check that email is hashed (64-char sha256 hex)
     assert len(first_row["email"]) == 64

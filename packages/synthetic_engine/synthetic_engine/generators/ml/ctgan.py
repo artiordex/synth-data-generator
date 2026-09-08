@@ -66,7 +66,7 @@ class CTGANGenerator(BaseSynthesizer):
             if valid_conditions:
                 try:
                     cond = Condition(num_rows=num_rows, column_values=valid_conditions)
-                    return self.synthesizer.sample_from_conditions(conditions=[cond])
+                    return self.synthesizer.sample_from_conditions(conditions=[cond], max_tries_per_batch=10)
                 except Exception as e:
                     print(f"[WARN] sample_from_conditions fallback: {e}")
 

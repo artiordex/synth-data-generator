@@ -10,6 +10,7 @@ from synthetic_api.core.config import settings
 from synthetic_api.core.logging import setup_logging
 from synthetic_api.infrastructure.db.session import engine, Base
 from synthetic_api.routes.v1.router import api_router
+from synthetic_api.infrastructure.file_access import confined_file
 
 # Initialize database schema
 Base.metadata.create_all(bind=engine)
@@ -71,7 +72,7 @@ async def serve_spa(full_path: str):
     
     requested_file = web_dist / full_path
     if full_path and requested_file.exists() and requested_file.is_file():
-        return FileResponse(str(requested_file))
+        return FileResponse(str(confined_file(requested_file, web_dist)))
         
     index_file = web_dist / "index.html"
     if index_file.exists():

@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
 import { Sliders, Cpu, RefreshCw } from 'lucide-react';
 import { compareSynthesisModels } from '../../services/api';
-import { DatasetProfile } from '../../types';
+import { DatasetProfile, ReviewMetadataInput } from '../../types';
 import { AdvancedSynthesisSettings, SynthesisOptions } from './AdvancedSynthesisSettings';
+
+const reviewFields: Array<[keyof Pick<ReviewMetadataInput, 'dataset_name' | 'special_notes' | 'overview' | 'privacy_plan'>, string, string]> = [
+  ['dataset_name', '데이터명', '비워두면 파일명 사용'],
+  ['special_notes', '특이사항', '희소 항목, 수집상 유의사항 등'],
+  ['overview', '정보 개요', '수집 출처, 기간, 배경, 정보 설명'],
+  ['privacy_plan', '개인정보 처리계획', '보유기간, 접근권한, 제공범위, 파기절차'],
+];
 
 interface StepConfigProps {
   synthesisOptions: SynthesisOptions;
   setSynthesisOptions: (value: SynthesisOptions) => void;
   profile: DatasetProfile | null;
   fileName: string;
-  reviewMetadata: Record<string, string>;
-  setReviewMetadata: (value: Record<string, string>) => void;
+  reviewMetadata: ReviewMetadataInput;
+  setReviewMetadata: (value: ReviewMetadataInput) => void;
   isDarkMode: boolean;
   departmentName: string;
   setDepartmentName: (val: string) => void;
@@ -209,12 +216,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
         <h3 className="font-bold text-sm">심의자료 한글 문서 입력</h3>
         <p className="text-xs">데이터 규모·전체 항목·결측 현황·처리방법·측정결과는 자동 입력됩니다. 아래 내용은 문서에 함께 반영되며, 미입력 사항은 자동 분석 또는 담당자 확인 필요로 표시됩니다.</p>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {[
-            ['dataset_name', '데이터명', '비워두면 파일명 사용'],
-            ['special_notes', '특이사항', '희소 항목, 수집상 유의사항 등'],
-            ['overview', '정보 개요', '수집 출처, 기간, 배경, 정보 설명'],
-            ['privacy_plan', '개인정보 처리계획', '보유기간, 접근권한, 제공범위, 파기절차'],
-          ].map(([key, label, placeholder]) => (
+          {reviewFields.map(([key, label, placeholder]) => (
             <label key={key} className="block text-xs font-semibold">
               {label}
               <textarea value={reviewMetadata[key] || ''} placeholder={placeholder} rows={3}
@@ -226,7 +228,14 @@ export const StepConfig: React.FC<StepConfigProps> = ({
         <p className="text-xs">원본 예시는 값 비공개 상태로 구조와 결측 여부를 표시합니다. HWPX 문서 3종과 HTML 확인본을 ZIP에 포함합니다.</p>
       </div>
 
-      <AdvancedSynthesisSettings options={synthesisOptions} onChange={setSynthesisOptions} profile={profile} isDarkMode={isDarkMode} />
+      <AdvancedSynthesisSettings
+        options={synthesisOptions}
+        onChange={setSynthesisOptions}
+        profile={profile}
+        isDarkMode={isDarkMode}
+        reviewMetadata={reviewMetadata}
+        onReviewMetadataChange={setReviewMetadata}
+      />
       {/* Navigation Button */}
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button

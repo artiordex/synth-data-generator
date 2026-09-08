@@ -1,5 +1,5 @@
 import React from 'react';
-import { DatasetProfile, SynthesisRequest } from '../../types';
+import { DatasetProfile, InformationType, ReviewMetadataInput, SynthesisRequest } from '../../types';
 
 export type SynthesisOptions = Pick<SynthesisRequest, 'epochs' | 'batch_size' | 'pac' | 'seed' |
   'sampling_batch_size' | 'max_sampling_attempts' | 'enable_gpu' | 'evaluation_excluded_columns' |
@@ -10,9 +10,12 @@ export const defaultSynthesisOptions: SynthesisOptions = {
   max_sampling_attempts: 10, enable_gpu: false, duplicate_policy: 'balanced',
 };
 
-export function AdvancedSynthesisSettings({ options, onChange, profile, isDarkMode }: {
+const informationTypes: InformationType[] = ['준식별자', '일반정보'];
+
+export function AdvancedSynthesisSettings({ options, onChange, profile, isDarkMode, reviewMetadata, onReviewMetadataChange }: {
   options: SynthesisOptions; onChange: (value: SynthesisOptions) => void;
   profile: DatasetProfile | null; isDarkMode: boolean;
+  reviewMetadata?: ReviewMetadataInput; onReviewMetadataChange?: (value: ReviewMetadataInput) => void;
 }) {
   const columns = profile?.columns.filter(c => !c.pii_detected) || [];
   const cats = options.categorical_columns ?? profile?.suggested_categorical ?? [];
@@ -20,6 +23,17 @@ export function AdvancedSynthesisSettings({ options, onChange, profile, isDarkMo
   const fieldStyle = `rounded border p-2 ${isDarkMode ? 'bg-slate-950 border-slate-700' : 'bg-white border-slate-300'}`;
   const toggle = (key: 'preserve_null_columns' | 'evaluation_excluded_columns', name: string, selected: boolean) => {
     onChange({ ...options, [key]: selected ? [...(options[key] || []), name] : (options[key] || []).filter(c => c !== name) });
+  };
+  const updateInformationType = (name: string, informationType: InformationType) => {
+    if (!onReviewMetadataChange) return;
+    const previousColumn = reviewMetadata?.columns?.[name] || {};
+    onReviewMetadataChange({
+      ...reviewMetadata,
+      columns: {
+        ...(reviewMetadata?.columns || {}),
+        [name]: { ...previousColumn, information_type: informationType },
+      },
+    });
   };
   return <details className="ui-panel p-6">
     <summary className="cursor-pointer font-bold text-sm">학습·평가 상세 설정</summary>
@@ -46,20 +60,40 @@ export function AdvancedSynthesisSettings({ options, onChange, profile, isDarkMo
       </select>
     </label>
     <p className="text-xs mb-3">균형 모드에서 유지한 원본 일치 행은 보고서에 기록하고 검토 필요로 표시합니다. 새 행을 보충해도 부족하면 실패 사유를 표시합니다. 안전성 평가는 50행 이상 입력에서 학습 전 20%를 분리하며, 평가 자료가 부족하면 미측정으로 표시합니다.</p>
-    <div className="overflow-auto max-h-80"><table className="w-full text-xs text-left">
-      <thead><tr><th className="p-2">항목</th><th>학습 유형</th><th>결측 의미 보존</th><th>평가 제외</th></tr></thead>
-      <tbody>{columns.map(c => <tr key={c.name} className="border-t border-slate-300/30">
-        <td className="p-2">{c.name}</td><td><select aria-label={`${c.name} 학습 유형`} className={fieldStyle}
-          value={nums.includes(c.name) ? 'numerical' : 'categorical'}
-          onChange={e => onChange({ ...options,
-            categorical_columns: [...cats.filter(x => x !== c.name), ...(e.target.value === 'categorical' ? [c.name] : [])],
-            numerical_columns: [...nums.filter(x => x !== c.name), ...(e.target.value === 'numerical' ? [c.name] : [])],
-          })}><option value="categorical">범주형</option><option value="numerical">수치형</option></select></td>
-        <td><input aria-label={`${c.name} 결측 의미 보존`} type="checkbox" checked={options.preserve_null_columns?.includes(c.name) ?? false}
-          onChange={e => toggle('preserve_null_columns', c.name, e.target.checked)} /></td>
-        <td><input aria-label={`${c.name} 평가 제외`} type="checkbox" checked={options.evaluation_excluded_columns?.includes(c.name) ?? false}
-          onChange={e => toggle('evaluation_excluded_columns', c.name, e.target.checked)} /></td>
-      </tr>)}</tbody>
+    <div className="overflow-auto max-h-96"><table className="w-full min-w-[1120px] text-xs text-left">
+      <thead><tr><th className="p-2 w-[22%]">항목</th><th className="w-[12%]">학습 유형</th><th className="w-[13%]">정보영역</th><th className="w-[37%]">고유값 미리보기</th><th className="w-[8%] text-center">결측 의미 보존</th><th className="w-[8%] text-center">평가 제외</th></tr></thead>
+      <tbody>{columns.map(c => {
+        const values = c.samples || [];
+        const selectedInformationType = (reviewMetadata?.columns?.[c.name]?.information_type || c.information_type || '일반정보') as InformationType;
+        return <tr key={c.name} className="border-t border-slate-300/30 align-top">
+          <td className="p-2 font-medium">{c.name}</td><td className="py-2 pr-2"><select aria-label={`${c.name} 학습 유형`} className={fieldStyle}
+            value={nums.includes(c.name) ? 'numerical' : 'categorical'}
+            onChange={e => onChange({ ...options,
+              categorical_columns: [...cats.filter(x => x !== c.name), ...(e.target.value === 'categorical' ? [c.name] : [])],
+              numerical_columns: [...nums.filter(x => x !== c.name), ...(e.target.value === 'numerical' ? [c.name] : [])],
+            })}><option value="categorical">범주형</option><option value="numerical">수치형</option></select></td>
+          <td className="py-2 pr-2"><select aria-label={`${c.name} 정보영역`} className={fieldStyle}
+            value={informationTypes.includes(selectedInformationType) ? selectedInformationType : '일반정보'}
+            onChange={e => updateInformationType(c.name, e.target.value as InformationType)}
+            disabled={!onReviewMetadataChange}>
+            <option value="준식별자">준식별자</option><option value="일반정보">일반정보</option>
+          </select></td>
+          <td className="py-2 pr-3">
+            <div className={`max-h-20 overflow-y-auto rounded border p-2 ${isDarkMode ? 'border-slate-800 bg-slate-950/70' : 'border-slate-200 bg-slate-50'}`}>
+              <div className="mb-1 text-[10px] text-slate-500">
+                고유값 {(c.unique_values_total ?? c.unique_count).toLocaleString()}개{c.samples_truncated ? ` · 상위 ${values.length.toLocaleString()}개 표시` : ''}
+              </div>
+              {values.length ? <div className="flex flex-wrap gap-1">
+                {values.map((value, index) => <span key={`${c.name}-${value}-${index}`} className={`max-w-full rounded px-1.5 py-0.5 text-[10px] leading-5 ${isDarkMode ? 'bg-slate-800 text-slate-200' : 'bg-white text-slate-700 border border-slate-200'}`} title={value}>{value}</span>)}
+              </div> : <span className="text-[10px] text-slate-400">표시할 값 없음</span>}
+            </div>
+          </td>
+          <td className="py-3 text-center"><input aria-label={`${c.name} 결측 의미 보존`} type="checkbox" checked={options.preserve_null_columns?.includes(c.name) ?? false}
+            onChange={e => toggle('preserve_null_columns', c.name, e.target.checked)} /></td>
+          <td className="py-3 text-center"><input aria-label={`${c.name} 평가 제외`} type="checkbox" checked={options.evaluation_excluded_columns?.includes(c.name) ?? false}
+            onChange={e => toggle('evaluation_excluded_columns', c.name, e.target.checked)} /></td>
+        </tr>;
+      })}</tbody>
     </table></div>
   </details>;
 }

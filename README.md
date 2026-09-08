@@ -3,6 +3,8 @@
 현재 한글(HWPX) 자동 생성, uv 모노레포 실행, Render 배포 및 폴더 정리 기준은
 [운영 가이드](docs/review-documents-and-deployment.md)를 참고하세요.
 
+기능 개선 순서와 임시 파일 정리 기준은 [개선 작업 목록](docs/architecture/improvement-backlog.md)을 참고하세요.
+
 > **데이터 합성·평가와 심의위원회 한글(HWPX) 문서 자동 생성을 지원하는 플랫폼. uv/npm 모노레포이며 Render Docker 배포를 사용합니다.**
 
 ---
@@ -85,10 +87,33 @@ scripts\dev\run_dev.bat
 docker compose up -d --build
 ```
 
-사내 PC에서는 `http://서버의-사내-IP`로 접속한다. Nginx가 80번 포트에서 웹과
-API를 통합 서버로 전달하며, 애플리케이션의 8000번 포트는 서버 로컬에서만 접근할
-수 있다. Windows 방화벽 설정과 운영 명령은
+Windows PC를 처리 서버로 사용하고, 맥북에서는 `http://Windows-PC-IP`로 접속한다.
+기존에 8000번 포트로 접근하던 주소를 유지하려면 `http://Windows-PC-IP:8000`으로
+접속한다. Nginx가 80번 포트에서 웹과 API를 통합 서버로 전달하며, FastAPI의
+8000번 포트도 사내망 접근용으로 열려 있다. Windows 방화벽 설정과 운영 명령은
 [사내망 Nginx 운영 가이드](docs/intranet-nginx.md)를 참고한다.
+
+### 선택. OpenAI API로 항목 설명 문장 보정
+
+원본데이터 명세서의 항목 설명은 기본적으로 규칙 기반으로 자동 작성된다. GPT 문장
+보정이 필요할 때만 프로젝트 루트의 `.env`에 아래 값을 채운다. Docker 실행 시
+`docker-compose.yml`의 `env_file: .env` 설정으로 API 컨테이너에 전달된다.
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_COLUMN_DESCRIPTION_ENABLED=true
+OPENAI_COLUMN_DESCRIPTION_MODEL=사용할 OpenAI API 모델명
+OPENAI_COLUMN_DESCRIPTION_SYSTEM_PROMPT=내 GPT에 넣어둔 항목 설명 작성 지침
+OPENAI_COLUMN_DESCRIPTION_ONLY_AMBIGUOUS=true
+OPENAI_COLUMN_DESCRIPTION_MAX_OUTPUT_TOKENS=40
+OPENAI_COLUMN_DESCRIPTION_TIMEOUT_SEC=8
+OPENAI_COLUMN_DESCRIPTION_CACHE_TTL_DAYS=30
+OPENAI_COLUMN_DESCRIPTION_CACHE_PATH=storage/local/column_description_cache.json
+```
+
+비용을 낮추려면 `OPENAI_COLUMN_DESCRIPTION_ONLY_AMBIGUOUS=true`를 유지하고,
+출력 토큰을 30~50개 범위로 제한한다. 원본값 전체를 보내지 않고 컬럼명, 정보영역,
+일부 고유값 예시만 전달하는 방식으로 붙이는 것을 권장한다.
 
 ---
 

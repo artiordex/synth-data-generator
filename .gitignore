@@ -15,7 +15,6 @@ build/
 
 # Node / Frontend
 node_modules/
-dist/
 dist-ssr/
 *.local
 .npm
@@ -32,7 +31,13 @@ storage/temp/*
 storage/local/*.db
 storage/local/*.sqlite
 storage/local/*.sqlite3
+storage/local/*.json
 !storage/local/.gitkeep
+
+# Generated scratch artifacts (keep real tests and document templates)
+/storage/test_*
+/apps/api/test_hwp_html.html/
+/docs/test_survey*.zip
 
 # Legacy scratch & local DBs
 app.db

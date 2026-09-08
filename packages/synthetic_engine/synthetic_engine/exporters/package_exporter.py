@@ -5,6 +5,28 @@ import shutil
 import zipfile
 from pathlib import Path
 
+LEADING_SEQUENCE_RE = re.compile(r"^\s*(?P<number>\d+)\.\s*(?P<name>.+?)\s*$")
+
+
+def split_leading_sequence(stem: str) -> tuple[str | None, str]:
+    match = LEADING_SEQUENCE_RE.match(stem)
+    if not match:
+        return None, stem.strip()
+    return f"{match.group('number')}.", match.group("name").strip()
+
+
+def review_document_filename(title: str, dataset_name: str, sequence: str | None = None, suffix: str = ".hwpx") -> str:
+    prefix = f"{sequence} " if sequence else ""
+    return f"{prefix}{title}({safe_path_part(dataset_name, '데이터')}){suffix}"
+
+
+def synthetic_data_filename(dataset_name: str, sequence: str | None = None, suffix: str = ".xlsx") -> str:
+    clean_name = safe_path_part(dataset_name, "데이터")
+    if sequence:
+        return f"{sequence} (합성) {clean_name}{suffix}"
+    return f"합성데이터_{clean_name}{suffix}"
+
+
 def safe_path_part(value: str | None, default: str) -> str:
     text = (value or "").strip() or default
     text = re.sub(r'[\\/:*?"<>|]+', "_", text)

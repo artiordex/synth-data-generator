@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 
 from synthetic_api.core.config import settings
+from synthetic_api.infrastructure.file_access import confined_file
 
 
 
@@ -24,9 +25,7 @@ async def download_file(path: str):
 
         
 
-    if not p.exists() or not p.is_file():
-
-        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+    p = confined_file(p, settings.OUTPUT_DIR)
 
         
 

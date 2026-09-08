@@ -7,6 +7,7 @@ import pandas as pd
 from faker import Faker
 from ..common.types import ColumnPlan
 from .token_vault import project_token
+from .masker import SmartMasker
 
 class ContextAwareFaker:
     @staticmethod
@@ -207,9 +208,10 @@ def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42,
             output = output.drop(columns=[column])
             summary[column] = {"action": "drop"}
             continue
-        if action == "mask":
-            output[column] = output[column].map(lambda value: None if pd.isna(value) else "***")
-            summary[column] = {"action": "mask"}
+        if action in ("mask", "smart_mask"):
+            pii_type = spec.get("faker") or spec.get("pii_type")
+            output[column] = SmartMasker.mask_series(output[column], pii_type=pii_type)
+            summary[column] = {"action": "mask", "mode": "smart_format_preserving", "pii_type": pii_type}
             continue
         if action == "hash":
             output[column] = output[column].map(lambda value: None if pd.isna(value) else hashlib.sha256(str(value).encode("utf-8")).hexdigest())
@@ -246,9 +248,11 @@ def build_pii_output(raw: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPla
             if column in output.columns: output = output.drop(columns=[column])
             summary[column] = {"action": "drop"}
             continue
-        if action == "mask":
-            output[column] = "***"
-            summary[column] = {"action": "mask"}
+        if action in ("mask", "smart_mask"):
+            pii_type = spec.get("faker") or spec.get("pii_type")
+            if column in output.columns:
+                output[column] = SmartMasker.mask_series(output[column], pii_type=pii_type)
+            summary[column] = {"action": "mask", "mode": "smart_format_preserving", "pii_type": pii_type}
             continue
         if action == "hash":
             source_values = raw[column].dropna().astype(str).tolist() if column in raw.columns else []

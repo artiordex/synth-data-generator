@@ -52,13 +52,19 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
       const prof = await getDatasetProfile(uploadRes.filename);
       setProfile(prof);
 
-      // Default actions for detected PII
+      // Default actions for detected PII (or all columns if general document)
       const defaultActions: Record<string, string> = {};
       prof.columns.forEach(col => {
         if (col.pii_detected) {
-          defaultActions[col.name] = 'faker';
+          defaultActions[col.name] = 'mask';
         }
       });
+      // If no single column was explicitly flagged, default all columns to mask so smart masking applies everywhere
+      if (Object.keys(defaultActions).length === 0) {
+        prof.columns.forEach(col => {
+          defaultActions[col.name] = 'mask';
+        });
+      }
       setPiiActions(defaultActions);
     } catch (err: any) {
       setErrorMsg(err.message || '파일 업로드 및 분석에 실패했습니다.');
@@ -72,15 +78,24 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
     setIsProcessing(true);
     setErrorMsg(null);
     try {
+      // If piiActions is empty, default all columns to mask
+      const finalActions = { ...piiActions };
+      if (Object.keys(finalActions).length === 0 && profile) {
+        profile.columns.forEach(c => {
+          finalActions[c.name] = 'mask';
+        });
+      }
+
       const res = await pseudonymizeDataset({
         file_name: uploadedFilename,
-        pii_actions: piiActions,
+        pii_actions: finalActions,
         export_format: exportFormat,
         project_id: projectId,
         quasi_identifiers: quasiIdentifiers,
         sensitive_columns: sensitiveColumns,
       });
       setResult(res);
+      setPreviewTab('after');
     } catch (err: any) {
       setErrorMsg(err.message || '가명화 처리에 실패했습니다.');
     } finally {
@@ -106,8 +121,10 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
       {/* Step 1: Upload Section */}
       {!profile && (
         <UnifiedFileUploader
-          title="가명처리할 데이터 파일 업로드"
-          subtitle="CSV, Excel(XLSX/XLS), TSV, JSON, Parquet 등 원본 데이터를 업로드하면 즉시 14종 PII 자동 탐지 및 가명화 계획을 수립합니다."
+          title="가명처리할 데이터 및 문서 파일 업로드"
+          subtitle="CSV, XLSX, TSV, JSON, Parquet뿐만 아니라 PDF, 한글(HWP/HWPX), 워드(DOCX/DOC), 마크다운(MD) 문서를 업로드하면 즉시 PII 자동 탐지 및 스마트 가명화 계획을 수립합니다."
+          accept=".csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq,.pdf,.hwp,.hwpx,.doc,.docx,.md"
+          formatsHint="CSV · XLSX · TSV · JSON · PARQUET · PDF · HWP · HWPX · DOCX · MD (최대 100MB)"
           isUploading={isUploading}
           busyText="파일 업로드 및 PII 자동 탐지 중..."
           onFilesSelected={([selectedFile]) => {
@@ -131,7 +148,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                   {profile.filename}
                 </div>
                 <div className="text-[11px] text-slate-400 font-mono">
-                  총 {profile.row_count.toLocaleString()}행 | {profile.column_count}개 컬럼 | 탐지된 식별자 {detectedPiiCols.length}개
+                  총 {profile.row_count.toLocaleString()}행 | {profile.column_count}개 컬럼 | 식별자/텍스트 컬럼 {detectedPiiCols.length}개 탐지됨
                 </div>
               </div>
             </div>
@@ -161,7 +178,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                   개인식별정보(PII) 가명처리 규칙 설정
                 </h3>
                 <p className={`text-xs mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                  탐지된 민감정보별로 가명치환(Faker), 마스킹, SHA-256 해시, 컬럼 삭제 중 원하는 기법을 지정하세요.
+                  탐지된 민감정보 및 텍스트 컬럼별로 스마트 마스킹, 가명치환(Faker), 프로젝트 토큰 중 원하는 기법을 지정하세요.
                 </p>
               </div>
 
@@ -171,26 +188,38 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                 <button
                   onClick={() => {
                     const next: Record<string, string> = {};
-                    detectedPiiCols.forEach(c => next[c.name] = 'faker');
+                    profile.columns.forEach(c => next[c.name] = 'mask');
                     setPiiActions(next);
                   }}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                    isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
+                    isDarkMode ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300 hover:bg-emerald-900/50' : 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
                   }`}
                 >
-                  가명 치환(Faker)
+                  스마트 마스킹 (전체 적용)
                 </button>
                 <button
                   onClick={() => {
                     const next: Record<string, string> = {};
-                    detectedPiiCols.forEach(c => next[c.name] = 'mask');
+                    profile.columns.forEach(c => next[c.name] = 'faker');
                     setPiiActions(next);
                   }}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                    isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
+                    isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  마스킹(***)
+                  가명 치환 (Faker)
+                </button>
+                <button
+                  onClick={() => {
+                    const next: Record<string, string> = {};
+                    profile.columns.forEach(c => next[c.name] = 'token');
+                    setPiiActions(next);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                    isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  프로젝트 토큰
                 </button>
               </div>
             </div>
@@ -209,47 +238,57 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {detectedPiiCols.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-6 text-center text-slate-400">
-                        자동 탐지된 직접 개인식별정보가 없습니다. 안전한 일반 데이터셋입니다.
-                      </td>
-                    </tr>
-                  ) : (
-                    detectedPiiCols.map(col => {
-                      const currentAction = piiActions[col.name] || 'faker';
-                      return (
-                        <tr key={col.name} className={isDarkMode ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
-                          <td className="py-3 px-3 font-semibold text-sky-600 dark:text-sky-400">
-                            {col.name}
-                          </td>
-                          <td className="py-3 px-3">
+                  {profile.columns.map(col => {
+                    const currentAction = piiActions[col.name] || (col.pii_detected ? 'mask' : 'none');
+                    return (
+                      <tr key={col.name} className={isDarkMode ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
+                        <td className="py-3 px-3 font-semibold text-sky-600 dark:text-sky-400">
+                          {col.name}
+                        </td>
+                        <td className="py-3 px-3">
+                          {col.pii_detected ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                              {col.pii_type}
+                              {col.pii_type || '개인정보 포함'}
                             </span>
-                          </td>
-                          <td className="py-3 px-3 font-mono text-slate-400 truncate max-w-xs">
-                            {col.samples && col.samples.length > 0 ? col.samples.slice(0, 2).join(', ') : '-'}
-                          </td>
-                          <td className="py-3 px-3">
-                            <select
-                              value={currentAction}
-                              onChange={e => setPiiActions({ ...piiActions, [col.name]: e.target.value })}
-                              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold outline-none transition-all ${
-                                isDarkMode ? 'bg-slate-950 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-200 text-slate-800 focus:border-emerald-500'
-                              }`}
-                            >
-                              <option value="faker">가명 치환 (한국형 Faker 가상값)</option>
-                              <option value="token">프로젝트 일관 토큰 (HMAC)</option>
-                              <option value="mask">마스킹 (*** 대체)</option>
-                              <option value="hash">일방향 암호화 (SHA-256 해시)</option>
-                              <option value="drop">컬럼 삭제 (완전 제거)</option>
-                            </select>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                              일반 / {col.inferred_type}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-slate-400 truncate max-w-xs">
+                          {col.samples && col.samples.length > 0 ? col.samples.slice(0, 2).join(', ') : '-'}
+                        </td>
+                        <td className="py-3 px-3">
+                          <select
+                            value={currentAction}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (val === 'none') {
+                                const copy = { ...piiActions };
+                                delete copy[col.name];
+                                setPiiActions(copy);
+                              } else {
+                                setPiiActions({ ...piiActions, [col.name]: val });
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold outline-none transition-all ${
+                              currentAction !== 'none'
+                                ? isDarkMode ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                : isDarkMode ? 'bg-slate-950 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
+                            }`}
+                          >
+                            <option value="mask">🛡️ 스마트 부분 마스킹 (주민번호 성별 보존 등)</option>
+                            <option value="faker">🎭 가명 치환 (한국형 Faker 가상값 생성)</option>
+                            <option value="token">🔑 프로젝트 일관 토큰 (HMAC)</option>
+                            <option value="hash">🔒 일방향 암호화 (SHA-256 해시)</option>
+                            <option value="drop">❌ 컬럼 삭제 (완전 제거)</option>
+                            <option value="none">⚪ 원본 유지 (가명화 미적용)</option>
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -307,7 +346,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
               <button
                 onClick={handleExecutePseudonymization}
                 disabled={isProcessing}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
                 <span>{isProcessing ? '가명화 처리 중...' : '가명데이터 생성 및 다운로드 준비'}</span>
@@ -316,7 +355,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
           </div>
 
           {/* Step 3: Result & Preview Grid */}
-              {result && (
+          {result && (
             <div className={`p-6 rounded-2xl border space-y-4 ${
               isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
             }`}>
@@ -359,7 +398,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                     onClick={() => setPreviewTab('after')}
                     className={`px-3 py-1 rounded-lg transition-all ${
                       previewTab === 'after'
-                        ? isDarkMode ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 shadow-sm'
+                        ? isDarkMode ? 'bg-emerald-600 text-white font-bold' : 'bg-white text-emerald-700 font-bold shadow-sm'
                         : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -369,7 +408,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                     onClick={() => setPreviewTab('before')}
                     className={`px-3 py-1 rounded-lg transition-all ${
                       previewTab === 'before'
-                        ? isDarkMode ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 shadow-sm'
+                        ? isDarkMode ? 'bg-emerald-600 text-white font-bold' : 'bg-white text-emerald-700 font-bold shadow-sm'
                         : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -378,12 +417,12 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                 </div>
 
                 <span className="text-[11px] text-slate-400">
-                  상위 15건 레코드 샘플 프리뷰
+                  {previewTab === 'after' ? '💡 마스킹/가명처리로 변경된 값은 초록색으로 강조됩니다.' : '원본 데이터 미리보기'}
                 </span>
               </div>
 
               {/* Data Grid */}
-              <div className="overflow-x-auto max-h-72 border rounded-xl dark:border-slate-800">
+              <div className="overflow-x-auto max-h-80 border rounded-xl dark:border-slate-800">
                 <table className="w-full text-left text-xs min-w-[500px]">
                   <thead className={`sticky top-0 ${isDarkMode ? 'bg-slate-950 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
                     <tr>
@@ -397,11 +436,25 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
                     {(previewTab === 'after' ? result.pseudonymized_preview : result.original_preview).map((row, idx) => (
                       <tr key={idx} className={isDarkMode ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
-                        {result.columns.map(c => (
-                          <td key={c} className="py-2 px-3 whitespace-nowrap text-slate-300 dark:text-slate-300">
-                            {row[c] !== undefined && row[c] !== null ? String(row[c]) : ''}
-                          </td>
-                        ))}
+                        {result.columns.map(c => {
+                          const val = row[c] !== undefined && row[c] !== null ? String(row[c]) : '';
+                          const origVal = result.original_preview[idx]?.[c] !== undefined && result.original_preview[idx]?.[c] !== null ? String(result.original_preview[idx]?.[c]) : '';
+                          const isChanged = previewTab === 'after' && val !== origVal && val.trim() !== '';
+
+                          return (
+                            <td key={c} className="py-2 px-3 whitespace-nowrap">
+                              {isChanged ? (
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">
+                                  {val}
+                                </span>
+                              ) : (
+                                <span className={isDarkMode ? 'text-slate-300' : 'text-slate-700'}>
+                                  {val}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>
@@ -411,7 +464,6 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
           )}
         </div>
       )}
-
     </div>
   );
 };

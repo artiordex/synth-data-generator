@@ -15,3 +15,8 @@ storage/temp
 storage/local
 /*.hwp
 tests
+apps/api/tests
+packages/synthetic_engine/tests
+apps/api/app
+apps/api/test_hwp_html.html
+storage/test_*

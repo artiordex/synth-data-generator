@@ -81,6 +81,7 @@ export const StepProfile: React.FC<StepProfileProps> = ({
               <tr>
                 <th className="px-5 py-3">컬럼명</th>
                 <th className="px-5 py-3">유형</th>
+                <th className="px-5 py-3">정보영역</th>
                 <th className="px-5 py-3 text-right">결측치</th>
                 <th className="px-5 py-3 text-right">고유값</th>
                 <th className="px-5 py-3">PII 판별 및 조치</th>
@@ -102,6 +103,15 @@ export const StepProfile: React.FC<StepProfileProps> = ({
                         : 'bg-surface-muted text-fg-muted border-default'
                     }`}>
                       {c.inferred_type}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                      c.information_type === '준식별자'
+                        ? 'bg-warning-subtle text-warning border-warning/20'
+                        : 'bg-success-subtle text-success border-success/20'
+                    }`}>
+                      {c.information_type}
                     </span>
                   </td>
                   <td className="px-5 py-3 text-right font-mono text-fg-muted">

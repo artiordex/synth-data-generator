@@ -121,8 +121,8 @@ def output_columns(context, synthetic=False):
         return cols
     by_name = {c["name"]: c for c in cols}
     return [
-        {**by_name[name], "description": by_name[name]["synthetic_description"]}
-        if name in by_name else {"name": name, "dtype": "생성 항목", "information_type": "분류 확인 필요",
+        by_name[name]
+        if name in by_name else {"name": name, "dtype": "생성 항목", "information_type": "일반정보",
                                 "description": "처리 규칙에 의해 추가된 항목; 의미 확인 필요", "method": "규칙 생성", "note": "담당자 확인 필요"}
         for name in context["synthetic_columns"]
     ]
@@ -140,13 +140,17 @@ def bind_privacy_rows(table, context, columns):
         row = deepcopy(first if index == 0 else later)
         for cell in row.findall("hp:tc", NS):
             col_addr = int(cell.find("hp:cellAddr", NS).get("colAddr"))
-            if col_addr < 2:
+            if col_addr == 6 and index:
+                row.remove(cell)
+                continue
+            if col_addr < 2 or col_addr == 6:
                 cell.find("hp:cellSpan", NS).set("rowSpan", str(len(effective)))
             values = {0: "1", 1: context["dataset_name"], 2: col["name"], 3: col["information_type"],
-                      4: col["method"], 5: "자동 처리", 6: col["note"]}
+                      4: "그대로 사용", 5: "유지",
+                      6: f"원본데이터 증강생성 ({context['original_rows']:,}행 → {context['synthetic_rows']:,}행)"}
             set_cell(cell, values[col_addr])
         table.insert(insertion + index, row)
-    put(table, 0, 0, "개인정보 처리계획\n" + context["privacy_plan"])
+    put(table, 0, 0, "개인정보 처리계획")
     update_geometry(table)
 
 
@@ -170,7 +174,7 @@ def bind_privacy(root, table, context, columns):
             parent.insert(insertion + group, p)
 
 
-def bind_examples(root, table, names, values):
+def bind_examples(root, table, names, values, balanced=False):
     """Clone the original example table in groups of its existing column count."""
     paragraph = table.getparent().getparent()
     parent = paragraph.getparent()
@@ -180,11 +184,17 @@ def bind_examples(root, table, names, values):
     insertion = parent.index(paragraph)
     max_id = max(int(t.get("id", "0")) for t in root.findall(".//hp:tbl", NS))
     max_z = max(int(t.get("zOrder", "0")) for t in root.findall(".//hp:tbl", NS))
-    for group, offset in enumerate(range(0, max(1, len(names)), base_columns)):
+    count = max(1, len(names))
+    groups = (count + base_columns - 1) // base_columns
+    sizes = ([count // groups + (i < count % groups) for i in range(groups)]
+             if balanced else [min(base_columns, count - i) for i in range(0, count, base_columns)])
+    offset = 0
+    for group, size in enumerate(sizes):
         p = paragraph if group == 0 else deepcopy(source)
         current = p.find(".//hp:tbl", NS)
-        group_names = names[offset:offset + base_columns] or ["항목 없음"]
-        group_values = [r[offset:offset + base_columns] for r in values] if names else []
+        group_names = names[offset:offset + size] or ["항목 없음"]
+        group_values = [r[offset:offset + size] for r in values] if names else []
+        offset += size
         source_rows = current.findall("hp:tr", NS)
         header, body = deepcopy(source_rows[0]), deepcopy(source_rows[1])
         row_insertion = current.index(source_rows[0])
@@ -198,7 +208,12 @@ def bind_examples(root, table, names, values):
             # Column labels change with the dataset: avoid inheriting very narrow
             # sample-specific columns, while retaining the original total width.
             selected_widths = [table_width // len(group_names)] * len(group_names)
-            selected_widths[-1] += table_width - sum(selected_widths)
+            remainder = table_width - sum(selected_widths)
+            if balanced:
+                for col in range(remainder):
+                    selected_widths[col] += 1
+            else:
+                selected_widths[-1] += remainder
             for col, value in enumerate(row_values):
                 cell = row.findall("hp:tc", NS)[col]
                 cell.find("hp:cellAddr", NS).set("colAddr", str(col))
@@ -245,21 +260,22 @@ def bind_section(root, context, kind):
     verify_template(tables, kind)
     c = context
     if kind == "review_report":
-        # Formula drawings and the original measurement-method table remain intact.
-        put(tables[2], 0, 1, c["model"])
-        results = [r[:3] for r in c["measurements"]]
-        results += [["유용성", f"JSD: {name}", value] for name, value in c["jsd_by_column"]]
-        replace_rows(tables[2], 2, 4, results)
-        summary = (f"※ 데이터명: {c['dataset_name']}\n※ 담당 부서: {c['department']} / 목적: {c['purpose']}\n"
-                   f"※ 원본 {c['original_rows']:,}건 / 합성 {c['synthetic_rows']:,}건\n"
-                   f"※ {c['model']} 모형\n※ {c['assessment']}\n"
-                   "※ 구간화 원본 중복 비율은 재식별 확률과 다른 지표임.\n"
-                   + "\n".join(f"{row[1]}: {row[2]}" for row in c["measurements"]) +
-                   (f"\n※ 수치 노이즈 처리: {c['dp']}" if c["dp"].get("enabled") else "\n※ 수치 노이즈 처리: 미적용"))
-        put(tables[3], 1, 0, summary)
+        # Preserve formula objects while aligning the prose with the computed metric.
+        reason = cell_at(tables[0], 0, 0).findall("hp:subList/hp:p", NS)
+        set_paragraph(reason[1], "구별 위험도: 평가 대상 컬럼의 구간화된 합성 행이 원본에도 존재하는 비율을 측정. 원본 패턴의 중복 정도를 확인하는 참고 지표로 사용.")
+        method = cell_at(tables[1], 1, 3).findall("hp:subList/hp:p", NS)
+        for paragraph, text in zip(method[:3], [
+            "※ 평가 대상 컬럼의 수치형 값을 구간화한 후 합성 행과 원본 행의 일치 비율을 측정",
+            "※ 값이 0에 가까울수록 구간화된 원본과 일치하는 합성 행의 비율이 낮음",
+            "※ 재식별 확률을 직접 의미하지 않으며, 범주형 조합이 적으면 중복 비율이 높아질 수 있음",
+        ]):
+            set_paragraph(paragraph, text)
+        put(tables[2], 0, 1, c["report_model"])
+        replace_rows(tables[2], 2, 4, c["report_measurements"])
+        put(tables[3], 1, 0, c["report_summary"])
         for paragraph in root.findall("hp:p", NS):
             if text_of(paragraph) == "4) 결과평가":
-                paragraph.set("pageBreak", "1")
+                paragraph.set("pageBreak", "0")
         return
 
     synthetic = kind == "synthetic_spec"
@@ -273,7 +289,14 @@ def bind_section(root, context, kind):
     put(tables[0], 3, 2, f"{len(columns):,}개 항목")
     put(tables[0], 4, 1, f"{c['special_notes']}\n정보 개요: {c['overview']}\n활용 목적: {c['purpose']}")
     counts = Counter(col["information_type"] for col in columns)
-    replace_rows(tables[1], 1, 3, [[i, group, n, "100%" if n == len(columns) else f"{n / max(1, len(columns)):.1%}", "자동 탐지 또는 담당자 입력 기준"] for i, (group, n) in enumerate(counts.items(), 1)])
+    area_summaries = c.get("information_area_summaries", {})
+    replace_rows(tables[1], 1, 3, [[
+        i,
+        group,
+        n,
+        "100%" if n == len(columns) else f"{n / max(1, len(columns)):.1%}",
+        area_summaries.get(group, "자동 탐지 또는 담당자 입력 기준"),
+    ] for i, (group, n) in enumerate(counts.items(), 1)])
     total_row = int(tables[1].get("rowCnt")) - 1
     put(tables[1], total_row, 2, len(columns))
     put(tables[1], total_row, 3, "100%" if columns else "0%")
@@ -283,13 +306,23 @@ def bind_section(root, context, kind):
     examples = c["synthetic_examples"] if synthetic else c["original_examples"]
     for paragraph in root.findall("hp:p", NS):
         if text_of(paragraph) in {"3) 원본데이터 예시", "3) 합성데이터 예시"}:
-            # Start the variable-width example block together with its heading.
-            paragraph.set("pageBreak", "1")
+            paragraph.set("pageBreak", "1" if synthetic else "0")
+            if not synthetic:
+                # Retain one blank paragraph after the detail table.
+                previous = paragraph.getprevious()
+                blanks = []
+                while previous is not None and previous.tag == tag("p") and not text_of(previous).strip() and previous.find(".//hp:tbl", NS) is None:
+                    blanks.append(previous)
+                    previous = previous.getprevious()
+                for extra in blanks[1:]:
+                    root.remove(extra)
+                for blank in blanks[:1]:
+                    blank.set("pageBreak", "0")
         if text_of(paragraph).startswith("4) 항목별 개인정보 처리 계획"):
             paragraph.set("pageBreak", "1")
         if text_of(paragraph).startswith("※") and "행 중" in text_of(paragraph):
-            set_paragraph(paragraph, f"※{rows:,}행 중 {len(examples)}행 / " + ("식별값 비공개" if synthetic else "원본값 비공개"))
-    bind_examples(root, tables[3], names, examples)
+            set_paragraph(paragraph, f"※{rows:,}행 중 {len(examples)}행")
+    bind_examples(root, tables[3], names, examples, balanced=True)
     if not synthetic:
         bind_privacy(root, tables[5], c, columns)
 
@@ -328,10 +361,44 @@ def write_template(context, kind, template_dir, output_path):
     return {"template": source.name, "sha256": sha256(source_bytes).hexdigest()}
 
 
+def merge_privacy_preview(root):
+    """Join paginated privacy tables on a copy for continuous HTML layout."""
+    preview = deepcopy(root)
+    anchor = None
+    dataset = None
+    for paragraph in list(preview.findall("hp:p", NS)):
+        table = paragraph.find("hp:run/hp:tbl", NS)
+        if table is None or table.get("colCnt") != "7" or text_of(cell_at(table, 0, 0)) != "개인정보 처리계획":
+            anchor = None
+            continue
+        current_dataset = text_of(cell_at(table, 3, 1))
+        if anchor is None or dataset != current_dataset:
+            anchor, dataset = table, current_dataset
+            continue
+        for row in table.findall("hp:tr", NS)[3:]:
+            for cell in list(row.findall("hp:tc", NS)):
+                if cell.find("hp:cellAddr", NS).get("colAddr") in {"0", "1", "6"}:
+                    row.remove(cell)
+            anchor.append(deepcopy(row))
+        total = len(anchor.findall("hp:tr", NS)) - 3
+        for column in (0, 1, 6):
+            cell_at(anchor, 3, column).find("hp:cellSpan", NS).set("rowSpan", str(total))
+        update_geometry(anchor)
+        preview.remove(paragraph)
+    return preview
+
+
 def html_preview(root):
     """Content-only preview, including the template's merged table structure."""
     parts = ['<!doctype html><html lang="ko"><meta charset="utf-8"><title>심의자료 내용 확인</title><style>body{font:14px/1.6 sans-serif;max-width:1000px;margin:32px auto}table{border-collapse:collapse;width:100%;margin:12px 0}td{border:1px solid #555;padding:6px;white-space:pre-wrap;overflow-wrap:anywhere}</style><body><p>내용 확인본 · 실제 한글 서식은 HWPX 파일을 확인하세요.</p>']
-    for p in root.findall("hp:p", NS):
+    def preview_text(element):
+        copy = deepcopy(element)
+        for line_break in copy.findall(".//hp:lineBreak", NS):
+            line_break.tail = "\n" + (line_break.tail or "")
+        paragraphs = copy.findall("hp:subList/hp:p", NS)
+        return "\n".join(text_of(p) for p in paragraphs) if paragraphs else text_of(copy)
+
+    for p in merge_privacy_preview(root).findall("hp:p", NS):
         table = p.find("hp:run/hp:tbl", NS)
         if table is None:
             parts.append(f"<p>{escape(text_of(p))}</p>")
@@ -341,7 +408,7 @@ def html_preview(root):
                 parts.append("<tr>")
                 for cell in row.findall("hp:tc", NS):
                     span = cell.find("hp:cellSpan", NS)
-                    parts.append(f'<td rowspan="{span.get("rowSpan")}" colspan="{span.get("colSpan")}">{escape(text_of(cell))}</td>')
+                    parts.append(f'<td rowspan="{span.get("rowSpan")}" colspan="{span.get("colSpan")}">{escape(preview_text(cell))}</td>')
                 parts.append("</tr>")
             parts.append("</table>")
     return "".join(parts) + "</body></html>"

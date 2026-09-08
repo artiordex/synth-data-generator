@@ -46,7 +46,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
     setSelectedFile(file);
 
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_');
+    const cleanName = file.name
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^\p{L}\p{N}_]/gu, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
     setTableName(cleanName || 'converted_data');
 
     if (['hwp', 'hwpx', 'doc', 'docx', 'pdf', 'md'].includes(ext)) {
@@ -280,6 +284,27 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                     </p>
                   </button>
                 )}
+
+                {/* Excel XLSX from Document Tables */}
+                <button
+                  type="button"
+                  onClick={() => setTargetFormat('xlsx')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    targetFormat === 'xlsx'
+                      ? 'border-accent bg-accent-subtle/80 ring-2 ring-accent/30 shadow-sm'
+                      : 'border-subtle hover:border-accent bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm text-fg">Excel 스프레드시트 (.xlsx)</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      표 자동 추출
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-muted">
+                    한글/워드/PDF 문서 내의 모든 표(Table)를 행·열 구조 그대로 감지하여 엑셀 시트로 완벽 분리 추출
+                  </p>
+                </button>
 
                 {/* Pure Text TXT */}
                 <button
@@ -653,13 +678,17 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
             </div>
           )}
 
-          {/* Markdown Content Preview & Copy Panel */}
+          {/* Markdown / SQL Content Preview & Copy Panel */}
           {result.markdown_preview && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-fg">
                   <Code2 className="w-4 h-4 text-accent" />
-                  <span>변환된 마크다운 내용 미리보기</span>
+                  <span>
+                    {result.target_format === 'SQL'
+                      ? '생성된 SQL INSERT 구문 미리보기'
+                      : '변환된 마크다운 내용 미리보기'}
+                  </span>
                 </div>
                 <button
                   onClick={handleCopyMarkdown}
@@ -673,7 +702,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>마크다운 복사</span>
+                      <span>{result.target_format === 'SQL' ? 'SQL 구문 복사' : '마크다운 복사'}</span>
                     </>
                   )}
                 </button>

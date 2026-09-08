@@ -152,6 +152,9 @@ def test_api_upload_and_batch_apply_notebook_defaults_and_respect_user_overrides
     frame.to_csv(batch_env.uploads / 'housing.csv', index=False)
     profile = batch_env.client.get('/api/v1/datasets/profile', params={'file_name': 'housing.csv'}).json()
     assert profile['notebook_preset']['options']['preserve_null_columns'] == ['소득분위']
+    info_types = {column['name']: column['information_type'] for column in profile['columns']}
+    assert info_types['소득분위'] == '준식별자'
+    assert set(info_types.values()) <= {'준식별자', '일반정보'}
     seen = []
     class Probe:
         def __init__(self, config): seen.append(config)
@@ -164,3 +167,15 @@ def test_api_upload_and_batch_apply_notebook_defaults_and_respect_user_overrides
     assert seen[0].model_type == 'ctgan' and seen[0].epochs == 50 and seen[0].batch_size == 64
     assert seen[0].duplicate_policy == 'balanced'
     assert seen[1].epochs == 2 and seen[1].duplicate_policy == 'strict'
+
+
+def test_profile_returns_unique_value_preview_beyond_first_five(batch_env):
+    values = [f'응답-{index}' for index in range(8)]
+    pd.DataFrame({'응답문항': values}).to_csv(batch_env.uploads / 'survey.csv', index=False)
+
+    profile = batch_env.client.get('/api/v1/datasets/profile', params={'file_name': 'survey.csv'}).json()
+    column = profile['columns'][0]
+
+    assert column['unique_values_total'] == 8
+    assert column['samples'] == values
+    assert column['samples_truncated'] is False

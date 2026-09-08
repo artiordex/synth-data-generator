@@ -307,3 +307,125 @@ export async function getConverterHistory(): Promise<any[]> {
   return res.json();
 }
 
+export interface SurveyInspectionResponse {
+  modules: Array<{
+    file_key: string;
+    original_filename: string;
+    sheet_name: string;
+    columns: string[];
+    row_count: number;
+    column_count: number;
+    unique_columns: string[];
+  }>;
+  common_keys: string[];
+  is_aligned: boolean;
+  total_rows: number;
+  total_columns: number;
+  preview_columns: string[];
+  sample_preview: Record<string, any>[];
+  detected_rules?: Array<{
+    rule_id: string;
+    condition_col: string;
+    condition_val: string;
+    target_col: string;
+    target_val: string;
+    confidence: number;
+    support: number;
+    description: string;
+  }>;
+  likert_columns_count?: number;
+  likert_column_names?: string[];
+  k_anonymity_risk?: Record<string, any>;
+}
+
+export interface SurveyJobStatusResponse {
+  job_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  message: string;
+  target_rows?: number;
+  model_type?: string;
+  file_count?: number;
+  tables?: Array<{
+    file_key: string;
+    filename: string;
+    rows: number;
+    columns: number;
+    download_url: string;
+  }>;
+  quality?: {
+    overall_quality: number | null;
+    k_anonymity?: Record<string, any>;
+    utility?: Record<string, any>;
+    safety?: Record<string, any>;
+  };
+  logic_integrity?: {
+    integrity_score: number | null;
+    passed: boolean | null;
+    total_checked_rules: number;
+    total_applicable_rows: number;
+    total_violations: number;
+    rule_details?: Array<{
+      description: string;
+      applicable_rows: number;
+      violations: number;
+      compliance_rate: number;
+    }>;
+  };
+  k_anonymity?: Record<string, any>;
+  extra_meta?: Record<string, any>;
+  download_url?: string;
+  error?: string;
+}
+
+export async function inspectSurveyModules(fileNames: string[]): Promise<SurveyInspectionResponse> {
+  const res = await fetch(`${BASE_URL}/survey/inspect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_names: fileNames }),
+  });
+  if (!res.ok) {
+    let errMsg = '설문 분석 실패';
+    try { const j = await res.json(); errMsg = j.detail || errMsg; } catch { errMsg = await res.text() || errMsg; }
+    throw new Error(errMsg);
+  }
+  return res.json();
+}
+
+export async function generateSurveySynthesis(params: {
+  file_names: string[];
+  target_rows: number;
+  model_type: string;
+  epochs?: number;
+  batch_size?: number;
+  pac?: number;
+  seed?: number;
+  apply_logic_rules?: boolean;
+  preserve_likert_order?: boolean;
+  protect_k_anonymity?: boolean;
+  dp_enabled?: boolean;
+  eps?: number;
+  department_name?: string;
+  project_purpose?: string;
+}): Promise<{ job_id: string; status: string; message: string }> {
+  const res = await fetch(`${BASE_URL}/survey/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    let errMsg = '설문 합성 시작 실패';
+    try { const j = await res.json(); errMsg = j.detail || errMsg; } catch { errMsg = await res.text() || errMsg; }
+    throw new Error(errMsg);
+  }
+  return res.json();
+}
+
+export async function getSurveyJobStatus(jobId: string): Promise<SurveyJobStatusResponse> {
+  const res = await fetch(`${BASE_URL}/survey/status/${encodeURIComponent(jobId)}`);
+  if (!res.ok) throw new Error('작업 상태 조회 실패: ' + await res.text());
+  return res.json();
+}
+
+
+

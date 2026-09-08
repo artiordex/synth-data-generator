@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     # Defaults
     MAX_FILE_SIZE_MB: int = 100
     DEFAULT_TIMEOUT_SEC: int = 600
+
+    # Optional OpenAI-assisted review document text polishing
+    OPENAI_API_KEY: str = ''
+    OPENAI_COLUMN_DESCRIPTION_ENABLED: bool = False
+    OPENAI_COLUMN_DESCRIPTION_MODEL: str = ''
+    OPENAI_COLUMN_DESCRIPTION_SYSTEM_PROMPT: str = ''
+    OPENAI_COLUMN_DESCRIPTION_ONLY_AMBIGUOUS: bool = True
+    OPENAI_COLUMN_DESCRIPTION_MAX_OUTPUT_TOKENS: int = 40
+    OPENAI_COLUMN_DESCRIPTION_TIMEOUT_SEC: int = 8
+    OPENAI_COLUMN_DESCRIPTION_CACHE_TTL_DAYS: int = 30
+    OPENAI_COLUMN_DESCRIPTION_CACHE_PATH: Path = PROJECT_ROOT / 'storage' / 'local' / 'column_description_cache.json'
     
     model_config = SettingsConfigDict(case_sensitive=True)
 

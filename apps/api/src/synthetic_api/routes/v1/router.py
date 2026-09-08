@@ -11,6 +11,7 @@ from .relational import router as relational_router
 from .time_series import router as time_series_router
 from .history import router as history_router
 from .converter import router as converter_router
+from .survey import router as survey_router
 
 api_router = APIRouter()
 api_router.include_router(datasets_router)
@@ -24,4 +25,6 @@ api_router.include_router(relational_router)
 api_router.include_router(time_series_router)
 api_router.include_router(history_router)
 api_router.include_router(converter_router)
+api_router.include_router(survey_router)
 api_router.include_router(glossary_router, prefix="/glossary", tags=["glossary"])
+

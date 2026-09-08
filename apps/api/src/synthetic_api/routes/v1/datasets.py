@@ -48,8 +48,11 @@ def upload_batch(files: list[UploadFile] = File(...)):
     results = []
     for file in files:
         try:
-            if Path(file.filename or '').suffix.lower() not in {'.csv', '.xlsx', '.xls', '.tsv', '.txt', '.json', '.jsonl', '.parquet', '.pq'}:
-                raise ValueError('CSV, XLSX, XLS, TSV, JSON, Parquet 파일을 지원합니다.')
+            if Path(file.filename or '').suffix.lower() not in {
+                '.csv', '.xlsx', '.xls', '.tsv', '.txt', '.json', '.jsonl', '.parquet', '.pq',
+                '.pdf', '.hwp', '.hwpx', '.doc', '.docx', '.md'
+            }:
+                raise ValueError('CSV, XLSX, XLS, TSV, JSON, Parquet, PDF, HWP, HWPX, DOCX, MD 파일을 지원합니다.')
             saved = DatasetService.save_upload_file(file.file, file.filename, unique=True)
             profile = DatasetService.inspect_file(saved['filename'])
             results.append({**saved, 'profile': profile, 'error': None})
@@ -77,8 +80,9 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
     pii_plan: Dict[str, Dict[str, Any]] = {}
     for col, action in req.pii_actions.items():
         if col in raw_df.columns:
-            pii_type = pii_detected.get(col, {}).get("type", "word")
-            pii_plan[col] = {"action": action, "faker": pii_type}
+            pii_info = pii_detected.get(col, {})
+            pii_type = pii_info.get("faker") or pii_info.get("type") or "unstructured_text"
+            pii_plan[col] = {"action": action, "faker": pii_type, "pii_type": pii_type}
 
     plan = ColumnPlan(
         categorical=[],

@@ -4,7 +4,7 @@ import {
   AlertCircle, BookOpen, Layers, Sun, Moon, FileCode, Zap,
   ShieldCheck, Cpu, History, Info, HelpCircle, ArrowLeftRight
 } from 'lucide-react';
-import { DatasetProfile, JobStatus, SynthesisRequest } from '../types';
+import { DatasetProfile, JobStatus, ReviewMetadataInput, SynthesisRequest } from '../types';
 import { uploadDataset, getDatasetProfile, startSynthesis, cancelSynthesis, getJobStatus } from '../services/api';
 import { DataDictionaryModal } from '../features/dictionary/DataDictionaryModal';
 import { IntegratedHistoryModal, HistoryType } from '../features/history/IntegratedHistoryModal';
@@ -16,6 +16,7 @@ import { StepProgress } from '../features/synthesis/StepProgress';
 import { BatchSynthesisPanel } from '../features/synthesis/BatchSynthesisPanel';
 import { RelationalSynthesisPanel } from '../features/synthesis/RelationalSynthesisPanel';
 import { TimeSeriesPanel } from '../features/synthesis/TimeSeriesPanel';
+import { SurveySynthesisPanel } from '../features/synthesis/SurveySynthesisPanel';
 import { SynthesisWorkflowSelector, SyntheticWorkflow } from '../features/synthesis/SynthesisWorkflowSelector';
 import { StepReport } from '../features/reports/StepReport';
 import { QuickDummyBuilder } from '../features/dummy/QuickDummyBuilder';
@@ -43,10 +44,11 @@ export default function App() {
   const [batchFiles] = useState<File[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pseudo' | 'synthetic' | 'dummy' | 'converter'>('synthetic');
+
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadedFilename, setUploadedFilename] = useState<string>('');
   const [profile, setProfile] = useState<DatasetProfile | null>(null);
-  const [reviewMetadata, setReviewMetadata] = useState<Record<string, string>>({});
+  const [reviewMetadata, setReviewMetadata] = useState<ReviewMetadataInput>({});
   const [isDictionaryOpen, setIsDictionaryOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [historyType, setHistoryType] = useState<HistoryType>('all');
@@ -121,6 +123,7 @@ export default function App() {
         dp_enabled: dpEnabled,
         eps: Number(dpEpsilon),
         quality_threshold: Number(qualityThreshold),
+        review_metadata: reviewMetadata,
       };
       const job = await startSynthesis(req);
       setActiveJob(job);
@@ -421,7 +424,9 @@ export default function App() {
               isDarkMode={isDarkMode}
             />
 
-            {syntheticWorkflow === 'timeseries' ? (
+            {syntheticWorkflow === 'survey' ? (
+              <SurveySynthesisPanel isDarkMode={isDarkMode} onClose={() => setSyntheticWorkflow('single')} />
+            ) : syntheticWorkflow === 'timeseries' ? (
               <TimeSeriesPanel isDarkMode={isDarkMode} onClose={() => setSyntheticWorkflow('single')} />
             ) : syntheticWorkflow === 'relational' ? (
               <RelationalSynthesisPanel isDarkMode={isDarkMode} onClose={() => setSyntheticWorkflow('single')} />

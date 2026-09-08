@@ -18,11 +18,21 @@ FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:0.12.9 /uv /uvx /bin/
 WORKDIR /app
 
-# Install minimal system dependencies for C-extensions
+# Install minimal system dependencies for C-extensions, LibreOffice headless, and Korean fonts
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \
     UV_NO_CACHE=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libreoffice-nogui \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz0b \
+    fonts-nanum \
+    fonts-noto-cjk \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package configurations and source modules
 COPY pyproject.toml uv.lock README.md ./

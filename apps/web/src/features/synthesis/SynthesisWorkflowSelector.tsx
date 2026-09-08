@@ -1,7 +1,7 @@
 import React from 'react';
-import { Clock3, FileUp, Files, Network } from 'lucide-react';
+import { Clock3, FileUp, Files, Network, ClipboardList } from 'lucide-react';
 
-export type SyntheticWorkflow = 'single' | 'batch' | 'relational' | 'timeseries';
+export type SyntheticWorkflow = 'single' | 'batch' | 'relational' | 'timeseries' | 'survey';
 
 const workflows = [
   {
@@ -10,6 +10,13 @@ const workflows = [
     description: '파일 1개를 정밀 분석·합성',
     icon: FileUp,
     accent: 'sky',
+  },
+  {
+    value: 'survey',
+    label: '설문 모듈 연계',
+    description: '다중 설문 통합 학습 후 원본 분할',
+    icon: ClipboardList,
+    accent: 'emerald',
   },
   {
     value: 'batch',
@@ -36,6 +43,7 @@ const workflows = [
 
 const selectedStyles = {
   sky: 'border-sky-500 bg-sky-50 text-sky-950 ring-sky-400/30 dark:border-sky-500 dark:bg-sky-950/60 dark:text-white',
+  emerald: 'border-emerald-500 bg-emerald-50 text-emerald-950 ring-emerald-400/30 dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-white',
   cyan: 'border-cyan-500 bg-cyan-50 text-cyan-950 ring-cyan-400/30 dark:border-cyan-500 dark:bg-cyan-950/60 dark:text-white',
   indigo: 'border-indigo-500 bg-indigo-50 text-indigo-950 ring-indigo-400/30 dark:border-indigo-500 dark:bg-indigo-950/60 dark:text-white',
   violet: 'border-violet-500 bg-violet-50 text-violet-950 ring-violet-400/30 dark:border-violet-500 dark:bg-violet-950/60 dark:text-white',
@@ -43,10 +51,12 @@ const selectedStyles = {
 
 const iconStyles = {
   sky: 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300',
+  emerald: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300',
   cyan: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-500/15 dark:text-cyan-300',
   indigo: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300',
   violet: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300',
 } as const;
+
 
 export function SynthesisWorkflowSelector({ value, onChange, isDarkMode }: {
   value: SyntheticWorkflow;
@@ -67,7 +77,7 @@ export function SynthesisWorkflowSelector({ value, onChange, isDarkMode }: {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4" role="group" aria-label="합성 방식">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" role="group" aria-label="합성 방식">
         {workflows.map((workflow) => {
           const Icon = workflow.icon;
           const selected = value === workflow.value;

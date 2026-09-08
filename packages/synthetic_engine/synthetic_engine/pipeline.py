@@ -22,7 +22,7 @@ from .generators.sampling import sample_valid_rows
 from .privacy.faker import apply_pii, build_pii_output
 from .quality.assessment import evaluate
 from .exporters.review_documents import build_review_documents
-from .exporters.package_exporter import make_submission_package_dirs, safe_path_part
+from .exporters.package_exporter import make_submission_package_dirs, safe_path_part, split_leading_sequence, synthetic_data_filename
 
 class SyntheticPipeline:
     def __init__(self, config: SynthesisConfig):
@@ -159,7 +159,8 @@ class SyntheticPipeline:
         evaluation['guardrails'] = duplicate_report
 
         report_progress(94, "심의위원회 한글(HWPX) 3종 문서 생성 및 패키징 중...")
-        dataset_name = safe_path_part(Path(original_filename).stem, "데이터")
+        sequence, parsed_dataset_name = split_leading_sequence(Path(original_filename).stem)
+        dataset_name = safe_path_part(parsed_dataset_name, "데이터")
         package_dirs = make_submission_package_dirs(output_dir, job_id, original_filename)
 
         # Save model checkpoint for reuse
@@ -171,8 +172,8 @@ class SyntheticPipeline:
         import shutil
         shutil.copy2(input_path, package_dirs["original"] / original_filename)
 
-        csv_path = package_dirs["synthetic"] / f"합성데이터_{dataset_name}.csv"
-        xlsx_path = package_dirs["synthetic"] / f"합성데이터_{dataset_name}.xlsx"
+        csv_path = package_dirs["synthetic"] / synthetic_data_filename(dataset_name, sequence, ".csv")
+        xlsx_path = package_dirs["synthetic"] / synthetic_data_filename(dataset_name, sequence, ".xlsx")
         report_path = package_dirs["review"] / f"{job_id}_synthetic_evaluation_report.json"
 
         synthetic.to_csv(csv_path, index=False, encoding="utf-8-sig")

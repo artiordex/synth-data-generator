@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BatchStatus, BatchUploadItem, JobStatus, SynthesisRequest } from '../../types';
+import { BatchStatus, BatchUploadItem, JobStatus, ReviewMetadataInput, SynthesisRequest } from '../../types';
 import { uploadDatasets, startBatch, getBatch, cancelBatch, cancelSynthesis, getDownloadUrl } from '../../services/api';
 import { AdvancedSynthesisSettings, defaultSynthesisOptions, SynthesisOptions } from './AdvancedSynthesisSettings';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
@@ -7,6 +7,10 @@ import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 const labels: Record<string, string> = { pending: '대기', processing: '처리 중', completed: '완료',
   completed_with_errors: '일부 실패·취소', failed: '실패', canceled: '취소' };
 const isRunning = (batch: BatchStatus | null) => !!batch && ['pending', 'processing'].includes(batch.status);
+const reviewFields: Array<[keyof Pick<ReviewMetadataInput, 'dataset_name' | 'special_notes' | 'overview' | 'privacy_plan'>, string]> = [
+  ['dataset_name', '데이터명 (기본: 원본 파일명)'], ['special_notes', '특이사항'],
+  ['overview', '정보 개요'], ['privacy_plan', '개인정보 처리계획'],
+];
 
 export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, onClose, onOpenJob }: {
   initialFiles: File[]; initialBatchId?: string | null; isDarkMode: boolean; onClose: () => void; onOpenJob: (job: JobStatus) => void;
@@ -22,7 +26,7 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
   const [purpose, setPurpose] = useState('합성데이터 생성 및 분석');
   const [dpEnabled, setDpEnabled] = useState(false);
   const [epsilon, setEpsilon] = useState(1);
-  const [metadata, setMetadata] = useState<Record<number, Record<string, string>>>({});
+  const [metadata, setMetadata] = useState<Record<number, ReviewMetadataInput>>({});
   const [options, setOptions] = useState<SynthesisOptions>({});
   const [overrides, setOverrides] = useState<Record<number, SynthesisOptions>>({});
   const initialized = useRef(false);
@@ -123,12 +127,11 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
           <span>{file.error ? '분석 실패' : `${file.profile?.row_count.toLocaleString()}행 · ${file.profile?.column_count}개 컬럼`}</span></div>
         {file.error ? <p className="text-xs text-rose-600 mt-2">{file.error}</p> : <><AdvancedSynthesisSettings
           options={{ ...defaultSynthesisOptions, ...file.profile?.notebook_preset?.options, ...options, ...overrides[index] }} onChange={value => setOverrides(prev => ({ ...prev, [index]: value }))}
-          profile={file.profile || null} isDarkMode={isDarkMode} />
+          profile={file.profile || null} isDarkMode={isDarkMode}
+          reviewMetadata={metadata[index] || {}}
+          onReviewMetadataChange={value => setMetadata(prev => ({ ...prev, [index]: value }))} />
           <details className="p-3 text-xs"><summary className="cursor-pointer font-semibold">이 파일의 심의자료 입력</summary>
-            <div className="grid md:grid-cols-2 gap-3 mt-3">{[
-              ['dataset_name', '데이터명 (기본: 원본 파일명)'], ['special_notes', '특이사항'],
-              ['overview', '정보 개요'], ['privacy_plan', '개인정보 처리계획'],
-            ].map(([key, label]) => <label key={key} className="grid gap-1">{label}
+            <div className="grid md:grid-cols-2 gap-3 mt-3">{reviewFields.map(([key, label]) => <label key={key} className="grid gap-1">{label}
               <textarea className={field} rows={2} value={metadata[index]?.[key] || ''}
                 onChange={e => setMetadata(prev => ({ ...prev, [index]: { ...prev[index], [key]: e.target.value } }))} /></label>)}</div>
           </details></>}

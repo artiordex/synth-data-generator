@@ -1,11 +1,29 @@
+export type InformationType = "준식별자" | "일반정보";
+
+export interface ReviewColumnMetadata {
+  description?: string;
+  information_type?: InformationType | string;
+}
+
+export interface ReviewMetadataInput {
+  dataset_name?: string;
+  special_notes?: string;
+  overview?: string;
+  privacy_plan?: string;
+  columns?: Record<string, ReviewColumnMetadata>;
+}
+
 export interface ColumnInfo {
   name: string;
   inferred_type: "numerical" | "categorical" | "pii";
   null_count: number;
   unique_count: number;
+  information_type: InformationType;
   pii_detected: boolean;
   pii_type: string;
   samples: string[];
+  samples_truncated?: boolean;
+  unique_values_total?: number;
 }
 
 export interface DatasetProfile {
@@ -22,7 +40,7 @@ export interface DatasetProfile {
 
 export interface SynthesisRequest {
   duplicate_policy?: 'balanced' | 'strict';
-  review_metadata?: Record<string, string>;
+  review_metadata?: ReviewMetadataInput;
   file_name: string;
   original_filename?: string;
   department_name: string;

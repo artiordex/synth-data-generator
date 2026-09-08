@@ -10,7 +10,8 @@ from synthetic_engine import (
     calculate_sha256,
     read_table,
     infer_columns,
-    scan_pii_columns
+    scan_pii_columns,
+    classify_information_type,
 )
 
 class DatasetService:
@@ -64,16 +65,21 @@ class DatasetService:
             
             # Use distinct displayed values from the whole column so repeated
             # leading rows do not hide the other kinds of values in the data.
-            sample_vals = series.dropna().astype(str).drop_duplicates().head(5).tolist()
+            unique_values = series.dropna().astype(str).drop_duplicates()
+            max_unique_preview = 200
+            sample_vals = unique_values.head(max_unique_preview).tolist()
             
             columns_info.append({
                 'name': str(col),
                 'inferred_type': dtype_str,
                 'null_count': int(series.isna().sum()),
                 'unique_count': int(series.nunique()),
+                'information_type': classify_information_type(col, series, col in pii_detected),
                 'pii_detected': col in pii_detected,
                 'pii_type': pii_info.get('faker', ''),
-                'samples': sample_vals
+                'samples': sample_vals,
+                'samples_truncated': len(unique_values) > max_unique_preview,
+                'unique_values_total': int(len(unique_values)),
             })
             
         preview_rows = df.head(10).fillna('').to_dict(orient='records')

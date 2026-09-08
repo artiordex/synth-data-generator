@@ -1,9 +1,9 @@
 # 사내망 Nginx 운영
 
-루트 `docker-compose.yml`은 Nginx를 사내망 진입점으로 실행한다. Nginx는 호스트의
-80번 포트에서 요청을 받고 웹 UI와 `/api/*` 요청을 통합 FastAPI 서버로 전달한다.
-애플리케이션의 8000번 포트는 호스트의 `127.0.0.1`에만 열려 있어 다른 PC에서
-직접 접근할 수 없다.
+루트 `docker-compose.yml`은 Windows PC를 사내망 처리 서버로 실행한다. Nginx는
+호스트의 80번 포트에서 요청을 받고 웹 UI와 `/api/*` 요청을 통합 FastAPI 서버로
+전달한다. 기존에 맥북에서 8000번 포트로 접근하던 흐름도 살리기 위해
+애플리케이션의 8000번 포트도 사내망에 직접 노출한다.
 
 ## 실행
 
@@ -14,8 +14,14 @@ docker compose up -d --build
 docker compose ps
 ```
 
-서버에서는 `http://localhost`, 사내 다른 PC에서는 `http://서버의-사내-IP`로
-접속한다. API 문서는 `http://서버의-사내-IP/api/v1/docs`에서 확인한다.
+서버에서는 `http://localhost`, 맥북에서는 `http://Windows-PC-IP`로 접속한다.
+기존 8000번 포트 주소를 유지하려면 `http://Windows-PC-IP:8000`으로 접속한다.
+API 문서는 다음 주소에서 확인한다.
+
+```text
+http://Windows-PC-IP/docs
+http://Windows-PC-IP:8000/docs
+```
 
 서버의 IPv4 주소는 다음 명령으로 확인할 수 있다.
 
@@ -28,7 +34,7 @@ Get-NetIPAddress -AddressFamily IPv4 |
 ## Windows 방화벽
 
 관리자 권한 PowerShell에서 Domain/Private 네트워크와 같은 로컬 서브넷에만
-HTTP 80번 포트를 허용한다.
+HTTP 80번과 API 8000번 포트를 허용한다.
 
 ```powershell
 New-NetFirewallRule `
@@ -36,6 +42,15 @@ New-NetFirewallRule `
   -Direction Inbound `
   -Protocol TCP `
   -LocalPort 80 `
+  -Action Allow `
+  -Profile Domain,Private `
+  -RemoteAddress LocalSubnet
+
+New-NetFirewallRule `
+  -DisplayName "Synthetic Data Studio API" `
+  -Direction Inbound `
+  -Protocol TCP `
+  -LocalPort 8000 `
   -Action Allow `
   -Profile Domain,Private `
   -RemoteAddress LocalSubnet
@@ -48,7 +63,9 @@ New-NetFirewallRule `
 
 ```powershell
 curl.exe http://localhost/nginx-health
+curl.exe http://localhost:8000/health
 docker compose logs -f nginx
+docker compose logs -f synth-data-generator
 docker compose restart nginx
 docker compose down
 ```
