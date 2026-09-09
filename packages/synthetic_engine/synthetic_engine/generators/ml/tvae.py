@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: tvae.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/ml/tvae.py
+# 목적: TVAE 기반 합성 데이터를 생성함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import os
 from typing import Any
@@ -9,6 +17,7 @@ from ..registry import register_synthesizer
 
 @register_synthesizer("tvae")
 class TVAEGenerator(BaseSynthesizer):
+    """변분 오토인코더 기반 합성 데이터 생성기임"""
     def __init__(self, epochs: int = 30, batch_size: int = 64, enable_gpu: bool = False):
         self.epochs = max(1, epochs)
         self.batch_size = batch_size

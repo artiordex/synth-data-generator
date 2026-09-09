@@ -1,3 +1,11 @@
+# =============================================================================
+# 파일명: synthesis_service.py
+# 경로: apps/api/src/synthetic_api/application/services/synthesis_service.py
+# 목적: 합성 작업 생성·실행·취소와 진행 상태를 관리함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 import os
 import uuid
 import shutil
@@ -12,18 +20,28 @@ from synthetic_api.infrastructure.db.session import SessionLocal
 from synthetic_api.infrastructure.repositories.job_repo_impl import JobRepository
 from synthetic_api.infrastructure.repositories.audit_repo_impl import AuditRepository
 from synthetic_api.domain.models.audit import AuditLogEntry
+from synthetic_api.application.services.job_runtime import (
+    ACTIVE_TASKS,
+    CANCEL_FLAGS,
+    JobProgressUpdater,
+    cancel_requested,
+    clear_runtime_job,
+    is_terminal,
+    register_cancelable,
+    request_cancel,
+)
 
 from synthetic_engine import (
     SyntheticPipeline,
     SynthesisConfig
 )
 
-ACTIVE_TASKS = {}
-CANCEL_FLAGS = {}
-
 class SynthesisService:
+    """단일 합성 작업의 생명주기와 파이프라인 실행을 관리함"""
+
     @staticmethod
     def create_job(req: SynthesisRequest) -> JobStatus:
+        """합성 요청을 영속 작업으로 생성함"""
         job_id = f"job-{uuid.uuid4().hex[:8]}"
         job = JobStatus(
             id=job_id,
@@ -58,20 +76,21 @@ class SynthesisService:
 
     @staticmethod
     def start_pipeline_async(job_id: str, req: SynthesisRequest):
-        CANCEL_FLAGS[job_id] = False
+        """합성 파이프라인을 백그라운드에서 시작함"""
+        register_cancelable(job_id)
         t = threading.Thread(target=SynthesisService._run_pipeline, args=(job_id, req), daemon=True)
         ACTIVE_TASKS[job_id] = t
         t.start()
 
     @staticmethod
     def cancel_job(job_id: str) -> bool:
-        if job_id in CANCEL_FLAGS:
-            CANCEL_FLAGS[job_id] = True
+        """실행 중인 합성 작업에 취소를 요청함"""
+        if request_cancel(job_id):
             db = SessionLocal()
             try:
                 repo = JobRepository(db)
                 job = repo.get_by_id(job_id)
-                if job and job.status not in {"completed", "failed", "canceled"}:
+                if job and not is_terminal(job.status):
                     job.status = "canceled"
                     job.message = "사용자에 의해 작업이 취소되었습니다."
                     repo.save(job)
@@ -82,19 +101,11 @@ class SynthesisService:
 
     @staticmethod
     def _run_pipeline(job_id: str, req: SynthesisRequest):
+        """합성 파이프라인을 실행하고 작업 결과를 저장함"""
         db = SessionLocal()
         repo = JobRepository(db)
         audit = AuditRepository(db)
-        
-        def update_progress(pct: int, msg: str):
-            if CANCEL_FLAGS.get(job_id, False):
-                raise InterruptedError("Job canceled by user")
-            job = repo.get_by_id(job_id)
-            if job:
-                job.status = "processing"
-                job.progress = pct
-                job.message = msg
-                repo.save(job)
+        update_progress = JobProgressUpdater(job_id, repo)
 
         try:
             logger.info(f"Starting synthesis job {job_id} for {req.file_name}")
@@ -154,7 +165,7 @@ class SynthesisService:
             shutil.make_archive(zip_base, "zip", root_dir=package_dirs["root"])
             zip_path = f"{zip_base}.zip"
 
-            if CANCEL_FLAGS.get(job_id, False):
+            if cancel_requested(job_id):
                 raise InterruptedError("Job canceled by user")
 
             job = repo.get_by_id(job_id)
@@ -172,6 +183,7 @@ class SynthesisService:
                 job.package_folders = {
                     "원본데이터": str(package_dirs.get("original", "")),
                     "합성데이터": str(package_dirs.get("synthetic", "")),
+                    "심의자료": str(package_dirs.get("review", "")),
                     "심의위원회 심의자료": str(package_dirs.get("review", ""))
                 }
                 job.file_sha256 = result.get("raw_hash", "")
@@ -208,5 +220,4 @@ class SynthesisService:
             ))
         finally:
             db.close()
-            ACTIVE_TASKS.pop(job_id, None)
-            CANCEL_FLAGS.pop(job_id, None)
+            clear_runtime_job(job_id)

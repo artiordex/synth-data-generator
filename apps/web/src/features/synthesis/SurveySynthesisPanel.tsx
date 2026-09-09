@@ -1,3 +1,11 @@
+/**
+ * 파일명: SurveySynthesisPanel.tsx
+ * 경로: apps/web/src/features/synthesis/SurveySynthesisPanel.tsx
+ * 목적: 설문 합성 작업 화면을 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useState, useEffect } from 'react';
 import {
   ClipboardList,
@@ -32,9 +40,10 @@ import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 interface Props {
   isDarkMode: boolean;
   onClose: () => void;
+  onStepChange?: (step: number) => void;
 }
 
-export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) => {
+export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onStepChange }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<SurveyInspectionResponse | null>(null);
@@ -58,6 +67,11 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) =
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<SurveyJobStatusResponse | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+
+  useEffect(() => {
+    const completed = jobStatus?.status === 'completed';
+    onStepChange?.(completed ? 4 : activeJobId || isGenerating ? 3 : analysis ? 2 : 1);
+  }, [activeJobId, analysis, isGenerating, jobStatus?.status, onStepChange]);
 
   // Poll Job Status
   useEffect(() => {
@@ -253,7 +267,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) =
                   <GitBranch className="h-4 w-4 text-sky-500" />
                   자동 탐지된 설문 분기(Skip-Logic) 무결성 규칙 ({analysis.detected_rules.length}개)
                 </div>
-                <span className="text-[11px] text-sky-600 dark:text-sky-400 font-semibold">
+                <span className="text-2xs text-sky-600 dark:text-sky-400 font-semibold">
                   합성 시 100% 무결성 사후 보정 적용
                 </span>
               </div>
@@ -270,7 +284,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) =
                       <span className="font-semibold truncate">{rule.target_col}</span>
                       <span className="text-emerald-500 font-bold">={rule.target_val}</span>
                     </div>
-                    <span className="shrink-0 rounded bg-sky-100 dark:bg-sky-900/50 px-1.5 py-0.5 text-[10px] font-bold text-sky-600 dark:text-sky-300">
+                    <span className="shrink-0 rounded bg-sky-100 dark:bg-sky-900/50 px-1.5 py-0.5 text-2xs font-bold text-sky-600 dark:text-sky-300">
                       신뢰도 {(rule.confidence * 100).toFixed(0)}%
                     </span>
                   </div>
@@ -320,7 +334,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) =
                   <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                     분기 로직 무결성 보정 (Skip-Logic)
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
+                  <div className="text-2xs text-slate-400 mt-0.5">
                     비논리적 모순 레코드 100% 원천 차단
                   </div>
                 </div>
@@ -337,7 +351,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) =
                   <div className="text-xs font-bold text-sky-600 dark:text-sky-400">
                     리커트 척도 서열성 보존 ({analysis.likert_columns_count}개)
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
+                  <div className="text-2xs text-slate-400 mt-0.5">
                     5점 척도 순위 및 상관계수 왜곡 방지
                   </div>
                 </div>
@@ -354,7 +368,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) =
                   <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                     준식별자 k-익명성 보호 (k ≥ 5)
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
+                  <div className="text-2xs text-slate-400 mt-0.5">
                     희귀 계층 특이치 재식별 위험 차단
                   </div>
                 </div>
@@ -560,7 +574,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) =
                     <FileSpreadsheet className={`h-4 w-4 shrink-0 ${idx === 0 ? 'text-emerald-500' : 'text-slate-400'}`} />
                     <div className="truncate">
                       <div className="font-bold truncate">{t.filename}</div>
-                      <div className="text-slate-400 text-[11px]">{t.rows.toLocaleString()}행 · {t.columns}열</div>
+                      <div className="text-slate-400 text-2xs">{t.rows.toLocaleString()}행 · {t.columns}열</div>
                     </div>
                   </div>
                   <a

@@ -1,3 +1,11 @@
+"""
+파일명: dummy.py
+경로: apps/api/src/synthetic_api/routes/v1/dummy.py
+목적: 더미데이터 도메인·스키마·생성 API를 제공함
+작성자: 개발팀
+작성일: 2026-09-09
+수정일: 2026-09-09
+"""
 import uuid
 import numpy as np
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -38,7 +46,7 @@ class GenerateSchemaRequest(BaseModel):
     target_rows: int = 1000
     scenario: str = "normal"
 
-@router.get("/domains")
+@router.get("/domains", summary="표준 데이터 도메인 카탈로그 목록 조회", description="사전 정의된 표준 도메인 카탈로그 목록을 카테고리별로 조회합니다.")
 async def get_domains():
     """Return all standard domains grouped by category."""
     domains = DomainCatalog.list_domains()
@@ -51,14 +59,14 @@ async def get_domains():
         "domains": domains
     }
 
-@router.get("/templates")
+@router.get("/templates", summary="사전 정의된 스키마 템플릿 목록 조회", description="임상시험, 전자상거래, 병원진료 등 표준 스키마 템플릿 목록을 조회합니다.")
 async def get_templates():
     """Return predefined schema templates."""
     return {
         "templates": DomainCatalog.get_templates()
     }
 
-@router.post("/infer-column")
+@router.post("/infer-column", summary="컬럼명 기반 최적 도메인 자동 추천", description="입력된 컬럼명 문자열을 분석하여 가장 적합한 표준 도메인을 추천합니다.")
 async def infer_column(req: InferColumnRequest):
     """Automatically infer the best matching domain for a given column name."""
     matched = DomainCatalog.infer_domain_by_name(req.column_name)
@@ -67,14 +75,14 @@ async def infer_column(req: InferColumnRequest):
         "inferred_domain": matched
     }
 
-@router.post("/import-schema")
+@router.post("/import-schema", summary="DDL/JSON 스키마 정의 구문 분석 및 임포트", description="SQL DDL(CREATE TABLE), JSON Schema 등 외부 스키마 정의 문자열을 파싱하여 시스템 스키마로 변환합니다.")
 async def import_dummy_schema(req: ImportSchemaRequest):
     try:
         return import_schema(req.source_type, req.content)
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-@router.post("/generate-schema")
+@router.post("/generate-schema", summary="다중 테이블 스키마 기반 더미 데이터셋 일괄 생성", description="부모-자식 외래키 관계가 정의된 복수 테이블 스키마를 기반으로 참조 무결성을 보장하는 더미 데이터셋을 일괄 생성합니다.")
 async def generate_dummy_schema(req: GenerateSchemaRequest):
     tables = req.schema_definition.get("tables", [])
     relationships = req.schema_definition.get("relationships", [])
@@ -116,7 +124,7 @@ async def generate_dummy_schema(req: GenerateSchemaRequest):
     except Exception as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-@router.post("/generate")
+@router.post("/generate", summary="단일 테이블 규칙 기반 더미 데이터 생성 및 파일 저장", description="정의된 컬럼 규칙(도메인, 고유값, 제약조건)과 시나리오(정상/이상치/극단값)에 맞추어 더미 데이터를 생성합니다.")
 async def generate_dummy(req: GenerateDummyRequest):
     """Generate dummy data from schema definition and save in the requested format."""
     if not req.columns:
@@ -212,7 +220,7 @@ async def generate_dummy(req: GenerateDummyRequest):
         "file_path": str(file_path)
     }
 
-@router.get("/history")
+@router.get("/history", summary="더미 데이터 생성 이력 조회", description="최근 생성된 더미 데이터 작업 이력 목록을 조회합니다.")
 async def get_dummy_history():
     dummy_dir = settings.OUTPUT_DIR / "dummy"
     hist_file = dummy_dir / "dummy_history.json"

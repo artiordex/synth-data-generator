@@ -1,3 +1,11 @@
+/**
+ * 파일명: IntegratedHistoryModal.tsx
+ * 경로: apps/web/src/features/history/IntegratedHistoryModal.tsx
+ * 목적: 통합 작업 이력 모달을 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   History, 
@@ -304,14 +312,14 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold tracking-tight">통합 작업 이력 관리대장</h2>
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full border ${
                   isDarkMode 
                     ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60' 
                     : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 }`}>
                   총 {items.length}건
                 </span>
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded border hidden sm:inline-block ${
+                <span className={`text-2xs font-medium px-2 py-0.5 rounded border hidden sm:inline-block ${
                   isDarkMode 
                     ? 'bg-slate-800 text-slate-400 border-slate-700' 
                     : 'bg-slate-100 text-slate-600 border-slate-200'
@@ -374,7 +382,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
             >
               <Filter className="w-3.5 h-3.5" />
               <span>전체 이력</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-white/20 text-white">
+              <span className="text-2xs px-1.5 py-0.2 rounded-full font-bold bg-white/20 text-white">
                 {counts.all}
               </span>
             </button>
@@ -391,7 +399,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>가명데이터</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              <span className={`text-2xs px-1.5 py-0.2 rounded-full font-bold ${
                 selectedType === 'pseudo' ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
               }`}>
                 {counts.pseudo}
@@ -410,7 +418,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
             >
               <Cpu className="w-3.5 h-3.5" />
               <span>AI 합성데이터</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              <span className={`text-2xs px-1.5 py-0.2 rounded-full font-bold ${
                 selectedType === 'synthetic' ? 'bg-white/20 text-white' : 'bg-sky-500/20 text-sky-600 dark:text-sky-400'
               }`}>
                 {counts.synthetic}
@@ -429,7 +437,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
             >
               <Database className="w-3.5 h-3.5" />
               <span>더미데이터</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              <span className={`text-2xs px-1.5 py-0.2 rounded-full font-bold ${
                 selectedType === 'dummy' ? 'bg-white/20 text-white' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
               }`}>
                 {counts.dummy}
@@ -448,7 +456,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
             >
               <ArrowLeftRight className="w-3.5 h-3.5" />
               <span>데이터 변환</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              <span className={`text-2xs px-1.5 py-0.2 rounded-full font-bold ${
                 selectedType === 'converter' ? 'bg-white/20 text-white' : 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400'
               }`}>
                 {counts.converter}
@@ -467,7 +475,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
             >
               <Layers className="w-3.5 h-3.5" />
               <span>일괄 처리</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              <span className={`text-2xs px-1.5 py-0.2 rounded-full font-bold ${
                 selectedType === 'batch' ? 'bg-white/20 text-white' : 'bg-sky-500/20 text-sky-600 dark:text-sky-400'
               }`}>
                 {counts.batch}
@@ -569,7 +577,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
                       >
                         {/* Track Badge */}
                         <td className="py-3 px-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${typeBadgeClass}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-2xs font-bold border ${typeBadgeClass}`}>
                             <TypeIcon className="w-3 h-3" />
                             <span>{item.typeName}</span>
                           </span>
@@ -603,7 +611,7 @@ export const IntegratedHistoryModal: React.FC<Props> = ({
                         {/* Result / Grade */}
                         <td className="py-3 px-3 whitespace-nowrap">
                           {item.resultBadge && (
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            <span className={`px-2 py-0.5 rounded-full text-2xs font-bold border ${
                               item.resultBadge.variant === 'emerald'
                                 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
                                 : item.resultBadge.variant === 'sky'

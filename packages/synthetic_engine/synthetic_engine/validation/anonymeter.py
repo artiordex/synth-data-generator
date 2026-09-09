@@ -1,4 +1,11 @@
-"""Risk evaluation against a control set excluded before model fitting."""
+"""
+파일명: anonymeter.py
+경로: packages/synthetic_engine/synthetic_engine/validation/anonymeter.py
+목적: Anonymeter 기반 재식별 위험을 평가함
+작성자: 개발팀
+작성일: 2026-09-09
+수정일: 2026-09-09
+"""
 from __future__ import annotations
 import math
 import warnings
@@ -8,6 +15,7 @@ from ..common.types import ColumnPlan
 
 
 def unavailable(reason: str, status: str = 'NOT_EVALUATED') -> dict[str, Any]:
+    """위험 평가를 수행할 수 없을 때 표준 결과를 반환함"""
     report = {'evaluated_with_anonymeter': False, 'status': status, 'reason': reason, 'errors': {}}
     for name in ('singling_out', 'linkability', 'inference'):
         report[name] = {'risk': None, 'status': status, 'reason': reason}
@@ -16,6 +24,7 @@ def unavailable(reason: str, status: str = 'NOT_EVALUATED') -> dict[str, Any]:
 
 
 class AnonymeterValidator:
+    """Anonymeter 평가 실행과 실패 상태를 관리함"""
     @staticmethod
     def evaluate_risks(original: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPlan,
                        n_attacks: int = 50, control: pd.DataFrame | None = None) -> dict[str, Any]:

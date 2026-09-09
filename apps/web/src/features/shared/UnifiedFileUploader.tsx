@@ -1,8 +1,18 @@
+/**
+ * 파일명: UnifiedFileUploader.tsx
+ * 경로: apps/web/src/features/shared/UnifiedFileUploader.tsx
+ * 목적: 단일·다중 파일 업로드 UI와 입력 검증을 공통 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useState, useRef } from 'react';
 import { Upload, RefreshCw } from 'lucide-react';
 
 export const SUPPORTED_FILE_EXTENSIONS = '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq,.pdf,.hwp,.hwpx,.hwpt,.doc,.docx,.md';
 export const SUPPORTED_FORMATS_HINT = 'CSV · XLSX · TSV · JSON · PARQUET · PDF · HWP · HWPX · HWPT · DOCX · MD (최대 100MB)';
+export const TABLE_DATA_FILE_EXTENSIONS = '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq';
+export const TABLE_DATA_FORMATS_HINT = 'CSV · XLSX · XLS · TSV · TXT · JSON · JSONL · PARQUET/PQ (최대 100MB)';
 
 export interface UnifiedFileUploaderProps {
   title?: string;
@@ -37,6 +47,7 @@ export const UnifiedFileUploader: React.FC<UnifiedFileUploaderProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = (fileList: FileList | File[] | null) => {
+    // 업로드 상태와 파일 개수 조건을 확인한 뒤 선택 파일을 전달함
     if (!fileList || !fileList.length || isUploading) return;
     const files = Array.from(fileList);
 

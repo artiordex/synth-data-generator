@@ -1,11 +1,19 @@
-import React, { useState } from 'react';
+/**
+ * 파일명: RelationalSynthesisPanel.tsx
+ * 경로: apps/web/src/features/synthesis/RelationalSynthesisPanel.tsx
+ * 목적: 관계형 데이터 합성 화면을 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
+import React, { useEffect, useState } from 'react';
 import { Database, Download, Link2, RefreshCw, Upload, X } from 'lucide-react';
 import { generateRelational, getDownloadUrl, profileRelational, uploadDatasets } from '../../services/api';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 
-interface Props { isDarkMode: boolean; onClose: () => void }
+interface Props { isDarkMode: boolean; onClose: () => void; onStepChange?: (step: number) => void }
 
-export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose }) => {
+export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onStepChange }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [analysis, setAnalysis] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
@@ -14,6 +22,10 @@ export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [uploadedNames, setUploadedNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    onStepChange?.(result ? 4 : busy && analysis ? 3 : analysis ? 2 : 1);
+  }, [analysis, busy, onStepChange, result]);
 
   const analyze = async () => {
     if (files.length < 2) return;

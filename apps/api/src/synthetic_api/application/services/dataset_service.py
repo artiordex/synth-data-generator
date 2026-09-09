@@ -1,8 +1,17 @@
+# =============================================================================
+# 파일명: dataset_service.py
+# 경로: apps/api/src/synthetic_api/application/services/dataset_service.py
+# 목적: 데이터 파일 저장과 프로파일링 작업을 처리함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 import os
 import shutil
 import uuid
 import pandas as pd
 from synthetic_engine.profiling.notebook_presets import notebook_settings
+from synthetic_engine.profiling.pseudonym_input import read_pseudonym_input
 from pathlib import Path
 from typing import Dict, Any, List
 from synthetic_api.core.config import settings
@@ -15,8 +24,11 @@ from synthetic_engine import (
 )
 
 class DatasetService:
+    """업로드 데이터의 저장·검사·프로파일링을 제공함"""
+
     @staticmethod
     def save_upload_file(file_obj, filename: str, unique: bool = False) -> Dict[str, Any]:
+        """업로드 파일을 허용된 저장소에 저장하고 메타데이터를 반환함"""
         original_filename = filename.replace('\\', '/').rsplit('/', 1)[-1]
         if not original_filename or original_filename in {'.', '..'}:
             raise ValueError('올바른 파일명이 필요합니다.')
@@ -45,7 +57,8 @@ class DatasetService:
         }
 
     @staticmethod
-    def inspect_file(file_name: str) -> Dict[str, Any]:
+    def inspect_file(file_name: str, pseudonym: bool = False) -> Dict[str, Any]:
+        """저장된 데이터 파일의 구조와 개인정보 후보를 분석함"""
         p = settings.UPLOAD_DIR / file_name
         if not p.exists():
             p = Path(file_name)
@@ -53,7 +66,7 @@ class DatasetService:
         if not p.exists():
             raise FileNotFoundError(f'파일을 찾을 수 없습니다: {p}')
             
-        df = read_table(p)
+        df = read_pseudonym_input(p) if pseudonym else read_table(p)
         pii_detected = scan_pii_columns(df)
         cat_cols, num_cols = infer_columns(df, ignored=list(pii_detected.keys()))
         

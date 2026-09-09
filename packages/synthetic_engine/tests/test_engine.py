@@ -148,3 +148,31 @@ def test_extended_pii_detection_and_faker():
     assert synth_df["접속IP"].iloc[0] != "192.168.0.1" or synth_df["접속IP"].nunique() > 1
 
 
+def test_smart_mask_pii_output_preserves_original_column_order():
+    from synthetic_engine import build_pii_output
+
+    raw = pd.DataFrame({
+        "지역": ["세종", "충남", "전남광주"],
+        "학교 소재지": ["세종특별자치시", "충청남도", "광주광역시"],
+        "만족도": [5, 4, 3],
+    })
+    synthetic = pd.DataFrame({
+        "지역": ["세종", "충남"],
+        "만족도": [4, 5],
+    })
+    plan = ColumnPlan(
+        categorical=["지역"],
+        numerical=["만족도"],
+        ignored=["학교 소재지"],
+        pii={"학교 소재지": {"action": "smart_mask", "faker": "address"}},
+        rules={},
+    )
+
+    output, report = build_pii_output(raw, synthetic, plan, seed=42)
+
+    assert list(output.columns) == list(raw.columns)
+    assert len(output) == len(synthetic)
+    assert output["학교 소재지"].notna().all()
+    assert report["summary"]["학교 소재지"]["action"] == "mask"
+
+

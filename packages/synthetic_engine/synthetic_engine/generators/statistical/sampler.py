@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: sampler.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/statistical/sampler.py
+# 목적: 통계 분포 기반의 빠른 합성 데이터를 생성함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 from typing import Any
 import numpy as np
@@ -9,6 +17,7 @@ from ..registry import register_synthesizer
 
 @register_synthesizer("statistical")
 class StatisticalSampler(BaseSynthesizer):
+    """컬럼별 통계 분포를 학습하고 데이터를 샘플링함"""
     def __init__(self):
         self.training = None
         self.plan = None

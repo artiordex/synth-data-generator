@@ -1,5 +1,14 @@
+/**
+ * 파일명: SynthesisWorkflowSelector.tsx
+ * 경로: apps/web/src/features/synthesis/SynthesisWorkflowSelector.tsx
+ * 목적: 합성 작업 유형 선택 UI를 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React from 'react';
 import { Clock3, FileUp, Files, Network, ClipboardList } from 'lucide-react';
+import { SectionHeader } from '../../components/SectionHeader';
 
 export type SyntheticWorkflow = 'single' | 'batch' | 'relational' | 'timeseries' | 'survey';
 
@@ -68,14 +77,12 @@ export function SynthesisWorkflowSelector({ value, onChange, isDarkMode }: {
       aria-labelledby="synthesis-workflow-heading"
       className="ui-panel p-4 sm:p-5"
     >
-      <div className="mb-4">
-        <h2 id="synthesis-workflow-heading" className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-          합성 방식 선택
-        </h2>
-        <p className={`mt-1 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-          데이터 구조에 맞는 방식을 고르면 아래 작업 화면이 바로 바뀝니다.
-        </p>
-      </div>
+      <SectionHeader
+        title="합성 방식 선택"
+        description="데이터 구조에 맞는 방식을 고르면 아래 작업 화면이 바로 바뀝니다."
+        headingId="synthesis-workflow-heading"
+        className="mb-4"
+      />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" role="group" aria-label="합성 방식">
         {workflows.map((workflow) => {

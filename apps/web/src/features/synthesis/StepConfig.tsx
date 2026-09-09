@@ -1,8 +1,17 @@
+/**
+ * 파일명: StepConfig.tsx
+ * 경로: apps/web/src/features/synthesis/StepConfig.tsx
+ * 목적: 합성 설정 단계를 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useState } from 'react';
 import { Sliders, Cpu, RefreshCw } from 'lucide-react';
 import { compareSynthesisModels } from '../../services/api';
 import { DatasetProfile, ReviewMetadataInput } from '../../types';
 import { AdvancedSynthesisSettings, SynthesisOptions } from './AdvancedSynthesisSettings';
+import { SectionHeader } from '../../components/SectionHeader';
 
 const reviewFields: Array<[keyof Pick<ReviewMetadataInput, 'dataset_name' | 'special_notes' | 'overview' | 'privacy_plan'>, string, string]> = [
   ['dataset_name', '데이터명', '비워두면 파일명 사용'],
@@ -76,13 +85,10 @@ export const StepConfig: React.FC<StepConfigProps> = ({
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Left: General Settings */}
         <div className="ui-panel space-y-4 p-6">
-          <h3 className={`flex items-center gap-2 break-keep text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
-            <Sliders className="w-4 h-4 text-sky-500" />
-            프로젝트 및 합성 대상 정보
-          </h3>
+          <SectionHeader title="프로젝트 및 합성 대상 정보" Icon={Sliders} />
           <div className="space-y-3">
             <div>
-              <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>담당 부서명</label>
+              <label className="ui-label">담당 부서명</label>
               <input 
                 type="text" 
                 value={departmentName} 
@@ -91,7 +97,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
               />
             </div>
             <div>
-              <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>연구 및 심의 목적</label>
+              <label className="ui-label">연구 및 심의 목적</label>
               <input 
                 type="text" 
                 value={projectPurpose} 
@@ -100,7 +106,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
               />
             </div>
             <div>
-              <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>합성 생성 행 수 (Target Rows)</label>
+              <label className="ui-label">합성 생성 행 수 (Target Rows)</label>
               <input 
                 type="number" 
                 value={targetRows} 
@@ -109,7 +115,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
               />
             </div>
             <div>
-              <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>심의 통과 품질 임계점 (기준 80점)</label>
+              <label className="ui-label">심의 통과 품질 임계점 (기준 80점)</label>
               <input 
                 type="number" 
                 step="0.05"
@@ -125,10 +131,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
 
         {/* Right: AI Model & Privacy */}
         <div className="ui-panel space-y-4 p-6">
-          <h3 className={`flex items-center gap-2 break-keep text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
-            <Cpu className="w-4 h-4 text-sky-500" />
-            생성 모델 & 차분 프라이버시(DP)
-          </h3>
+          <SectionHeader title="생성 모델 & 차분 프라이버시(DP)" Icon={Cpu} />
           
           {/* Model Selector */}
           <div>
@@ -155,7 +158,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                   }`}
                 >
                   <div className="break-keep text-xs font-bold">{m.label}</div>
-                  <div className={`mt-0.5 break-keep text-[10px] leading-snug ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{m.desc}</div>
+                  <div className={`mt-0.5 break-keep text-2xs leading-snug ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{m.desc}</div>
                 </button>
               ))}
             </div>
@@ -175,7 +178,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <div className={`text-xs font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>차분 프라이버시 (Laplace DP) 적용</div>
-                <div className={`text-[10px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>수학적 라플라스 노이즈로 엄격한 개인정보 차단</div>
+                <div className={`text-2xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>수학적 라플라스 노이즈로 엄격한 개인정보 차단</div>
               </div>
               <input 
                 type="checkbox" 
@@ -202,7 +205,7 @@ export const StepConfig: React.FC<StepConfigProps> = ({
                   onChange={(e) => setDpEpsilon(Number(e.target.value))} 
                   className="w-full accent-sky-500"
                 />
-                <div className="flex justify-between text-[10px] text-slate-400">
+                <div className="flex justify-between text-2xs text-slate-400">
                   <span>강력한 프라이버시 (0.1)</span>
                   <span>높은 통계 정확도 (5.0)</span>
                 </div>
@@ -213,8 +216,10 @@ export const StepConfig: React.FC<StepConfigProps> = ({
       </div>
 
       <div className="ui-panel space-y-4 p-6">
-        <h3 className="font-bold text-sm">심의자료 한글 문서 입력</h3>
-        <p className="text-xs">데이터 규모·전체 항목·결측 현황·처리방법·측정결과는 자동 입력됩니다. 아래 내용은 문서에 함께 반영되며, 미입력 사항은 자동 분석 또는 담당자 확인 필요로 표시됩니다.</p>
+        <SectionHeader
+          title="심의자료 한글 문서 입력"
+          description="데이터 규모·전체 항목·결측 현황·처리방법·측정결과는 자동 입력됩니다. 아래 내용은 문서에 함께 반영되며, 미입력 사항은 자동 분석 또는 담당자 확인 필요로 표시됩니다."
+        />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {reviewFields.map(([key, label, placeholder]) => (
             <label key={key} className="block text-xs font-semibold">

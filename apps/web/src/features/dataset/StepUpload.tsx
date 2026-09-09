@@ -1,5 +1,13 @@
+/**
+ * 파일명: StepUpload.tsx
+ * 경로: apps/web/src/features/dataset/StepUpload.tsx
+ * 목적: 데이터 업로드 단계를 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React from 'react';
-import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
+import { TABLE_DATA_FILE_EXTENSIONS, TABLE_DATA_FORMATS_HINT, UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 import { DatasetProfile } from '../../types';
 
 interface StepUploadProps {
@@ -22,8 +30,9 @@ export const StepUpload: React.FC<StepUploadProps> = ({
   return (
     <UnifiedFileUploader
       title="데이터 파일 업로드"
-      subtitle="CSV, Excel(XLSX/XLS), TSV, JSON, Parquet 등 정형 데이터셋을 업로드하여 합성을 시작합니다."
-      formatsHint="CSV · XLSX · XLS · TSV · JSON · PARQUET (최대 100MB)"
+      subtitle="CSV, Excel(XLSX/XLS), TSV, TXT, JSON, JSONL, Parquet 등 표 형식 데이터셋을 업로드하여 합성을 시작합니다."
+      accept={TABLE_DATA_FILE_EXTENSIONS}
+      formatsHint={TABLE_DATA_FORMATS_HINT}
       isUploading={isUploading}
       multiple={false}
       onFilesSelected={([file]) => handleFileUpload(file)}

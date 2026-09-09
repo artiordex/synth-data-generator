@@ -1,3 +1,11 @@
+/**
+ * 파일명: index.ts
+ * 경로: packages/contracts/src/index.ts
+ * 목적: 프론트엔드와 백엔드가 공유하는 데이터 계약을 정의함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 export type InformationType = "준식별자" | "일반정보";
 
 export interface ReviewColumnMetadata {

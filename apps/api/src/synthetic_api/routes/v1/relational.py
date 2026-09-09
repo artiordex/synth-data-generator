@@ -1,3 +1,11 @@
+"""
+파일명: relational.py
+경로: apps/api/src/synthetic_api/routes/v1/relational.py
+목적: 관계형 데이터 분석·합성 API를 제공함
+작성자: 개발팀
+작성일: 2026-09-09
+수정일: 2026-09-09
+"""
 from __future__ import annotations
 
 import uuid
@@ -73,7 +81,7 @@ def _infer(tables: dict[str, pd.DataFrame]) -> tuple[dict[str, str], list[TableR
     return primary, relationships
 
 
-@router.post("/profile")
+@router.post("/profile", summary="관계형 테이블 간 기본키(PK) 및 외래키(FK) 관계 자동 분석", description="여러 개의 테이블 파일들을 검사하여 기본키(PK)와 외래키(FK) 참조 관계를 자동으로 추론하고 통계를 산출합니다.")
 def profile_relational(req: RelationalRequest):
     try:
         tables = _load_tables(req.file_names)
@@ -88,7 +96,7 @@ def profile_relational(req: RelationalRequest):
     }
 
 
-@router.post("/generate")
+@router.post("/generate", summary="관계형 멀티테이블 합성 데이터 생성", description="HMA 또는 TurboRelationalSampler 모델을 이용해 테이블 간 참조 무결성을 유지하며 합성 데이터를 생성합니다.")
 def generate_relational(req: RelationalRequest):
     try:
         tables = _load_tables(req.file_names)

@@ -1,6 +1,15 @@
+/**
+ * 파일명: StepProgress.tsx
+ * 경로: apps/web/src/features/synthesis/StepProgress.tsx
+ * 목적: 합성 작업 진행 상태를 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
 import { JobStatus } from '../../types';
+import { SectionHeader } from '../../components/SectionHeader';
 
 interface StepProgressProps {
   isDarkMode: boolean;
@@ -22,9 +31,10 @@ export const StepProgress: React.FC<StepProgressProps> = ({
       </div>
 
       <div className="space-y-2">
-        <h2 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-          합성데이터 생성 및 3대 공문서 자동 바인딩 중
-        </h2>
+        <SectionHeader
+          title="합성데이터 생성 및 3대 공문서 자동 바인딩 중"
+          className="justify-center text-center sm:items-center"
+        />
         <p className="text-xs text-sky-600 dark:text-sky-400 font-bold">{activeJob.message}</p>
       </div>
 

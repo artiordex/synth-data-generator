@@ -1,4 +1,12 @@
-import React, { useState } from 'react';
+/**
+ * 파일명: DataConverterStudio.tsx
+ * 경로: apps/web/src/features/converter/DataConverterStudio.tsx
+ * 목적: 데이터·문서 변환 작업 화면을 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
+import React, { useState, useEffect } from 'react';
 import {
   ArrowRight,
   Download,
@@ -17,18 +25,22 @@ import {
   Globe,
   Eye,
   ExternalLink,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 import { convertFile, ConvertResponse, getDownloadUrl } from '../../services/api';
+import { MarkdownPreviewStudio } from './MarkdownPreviewStudio';
 
 interface Props {
   isDarkMode: boolean;
+  onStepChange?: (step: number) => void;
 }
 
 const SUPPORTED_CONVERTER_EXTENSIONS =
   '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq,.hwp,.hwpx,.doc,.docx,.pdf,.md';
 
-export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
+export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileCategory, setFileCategory] = useState<'document' | 'dataset' | null>(null);
   const [targetFormat, setTargetFormat] = useState<string>('md');
@@ -39,6 +51,27 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedHtml, setCopiedHtml] = useState<boolean>(false);
   const [htmlPreviewTab, setHtmlPreviewTab] = useState<'visual' | 'code'>('visual');
+  const [isHtmlFullScreen, setIsHtmlFullScreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    onStepChange?.(result ? 4 : isConverting ? 3 : selectedFile ? 2 : 1);
+  }, [isConverting, onStepChange, result, selectedFile]);
+
+  useEffect(() => {
+    document.body.style.overflow = isHtmlFullScreen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isHtmlFullScreen]);
+
+  useEffect(() => {
+    if (!isHtmlFullScreen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsHtmlFullScreen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isHtmlFullScreen]);
 
   const handleSelectFile = (file: File) => {
     setErrorMsg(null);
@@ -97,6 +130,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
     setCopied(false);
     setCopiedHtml(false);
     setHtmlPreviewTab('visual');
+    setIsHtmlFullScreen(false);
   };
 
   const handleCopyMarkdown = () => {
@@ -122,6 +156,9 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
   };
 
   const fileExt = selectedFile?.name.split('.').pop()?.toLowerCase() || '';
+  const showWordDocumentOption = fileCategory === 'document' && !['doc', 'docx'].includes(fileExt);
+  const showHwpxDocumentOption = fileCategory === 'document' && fileExt !== 'hwpx';
+  const showHwpDocumentOption = fileCategory === 'document' && ['pdf', 'hwpx'].includes(fileExt);
 
   return (
     <div className="space-y-6">
@@ -209,7 +246,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-sm text-fg">마크다운 (.md)</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                       추천 · LLM/RAG
                     </span>
                   </div>
@@ -230,7 +267,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-sm text-fg">HTML 웹 문서 (.html)</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                       반응형 웹 · 브라우저 열람
                     </span>
                   </div>
@@ -252,7 +289,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-sm text-fg">PDF 문서 (.pdf)</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                      <span className="text-2xs font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
                         인쇄 품질 1:1 보존
                       </span>
                     </div>
@@ -262,8 +299,31 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                   </button>
                 )}
 
-                {/* HWPX (for HWP only) */}
-                {fileExt === 'hwp' && (
+                {/* Word Document */}
+                {showWordDocumentOption && (
+                  <button
+                    type="button"
+                    onClick={() => setTargetFormat('docx')}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      targetFormat === 'docx'
+                        ? 'border-accent bg-accent-subtle/80 ring-2 ring-accent/30 shadow-sm'
+                        : 'border-subtle hover:border-accent bg-surface'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-fg">Word 문서 (.docx)</span>
+                      <span className="text-2xs font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                        MS Word 편집
+                      </span>
+                    </div>
+                    <p className="text-xs text-fg-muted">
+                      PDF/HWP/HWPX 문서를 표와 문단 구조를 유지한 편집 가능한 MS Word 문서로 변환
+                    </p>
+                  </button>
+                )}
+
+                {/* HWPX */}
+                {showHwpxDocumentOption && (
                   <button
                     type="button"
                     onClick={() => setTargetFormat('hwpx')}
@@ -275,12 +335,35 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-sm text-fg">개방형 한글 (.hwpx)</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                      <span className="text-2xs font-bold px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400">
                         공공 표준 XML
                       </span>
                     </div>
                     <p className="text-xs text-fg-muted">
-                      구형 바이너리 HWP를 공공기관 및 정부 표준 개방형 포맷인 OWPML HWPX로 전환
+                      PDF/HWP/Word 문서를 공공기관 및 정부 표준 개방형 포맷인 OWPML HWPX로 전환
+                    </p>
+                  </button>
+                )}
+
+                {/* HWP */}
+                {showHwpDocumentOption && (
+                  <button
+                    type="button"
+                    onClick={() => setTargetFormat('hwp')}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      targetFormat === 'hwp'
+                        ? 'border-accent bg-accent-subtle/80 ring-2 ring-accent/30 shadow-sm'
+                        : 'border-subtle hover:border-accent bg-surface'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-fg">한글 문서 (.hwp)</span>
+                      <span className="text-2xs font-bold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                        한컴 HWP
+                      </span>
+                    </div>
+                    <p className="text-xs text-fg-muted">
+                      PDF 또는 HWPX 문서를 한컴오피스에서 열 수 있는 바이너리 HWP 문서로 변환
                     </p>
                   </button>
                 )}
@@ -297,7 +380,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-sm text-fg">Excel 스프레드시트 (.xlsx)</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                       표 자동 추출
                     </span>
                   </div>
@@ -318,7 +401,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-sm text-fg">텍스트 (.txt)</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
                       순수 텍스트
                     </span>
                   </div>
@@ -344,11 +427,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs sm:text-sm text-fg">Parquet (.parquet)</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                       고속 압축
                     </span>
                   </div>
-                  <p className="text-[11px] text-fg-muted">
+                  <p className="text-xs text-fg-muted">
                     빅데이터 분석(Spark, DuckDB) 및 클라우드 적재에 최적화된 컬럼형 저장소 포맷
                   </p>
                 </button>
@@ -365,11 +448,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs sm:text-sm text-fg">CSV (UTF-8 BOM)</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400">
                       한글 깨짐 방지
                     </span>
                   </div>
-                  <p className="text-[11px] text-fg-muted">
+                  <p className="text-xs text-fg-muted">
                     엑셀 및 모든 프로그램에서 열람 시 한글이 깨지지 않는 UTF-8 with BOM 쉼표 구분 파일
                   </p>
                 </button>
@@ -386,11 +469,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs sm:text-sm text-fg">Excel (.xlsx)</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400">
                       보고서용
                     </span>
                   </div>
-                  <p className="text-[11px] text-fg-muted">
+                  <p className="text-xs text-fg-muted">
                     실무진 배포 및 엑셀 분석용 통합 오피스 스프레드시트 문서
                   </p>
                 </button>
@@ -407,11 +490,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs sm:text-sm text-fg">마크다운 표 (.md)</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400">
                       GitHub/위키
                     </span>
                   </div>
-                  <p className="text-[11px] text-fg-muted">
+                  <p className="text-xs text-fg-muted">
                     GitHub, Notion, 사내 위키에 바로 붙여넣어 볼 수 있는 GFM 마크다운 테이블 포맷
                   </p>
                 </button>
@@ -428,11 +511,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs sm:text-sm text-fg">HTML 웹 표 (.html)</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                       실시간 검색 지원
                     </span>
                   </div>
-                  <p className="text-[11px] text-fg-muted">
+                  <p className="text-xs text-fg-muted">
                     브라우저에서 즉시 열람하고 데이터 내용을 실시간 검색·필터링할 수 있는 반응형 웹 테이블
                   </p>
                 </button>
@@ -449,11 +532,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs sm:text-sm text-fg">JSON (.json)</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
                       웹 API/NoSQL
                     </span>
                   </div>
-                  <p className="text-[11px] text-fg-muted">
+                  <p className="text-xs text-fg-muted">
                     2스페이스 들여쓰기가 적용된 구조화된 JSON 레코드 배열 파일
                   </p>
                 </button>
@@ -470,11 +553,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs sm:text-sm text-fg">JSON Lines (.jsonl)</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400">
                       AI 학습/스트리밍
                     </span>
                   </div>
-                  <p className="text-[11px] text-fg-muted">
+                  <p className="text-xs text-fg-muted">
                     한 줄당 1개의 JSON 객체로 구성되어 대용량 로그 적재 및 LLM 학습에 사용
                   </p>
                 </button>
@@ -491,11 +574,11 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs sm:text-sm text-fg">SQL INSERT (.sql)</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                       RDB 직접 적재
                     </span>
                   </div>
-                  <p className="text-[11px] text-fg-muted">
+                  <p className="text-xs text-fg-muted">
                     사내 개발/운영 데이터베이스에 바로 붙여넣어 실행할 수 있는 INSERT 쿼리문
                   </p>
                 </button>
@@ -516,7 +599,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 placeholder="예: user_orders, customer_info"
                 className="ui-field text-xs font-mono w-full max-w-xs"
               />
-              <p className="text-[11px] text-fg-muted">
+              <p className="text-xs text-fg-muted">
                 생성될 INSERT INTO {tableName || '테이블명'} (컬럼...) VALUES (...) 구문에 적용됩니다.
               </p>
             </div>
@@ -573,6 +656,25 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                 {result.rows_count != null && ` · 총 ${result.rows_count.toLocaleString()}행`}
                 {result.columns_count != null && ` · ${result.columns_count}개 컬럼`}
               </p>
+              {result.document_structure && (
+                <div className="mt-3 flex flex-wrap gap-1.5 text-2xs font-semibold text-fg-muted">
+                  <span className="rounded-md border border-subtle bg-surface-muted px-2 py-1">
+                    {result.document_structure.fidelity_level === 'high' ? '고충실도 파싱' : '최선형 파싱'}
+                  </span>
+                  <span className="rounded-md border border-subtle bg-surface-muted px-2 py-1">
+                    {result.document_structure.pages_count}페이지
+                  </span>
+                  <span className="rounded-md border border-subtle bg-surface-muted px-2 py-1">
+                    블록 {result.document_structure.block_count}
+                  </span>
+                  <span className="rounded-md border border-subtle bg-surface-muted px-2 py-1">
+                    표 {result.document_structure.table_count}
+                  </span>
+                  <span className="rounded-md border border-subtle bg-surface-muted px-2 py-1">
+                    이미지 {result.document_structure.image_count}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -607,7 +709,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                     <button
                       type="button"
                       onClick={() => setHtmlPreviewTab('visual')}
-                      className={`text-[11px] font-bold px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+                      className={`text-2xs font-bold px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                         htmlPreviewTab === 'visual'
                           ? 'bg-surface text-accent shadow-xs'
                           : 'text-fg-muted hover:text-fg'
@@ -619,7 +721,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                     <button
                       type="button"
                       onClick={() => setHtmlPreviewTab('code')}
-                      className={`text-[11px] font-bold px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+                      className={`text-2xs font-bold px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                         htmlPreviewTab === 'code'
                           ? 'bg-surface text-accent shadow-xs'
                           : 'text-fg-muted hover:text-fg'
@@ -658,16 +760,60 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                       </>
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHtmlPreviewTab('visual');
+                      setIsHtmlFullScreen(value => !value);
+                    }}
+                    className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 text-accent"
+                  >
+                    {isHtmlFullScreen ? (
+                      <>
+                        <Minimize2 className="w-3.5 h-3.5" />
+                        <span>전체화면 닫기</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span>전체 페이지 보기</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 
               {htmlPreviewTab === 'visual' ? (
-                <div className="rounded-xl border border-subtle overflow-hidden bg-surface shadow-xs">
+                <div className={`overflow-hidden border border-subtle bg-surface shadow-xs ${
+                  isHtmlFullScreen
+                    ? 'fixed inset-3 z-[9999] flex flex-col rounded-xl'
+                    : 'rounded-xl'
+                }`}>
+                  {isHtmlFullScreen && (
+                    <div className="flex items-center justify-between border-b border-subtle bg-surface px-4 py-2.5">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold text-fg">{result.file_name}</div>
+                        <div className="text-2xs font-medium text-fg-muted">
+                          전체 페이지 미리보기 · 내부 스크롤로 모든 페이지 검토
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsHtmlFullScreen(false)}
+                        className="ui-button-secondary px-3 py-1.5 text-xs"
+                      >
+                        <Minimize2 className="h-3.5 w-3.5" />
+                        닫기
+                      </button>
+                    </div>
+                  )}
                   <iframe
                     srcDoc={result.html_preview}
-                    title="HTML Preview"
+                    title="전체 문서 HTML 미리보기"
                     sandbox="allow-same-origin allow-scripts"
-                    className="w-full h-[480px] border-0 bg-white"
+                    className={`w-full flex-1 border-0 bg-white ${
+                      isHtmlFullScreen ? 'h-full min-h-0' : 'h-[72vh] min-h-[620px]'
+                    }`}
                   />
                 </div>
               ) : (
@@ -678,17 +824,24 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
             </div>
           )}
 
-          {/* Markdown / SQL Content Preview & Copy Panel */}
-          {result.markdown_preview && (
+          {/* Markdown Preview Studio (VS Code Style Live Visual Rendering) */}
+          {result.markdown_preview && result.target_format !== 'SQL' && (
+            <div className="space-y-3">
+              <MarkdownPreviewStudio
+                markdown={result.markdown_preview}
+                fileName={result.file_name}
+                downloadUrl={getDownloadUrl(result.download_url)}
+              />
+            </div>
+          )}
+
+          {/* SQL Preview Panel */}
+          {result.markdown_preview && result.target_format === 'SQL' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-fg">
                   <Code2 className="w-4 h-4 text-accent" />
-                  <span>
-                    {result.target_format === 'SQL'
-                      ? '생성된 SQL INSERT 구문 미리보기'
-                      : '변환된 마크다운 내용 미리보기'}
-                  </span>
+                  <span>생성된 SQL INSERT 구문 미리보기</span>
                 </div>
                 <button
                   onClick={handleCopyMarkdown}
@@ -702,7 +855,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>{result.target_format === 'SQL' ? 'SQL 구문 복사' : '마크다운 복사'}</span>
+                      <span>SQL 구문 복사</span>
                     </>
                   )}
                 </button>
@@ -722,7 +875,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                   <Table className="w-4 h-4 text-accent" />
                   <span>변환 데이터 미리보기 (상위 15행)</span>
                 </div>
-                <span className="text-[11px] text-fg-muted">
+                <span className="text-xs text-fg-muted">
                   총 {result.columns.length}개 컬럼
                 </span>
               </div>
@@ -742,7 +895,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode }) => {
                     {result.preview.map((row, rIdx) => (
                       <tr key={rIdx} className="hover:bg-surface-muted/50">
                         {result.columns!.map((col, cIdx) => (
-                          <td key={cIdx} className="p-2.5 whitespace-nowrap text-fg-muted font-mono text-[11px]">
+                          <td key={cIdx} className="p-2.5 whitespace-nowrap text-fg-muted font-mono text-xs">
                             {row[col] != null ? String(row[col]) : ''}
                           </td>
                         ))}

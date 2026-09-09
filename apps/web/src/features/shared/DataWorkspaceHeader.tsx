@@ -1,3 +1,11 @@
+/**
+ * 파일명: DataWorkspaceHeader.tsx
+ * 경로: apps/web/src/features/shared/DataWorkspaceHeader.tsx
+ * 목적: 데이터 작업 영역의 제목과 지표를 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -60,7 +68,7 @@ export function DataWorkspaceHeader({
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${styles.badge}`}>
+              <span className={`rounded-full border px-2.5 py-0.5 text-2xs font-bold ${styles.badge}`}>
                 {badge}
               </span>
               <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -81,7 +89,7 @@ export function DataWorkspaceHeader({
             <div key={metric.label} className={`min-w-[132px] rounded-xl border px-4 py-3 text-center ${
               isDarkMode ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
             }`}>
-              <div className={`text-[10px] font-medium ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{metric.label}</div>
+              <div className={`text-2xs font-medium ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{metric.label}</div>
               <div className={`mt-0.5 text-sm font-bold ${styles.metric}`}>{metric.value}</div>
             </div>
           ))}

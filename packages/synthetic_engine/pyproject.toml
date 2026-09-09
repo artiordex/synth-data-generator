@@ -9,7 +9,7 @@ include = ["synthetic_engine*"]
 name = "synthetic-engine"
 version = "2.1.0"
 description = "Core AI Synthetic Data Generation, Differential Privacy, Anonymeter & HWP Exporter Engine"
-readme = "README.md"
+readme = "합성엔진안내.md"
 requires-python = ">=3.10"
 dependencies = [
     "pandas>=2.2.0",
@@ -23,6 +23,17 @@ dependencies = [
     "python-hwpx==6.3.0",
     "pymupdf>=1.24.0",
     "reportlab>=4.1.0",
+    "rapidocr-onnxruntime>=1.3.0",
+    "opencv-python-headless>=4.9.0",
+    "easyocr>=1.7.0",
+    "scipy>=1.12.0",
+    "python-pptx>=1.0.0",
+    "pillow-heif>=1.7.0",
+    "piexif>=1.1.3",
+    "kiwipiepy>=0.20.0",
+    "statsmodels>=0.14.0",
+    "duckdb>=1.0.0",
+    "rapidfuzz>=3.0.0",
 ]
 
 [tool.pytest.ini_options]

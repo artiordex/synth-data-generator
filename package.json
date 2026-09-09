@@ -9,6 +9,12 @@
   "scripts": {
     "dev": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspace=apps/web",
-    "lint": "npm run lint --workspace=apps/web"
+    "lint": "npm run lint --workspace=apps/web",
+    "tree": "python scripts/tree.py",
+    "tree:cli": "tree-node-cli -L 3 -I \"node_modules|.git|.venv|__pycache__|storage|dist\""
+  },
+  "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.63.1",
+    "tree-node-cli": "^3.0.0"
   }
 }

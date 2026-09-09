@@ -1,3 +1,11 @@
+"""
+파일명: datasets.py
+경로: apps/api/src/synthetic_api/routes/v1/datasets.py
+목적: 데이터 업로드·프로파일링·가명화 API를 제공함
+작성자: 개발팀
+작성일: 2026-09-09
+수정일: 2026-09-09
+"""
 from pathlib import Path
 import uuid
 from typing import Dict, Any, Optional
@@ -7,6 +15,8 @@ import pandas as pd
 
 from synthetic_api.application.services.dataset_service import DatasetService
 from synthetic_api.core.config import settings
+from synthetic_api.infrastructure.file_access import confined_file
+from synthetic_engine.profiling.pseudonym_input import read_pseudonym_input
 from synthetic_engine import read_table, scan_pii_columns, ColumnPlan, apply_pii, evaluate_klt, export_pseudonymized_document
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
@@ -23,7 +33,7 @@ class PseudonymizeRequest(BaseModel):
     l_threshold: int = Field(default=2, ge=2, le=100)
     t_threshold: float = Field(default=0.2, gt=0, le=1)
 
-@router.post("/upload")
+@router.post("/upload", summary="단일 원본 데이터 파일 업로드", description="CSV, XLSX, TSV, Parquet, JSON 등 원본 데이터 파일을 서버에 안전하게 업로드합니다.")
 async def upload_dataset(file: UploadFile = File(...)):
     try:
         res = DatasetService.save_upload_file(file.file, file.filename)
@@ -31,17 +41,20 @@ async def upload_dataset(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/profile")
-async def profile_dataset(file_name: str):
+@router.get("/profile", summary="데이터셋 프로파일링 및 PII 자동 탐지", description="업로드된 데이터셋의 컬럼 유형, 결측치, 통계량 및 개인정보(PII) 포함 여부를 정밀 분석합니다.")
+async def profile_dataset(file_name: str, pseudonym: bool = False):
     try:
-        res = DatasetService.inspect_file(file_name)
+        confined_file(settings.UPLOAD_DIR / file_name, settings.UPLOAD_DIR)
+        res = DatasetService.inspect_file(file_name, pseudonym=pseudonym)
         return res
+    except HTTPException:
+        raise
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/upload-batch")
+@router.post("/upload-batch", summary="복수 데이터셋 일괄 업로드 및 프로파일링", description="최대 20개의 데이터셋 파일을 한 번에 업로드하고 각각의 프로파일 정보를 일괄 분석합니다.")
 def upload_batch(files: list[UploadFile] = File(...)):
     if not 1 <= len(files) <= 20:
         raise HTTPException(status_code=422, detail="한 번에 1~20개 파일을 선택하세요.")
@@ -62,16 +75,17 @@ def upload_batch(files: list[UploadFile] = File(...)):
             file.file.close()
     return {'files': results}
 
-@router.post("/pseudonymize")
-async def pseudonymize_dataset(req: PseudonymizeRequest):
-    src_path = settings.UPLOAD_DIR / req.file_name
-    if not src_path.exists():
-        src_path = Path(req.file_name)
-    if not src_path.exists():
-        raise HTTPException(status_code=404, detail="원본 파일을 찾을 수 없습니다.")
+@router.post("/pseudonymize", summary="정형 데이터 가명화 처리 및 다중 포맷 내보내기", description="컬럼별 가명처리 기법(Faker, 마스킹, 해시, 삭제, 토큰화)을 적용하고 프라이버시 평가 지표를 산출하여 원하는 포맷으로 내보냅니다.")
+def pseudonymize_dataset(req: PseudonymizeRequest):
+    src_path = confined_file(settings.UPLOAD_DIR / req.file_name, settings.UPLOAD_DIR)
+    if src_path.suffix.lower() in {'.pdf', '.hwp', '.hwpx'}:
+        raise HTTPException(status_code=422, detail='이 문서는 원본 서식 유지 편집으로 처리해야 합니다. /document-privacy API를 사용하세요.')
+    allowed_formats = {'csv', 'xlsx', 'tsv', 'json', 'parquet', 'pdf', 'hwpx', 'docx', 'md', 'txt'}
+    if req.export_format not in allowed_formats:
+        raise HTTPException(status_code=422, detail='지원하지 않는 출력 형식입니다. HWP 입력은 HWPX로 내보내세요.')
 
     try:
-        raw_df = read_table(src_path)
+        raw_df = read_pseudonym_input(src_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"파일 로드 실패: {str(e)}")
 
@@ -79,6 +93,8 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
 
     pii_plan: Dict[str, Dict[str, Any]] = {}
     for col, action in req.pii_actions.items():
+        if col not in raw_df.columns or action not in {'faker', 'mask', 'hash', 'drop', 'token'}:
+            raise HTTPException(status_code=422, detail='처리 항목 또는 처리방법이 올바르지 않습니다.')
         if col in raw_df.columns:
             pii_info = pii_detected.get(col, {})
             pii_type = pii_info.get("faker") or pii_info.get("type") or "unstructured_text"
@@ -97,6 +113,8 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
             raw_df, plan, project_id=req.project_id, key_version=req.token_key_version)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"가명화 처리 실패: {str(e)}")
+    if not len(pseudo_df.columns):
+        raise HTTPException(status_code=422, detail='출력할 항목이 하나 이상 필요합니다.')
 
     pseudo_dir = settings.OUTPUT_DIR / "pseudonymized"
     pseudo_dir.mkdir(parents=True, exist_ok=True)
@@ -121,24 +139,28 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
     out_name = f"pseudonymized_{stem}_{uid}.{out_ext}"
     out_path = pseudo_dir / out_name
 
-    replacements = []
-    if "문서_내용" in raw_df.columns and "문서_내용" in pseudo_df.columns:
-        for orig_val, pseudo_val in zip(raw_df["문서_내용"].dropna(), pseudo_df["문서_내용"].dropna()):
-            o_str, p_str = str(orig_val).strip(), str(pseudo_val).strip()
-            if o_str and p_str and o_str != p_str:
-                replacements.append((o_str, p_str))
-
     try:
         export_pseudonymized_document(
             pseudo_df,
             target_fmt=fmt,
             output_path=out_path,
-            original_filename=req.file_name,
-            original_filepath=file_path,
-            replacements=replacements
+            original_filename=src_path.name,
+            original_filepath=None,
+            replacements=None
         )
-    except Exception:
-        pseudo_df.to_csv(out_path, index=False, encoding="utf-8-sig")
+        if not out_path.is_file() or not out_path.stat().st_size:
+            raise ValueError('출력 파일을 생성하지 못했습니다.')
+        if fmt == 'pdf' and out_path.read_bytes()[:4] != b'%PDF':
+            raise ValueError('유효한 PDF 파일이 아닙니다.')
+        if fmt in {'docx', 'hwpx', 'xlsx'}:
+            import zipfile
+            with zipfile.ZipFile(out_path) as archive:
+                expected = {'docx': 'word/document.xml', 'hwpx': 'Contents/section0.xml', 'xlsx': 'xl/workbook.xml'}[fmt]
+                if expected not in archive.namelist():
+                    raise ValueError('출력 형식 검증에 실패했습니다.')
+    except Exception as exc:
+        out_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=422, detail=f'내보내기 실패: {exc}') from exc
     download_url = f"/api/v1/files/download?path={out_path.as_posix()}"
     privacy_metrics = evaluate_klt(
         pseudo_df, req.quasi_identifiers, req.sensitive_columns,
@@ -191,7 +213,7 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
         "pseudonymized_preview": pseudo_df.head(15).fillna("").to_dict(orient="records")
     }
 
-@router.get("/pseudonymize/history")
+@router.get("/pseudonymize/history", summary="가명화 처리 이력 조회", description="최근 수행된 가명화 작업 목록과 파일 다운로드 정보를 조회합니다.")
 async def get_pseudonym_history():
     pseudo_dir = settings.OUTPUT_DIR / "pseudonymized"
     hist_file = pseudo_dir / "pseudonym_history.json"

@@ -6,7 +6,54 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
+    fontFamily: {
+      sans: [
+        'Pretendard Variable',
+        'Pretendard',
+        'Noto Sans KR',
+        'sans-serif',
+      ],
+      mono: [
+        'Consolas',
+        'Courier New',
+        'monospace',
+      ],
+    },
+    fontSize: {
+      '2xs': ['12px', { lineHeight: '16px' }],
+      xs: ['13px', { lineHeight: '18px' }],
+      sm: ['14.5px', { lineHeight: '22px' }],
+      base: ['16px', { lineHeight: '24px' }],
+      lg: ['18px', { lineHeight: '26px' }],
+      xl: ['22px', { lineHeight: '30px' }],
+      '2xl': ['26px', { lineHeight: '34px' }],
+      '3xl': ['32px', { lineHeight: '40px' }],
+      '4xl': ['38px', { lineHeight: '46px' }],
+    },
     extend: {
+      fontSize: {
+        '2xs': ['12px', { lineHeight: '16px' }],
+        xs: ['13px', { lineHeight: '18px' }],
+        sm: ['14.5px', { lineHeight: '22px' }],
+        base: ['16px', { lineHeight: '24px' }],
+        lg: ['18px', { lineHeight: '26px' }],
+        xl: ['22px', { lineHeight: '30px' }],
+        '2xl': ['26px', { lineHeight: '34px' }],
+        '3xl': ['32px', { lineHeight: '40px' }],
+      },
+      fontFamily: {
+        sans: [
+          'Pretendard Variable',
+          'Pretendard',
+          'Noto Sans KR',
+          'sans-serif',
+        ],
+        mono: [
+          'Consolas',
+          'Courier New',
+          'monospace',
+        ],
+      },
       colors: {
         canvas: 'var(--color-bg-canvas)',
         surface: {

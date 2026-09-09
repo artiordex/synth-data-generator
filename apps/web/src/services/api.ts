@@ -1,8 +1,17 @@
+/**
+ * 파일명: api.ts
+ * 경로: apps/web/src/services/api.ts
+ * 목적: 프론트엔드의 백엔드 API 호출과 응답 타입을 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import { DatasetProfile, JobStatus, SynthesisRequest, AuditLogEntry, ColumnDistribution, BatchStatus, BatchUploadItem, JobAssessmentReport } from '../types';
 
 const BASE_URL = '/api/v1';
 
 export async function uploadDatasets(files: File[]): Promise<BatchUploadItem[]> {
+  // 여러 데이터 파일을 일괄 업로드함
   const body = new FormData();
   files.forEach(file => body.append('files', file));
   const res = await fetch(`${BASE_URL}/datasets/upload-batch`, { method: 'POST', body });
@@ -46,8 +55,8 @@ export async function uploadDataset(file: File): Promise<{ filename: string; pat
   return res.json();
 }
 
-export async function getDatasetProfile(filename: string): Promise<DatasetProfile> {
-  const res = await fetch(`${BASE_URL}/datasets/profile?file_name=${encodeURIComponent(filename)}`);
+export async function getDatasetProfile(filename: string, pseudonym = false): Promise<DatasetProfile> {
+  const res = await fetch(`${BASE_URL}/datasets/profile?file_name=${encodeURIComponent(filename)}${pseudonym ? '&pseudonym=true' : ''}`);
   if (!res.ok) throw new Error('프로파일링 정보 로드 실패: ' + (await res.text()));
   return res.json();
 }
@@ -254,6 +263,16 @@ export async function clearAllHistory(): Promise<{ status: string; deleted: Reco
   return res.json();
 }
 
+export async function deleteSelectedHistory(items: Array<{ type: string; id: string; filename?: string }>): Promise<{ status: string; deleted: Record<string, number> }> {
+  const res = await fetch(`${BASE_URL}/history/delete-selected`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) throw new Error('선택 이력 삭제 실패: ' + await res.text());
+  return res.json();
+}
+
 export interface ConvertResponse {
   status: string;
   category: 'document' | 'dataset';
@@ -269,6 +288,19 @@ export interface ConvertResponse {
   preview?: Record<string, any>[];
   markdown_preview?: string;
   html_preview?: string;
+  document_structure?: {
+    format: string;
+    parser_engines: string[];
+    fidelity_level: 'high' | 'best_effort' | string;
+    fidelity_target: string;
+    pages_count: number;
+    block_count: number;
+    table_count: number;
+    image_count: number;
+    text_length: number;
+    blocks?: Array<Record<string, any>>;
+    tables?: Array<Record<string, any>>;
+  };
   message: string;
 }
 
@@ -291,10 +323,15 @@ export async function convertFile(params: {
   if (!res.ok) {
     let errMsg = '변환 실패';
     try {
-      const errJson = await res.json();
-      errMsg = errJson.detail || errMsg;
+      const text = await res.text();
+      try {
+        const errJson = JSON.parse(text);
+        errMsg = errJson.detail || errJson.message || text;
+      } catch {
+        errMsg = text || `HTTP ${res.status} 오류가 발생했습니다.`;
+      }
     } catch {
-      errMsg = await res.text() || errMsg;
+      errMsg = `HTTP ${res.status} 오류가 발생했습니다.`;
     }
     throw new Error(errMsg);
   }

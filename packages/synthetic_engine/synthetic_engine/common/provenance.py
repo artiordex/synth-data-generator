@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: provenance.py
+# 경로: packages/synthetic_engine/synthetic_engine/common/provenance.py
+# 목적: 파일·데이터 무결성과 실행 장치 정보를 계산함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import hashlib
 from pathlib import Path
@@ -6,6 +14,7 @@ from typing import Any
 import pandas as pd
 
 def calculate_sha256(path_or_df: Path | pd.DataFrame) -> str:
+    """파일 또는 데이터프레임의 SHA-256 해시를 계산함"""
     if isinstance(path_or_df, Path):
         hasher = hashlib.sha256()
         with path_or_df.open("rb") as f:
@@ -17,6 +26,7 @@ def calculate_sha256(path_or_df: Path | pd.DataFrame) -> str:
         return hashlib.sha256(csv_bytes).hexdigest()
 
 def detect_system_device() -> dict[str, Any]:
+    """현재 실행 환경의 CPU·GPU 장치 정보를 반환함"""
     gpu_available = False
     device_name = "CPU"
     vram_total_mb = 0

@@ -102,6 +102,64 @@ def test_twenty_jobs_continue_after_failure_and_package_results(batch_env, monke
     assert history.json()[0]['package_zip'] == final['package_zip']
 
 
+def test_batch_package_groups_submission_files_with_two_digit_numbering(batch_env, monkeypatch):
+    originals = [
+        '1. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx',
+        '2. 고등학생 진로상담 경험 및 자기이해 수준_세종.xlsx',
+    ]
+    requests = []
+    for index, original in enumerate(originals, 1):
+        upload_name = f'upload-{index}.xlsx'
+        pd.DataFrame({'값': [index]}).to_excel(batch_env.uploads / upload_name, index=False)
+        requests.append({'file_name': upload_name, 'original_filename': original, 'target_rows': 2})
+
+    batch = batch_env.client.post('/api/v1/batches', json={'requests': requests}).json()
+
+    def run(job_id, request):
+        sequence = request.original_filename.split('.', 1)[0]
+        dataset_name = request.original_filename.split('. ', 1)[1].rsplit('.', 1)[0]
+        root = batch_env.outputs / f'{job_id}_{dataset_name}'
+        original_dir = root / '원본데이터_세종'
+        synthetic_dir = root / '합성데이터_세종'
+        review_dir = root / '심의자료_세종'
+        for directory in (original_dir, synthetic_dir, review_dir):
+            directory.mkdir(parents=True)
+        (original_dir / request.original_filename).write_text('original', encoding='utf-8')
+        (synthetic_dir / f'{sequence}. {dataset_name}.xlsx').write_text('synthetic', encoding='utf-8')
+        (review_dir / f'{sequence}. 원본데이터 명세서({dataset_name}).hwpx').write_text('review', encoding='utf-8')
+        job_zip = batch_env.outputs / f'{job_id}.zip'
+        with ZipFile(job_zip, 'w') as archive:
+            archive.writestr('legacy.txt', 'legacy')
+        with batch_env.sessions() as db:
+            repo = JobRepository(db)
+            job = repo.get_by_id(job_id)
+            job.status = 'completed'
+            job.progress = 100
+            job.package_dir = str(root)
+            job.package_zip = str(job_zip)
+            job.package_folders = {
+                '원본데이터': str(original_dir),
+                '합성데이터': str(synthetic_dir),
+                '심의자료': str(review_dir),
+            }
+            repo.save(job)
+
+    monkeypatch.setattr(synthesis_service.SynthesisService, '_run_pipeline', run)
+    BatchService._run_batch(batch['id'])
+    final = BatchService.get(batch['id'])
+
+    with ZipFile(final['package_zip']) as archive:
+        names = set(archive.namelist())
+
+    assert '원본데이터_세종/01. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx' in names
+    assert '합성데이터_세종/01. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx' in names
+    assert '심의자료_세종/01. 원본데이터 명세서(고등학생 진로수업 경험과 진로정보 인식_세종).hwpx' in names
+    assert '원본데이터_세종/02. 고등학생 진로상담 경험 및 자기이해 수준_세종.xlsx' in names
+    assert '합성데이터_세종/02. 고등학생 진로상담 경험 및 자기이해 수준_세종.xlsx' in names
+    assert '심의자료_세종/02. 원본데이터 명세서(고등학생 진로상담 경험 및 자기이해 수준_세종).hwpx' in names
+    assert not any(name.endswith('.zip') for name in names)
+
+
 def test_canceled_waiting_jobs_are_not_run(batch_env, monkeypatch):
     uploaded = upload_files(batch_env, 3).json()['files']
     batch = BatchService.start([SynthesisRequest(file_name=f['filename']) for f in uploaded])

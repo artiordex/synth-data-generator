@@ -272,3 +272,11 @@ def build_review_documents(*, raw: pd.DataFrame, synthetic: pd.DataFrame,
     context["templates"] = sources
     (output_review_dir / "심의자료_입력내용.json").write_text(json.dumps(context, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return outputs
+# =============================================================================
+# 파일명: review_documents.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/review_documents.py
+# 목적: 심의용 데이터 설명과 결과 문서를 생성함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================

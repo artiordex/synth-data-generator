@@ -149,3 +149,11 @@ def polish_column_description(
     cache[key] = {"created_at": now.isoformat(), "text": text}
     write_cache(path, cache)
     return text
+# =============================================================================
+# 파일명: openai_text.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/openai_text.py
+# 목적: 선택적 OpenAI 기반 문서 설명 보정을 처리함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================

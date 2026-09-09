@@ -1,3 +1,11 @@
+/**
+ * 파일명: QuickDummyBuilder.tsx
+ * 경로: apps/web/src/features/dummy/QuickDummyBuilder.tsx
+ * 목적: 더미데이터 생성 화면을 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Zap, Plus, Trash2, Download, Table,
@@ -22,9 +30,10 @@ interface ColumnItem {
 
 interface Props {
   isDarkMode: boolean;
+  onStepChange?: (step: number) => void;
 }
 
-export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
+export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode, onStepChange }) => {
   const [templates, setTemplates] = useState<any[]>([]);
   const [allDomains, setAllDomains] = useState<any[]>([]);
   const [groupedDomains, setGroupedDomains] = useState<Record<string, any[]>>({});
@@ -73,6 +82,10 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
     }
     initData();
   }, []);
+
+  useEffect(() => {
+    onStepChange?.(generationResult ? 4 : isGenerating ? 3 : showSchemaImport ? 1 : 2);
+  }, [generationResult, isGenerating, onStepChange, showSchemaImport]);
 
   // Apply template
   const handleApplyTemplate = (tmpl: any) => {
@@ -297,7 +310,7 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
             <Sparkles className="w-4 h-4 text-accent shrink-0" />
             사내 표준 추천 템플릿 (1초 완성)
           </span>
-          <span className="text-[11px] text-fg-muted">클릭 시 추천 컬럼 스키마가 즉시 세팅됩니다</span>
+          <span className="text-2xs text-fg-muted">클릭 시 추천 컬럼 스키마가 즉시 세팅됩니다</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {templates.map(tmpl => (
@@ -312,7 +325,7 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
               }`}
             >
               <div className="font-bold text-xs truncate text-fg">{tmpl.name}</div>
-              <div className="text-[10px] text-fg-muted mt-1">{tmpl.columns.length}개 컬럼</div>
+              <div className="text-2xs text-fg-muted mt-1">{tmpl.columns.length}개 컬럼</div>
             </button>
           ))}
         </div>
@@ -377,9 +390,9 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
 
               {/* Mapped Domain Picker */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px] text-fg-muted">
+                <div className="flex items-center justify-between text-2xs text-fg-muted">
                   <span>매핑 도메인</span>
-                  <span className="text-[10px] font-medium bg-surface-muted px-1.5 py-0.5 rounded border border-subtle text-fg-subtle">
+                  <span className="text-2xs font-medium bg-surface-muted px-1.5 py-0.5 rounded border border-subtle text-fg-subtle">
                     {col.category} · {col.source}
                   </span>
                 </div>
@@ -394,8 +407,8 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
               </div>
 
               {/* Sample Preview */}
-              <div className="flex items-center justify-between rounded-lg bg-surface-muted/30 px-3 py-1.5 text-[11px] border border-subtle">
-                <span className="text-fg-subtle text-[10px]">생성 샘플:</span>
+              <div className="flex items-center justify-between rounded-lg bg-surface-muted/30 px-3 py-1.5 text-2xs border border-subtle">
+                <span className="text-fg-subtle text-2xs">생성 샘플:</span>
                 <span className="font-mono text-accent font-medium truncate max-w-[200px]" title={col.sample}>
                   {col.sample}
                 </span>
@@ -407,7 +420,7 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
         {/* Desktop View (>= md): Full Structured Table */}
         <div className="hidden md:block overflow-x-auto max-h-[440px]">
           <table className="w-full text-left text-xs min-w-[760px]">
-            <thead className="sticky top-0 font-bold bg-surface-muted text-fg-muted border-b border-subtle text-[11px] uppercase tracking-wider">
+            <thead className="sticky top-0 font-bold bg-surface-muted text-fg-muted border-b border-subtle text-2xs uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3 w-12 text-center whitespace-nowrap">#</th>
                 <th className="px-4 py-3 w-52 whitespace-nowrap">컬럼명 (입력 시 자동추론)</th>
@@ -441,12 +454,12 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                     </button>
                   </td>
                   <td className="px-4 py-2.5">
-                    <div className="text-[11px] font-medium text-fg">{col.category}</div>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-surface-muted text-fg-muted border border-subtle">
+                    <div className="text-2xs font-medium text-fg">{col.category}</div>
+                    <span className="px-1.5 py-0.5 rounded text-2xs font-bold bg-surface-muted text-fg-muted border border-subtle">
                       {col.source}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-accent truncate max-w-xs">
+                  <td className="px-4 py-2.5 font-mono text-2xs text-accent truncate max-w-xs">
                     {col.sample}
                   </td>
                   <td className="px-4 py-2.5 text-center">
@@ -616,7 +629,7 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                   {generationResult.preview.map((row: any, rIdx: number) => (
                     <tr key={rIdx} className="hover:bg-surface-muted/30 transition-colors">
                       {generationResult.columns.map((c: string) => (
-                        <td key={c} className="px-4 py-2 font-mono text-[11px] whitespace-nowrap text-fg">
+                        <td key={c} className="px-4 py-2 font-mono text-xs whitespace-nowrap text-fg">
                           {String(row[c] !== undefined ? row[c] : '')}
                         </td>
                       ))}
@@ -640,7 +653,7 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                   <Database className="w-4 h-4 text-accent" />
                   100+ 국가/금융/글로벌 표준 컬럼 도메인 사전
                 </h3>
-                <p className="text-[11px] text-fg-muted mt-0.5 break-keep">
+                <p className="text-xs text-fg-muted mt-0.5 break-keep">
                   행정안전부 공통표준용어 · Mockaroo 필드 규격 · 금융보안원 마이데이터 통합 사전
                 </p>
               </div>
@@ -695,12 +708,12 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode }) => {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold text-xs text-fg truncate">{d.name}</span>
-                    <span className="text-[10px] text-fg-muted font-mono shrink-0">{d.english_name}</span>
+                    <span className="text-xs text-fg-muted font-mono shrink-0">{d.english_name}</span>
                   </div>
-                  <div className="text-[11px] text-accent font-mono mt-1 truncate">
+                  <div className="text-xs text-accent font-mono mt-1 truncate">
                     샘플: {d.sample}
                   </div>
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-subtle text-[10px] text-fg-muted">
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-subtle text-xs text-fg-muted">
                     <span>{d.category}</span>
                     <span className="px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted border border-subtle">
                       {d.source}

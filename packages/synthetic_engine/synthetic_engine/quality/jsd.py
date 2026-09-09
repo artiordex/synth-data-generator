@@ -1,9 +1,18 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: jsd.py
+# 경로: packages/synthetic_engine/synthetic_engine/quality/jsd.py
+# 목적: 원본과 합성 데이터의 분포 유사도를 계산함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import numpy as np
 import pandas as pd
 
 def jsd(p: np.ndarray, q: np.ndarray, eps: float = 1e-12) -> float:
+    """두 확률분포의 Jensen-Shannon 발산을 계산함"""
     p = np.asarray(p, dtype=float) + eps
     q = np.asarray(q, dtype=float) + eps
     p = p / p.sum()
@@ -12,6 +21,7 @@ def jsd(p: np.ndarray, q: np.ndarray, eps: float = 1e-12) -> float:
     return float(0.5 * np.sum(p * np.log(p / m)) + 0.5 * np.sum(q * np.log(q / m)))
 
 def categorical_jsd(original: pd.Series, synthetic: pd.Series) -> float:
+    """범주형 컬럼의 분포 유사도를 계산함"""
     original_counts = original.astype("string").value_counts(normalize=True, dropna=False)
     synthetic_counts = synthetic.astype("string").value_counts(normalize=True, dropna=False)
     index = original_counts.index.union(synthetic_counts.index)
@@ -21,6 +31,7 @@ def categorical_jsd(original: pd.Series, synthetic: pd.Series) -> float:
     )
 
 def numerical_jsd(original: pd.Series, synthetic: pd.Series, bins: int = 20) -> float:
+    """수치형 컬럼을 구간화해 분포 유사도를 계산함"""
     if not len(original) or not len(synthetic):
         return float("nan")
     original_numeric = pd.to_numeric(original, errors="coerce")
@@ -39,6 +50,7 @@ def numerical_jsd(original: pd.Series, synthetic: pd.Series, bins: int = 20) -> 
                np.append(synthetic_hist, synthetic_numeric.isna().sum()))
 
 def binned_keys(df: pd.DataFrame, categorical: list[str], numerical: list[str], bins: int, reference: pd.DataFrame | None = None) -> pd.Series:
+    """컬럼 값을 비교 가능한 범주·수치 구간 키로 변환함"""
     reference = df if reference is None else reference
     parts = []
     for column in categorical:

@@ -1,9 +1,16 @@
+/**
+ * 파일명: DataDictionaryModal.tsx
+ * 경로: apps/web/src/features/dictionary/DataDictionaryModal.tsx
+ * 목적: 데이터 용어사전 모달을 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useState, useMemo } from 'react';
 import { 
   BookOpen, 
   Search, 
   X, 
-  ExternalLink, 
   Cpu, 
   Shield, 
   BrainCircuit, 
@@ -130,15 +137,15 @@ export const DataDictionaryModal: React.FC<Props> = ({ isOpen, onClose, isDarkMo
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold tracking-tight text-fg">AI·데이터 용어사전</h2>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border border-subtle bg-surface text-fg-muted">
+                <span className="text-2xs font-semibold px-2 py-0.5 rounded-full border border-subtle bg-surface text-fg-muted">
                   총 {GLOSSARY_DATA.length}개 용어
                 </span>
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded border border-subtle bg-surface text-fg-muted hidden sm:inline-block">
-                  FlowHunt Korean Standard & Platform Core
+                <span className="text-2xs font-medium px-2 py-0.5 rounded border border-subtle bg-surface text-fg-muted hidden sm:inline-block">
+                  식약처 사내 데이터 생성 및 비식별화 표준 용어집
                 </span>
               </div>
               <p className="text-xs text-fg-muted mt-0.5">
-                인공지능, 거대언어모델(LLM), 검색증강생성(RAG), AI 보안 및 합성데이터 관련 표준 전문 용어 정의
+                인공지능, 통계 가설 검정, OCR·문서 복원, 개인정보 비식별화 및 합성데이터 공식 표준 용어집
               </p>
             </div>
           </div>
@@ -200,7 +207,7 @@ export const DataDictionaryModal: React.FC<Props> = ({ isOpen, onClose, isDarkMo
                 >
                   {Icon && <Icon className="w-3.5 h-3.5" />}
                   <span>{cat}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  <span className={`text-2xs px-1.5 py-0.2 rounded-full font-bold ${
                     isSelected
                       ? 'bg-accent-fg/20 text-accent-fg'
                       : 'bg-surface text-fg-muted'
@@ -213,8 +220,8 @@ export const DataDictionaryModal: React.FC<Props> = ({ isOpen, onClose, isDarkMo
           </div>
 
           {/* Initial Hangul / Alphabet Navigation */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px] font-semibold scrollbar-none">
-            <span className="text-fg-muted mr-1 text-[10px]">색인:</span>
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-2xs font-semibold scrollbar-none">
+            <span className="text-fg-muted mr-1 text-2xs">색인:</span>
             {INITIAL_GROUPS.map(init => {
               const isSel = selectedInitial === init;
               return (
@@ -272,11 +279,11 @@ export const DataDictionaryModal: React.FC<Props> = ({ isOpen, onClose, isDarkMo
                     <div>
                       {/* Top Badges */}
                       <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md border border-subtle bg-surface-muted text-fg">
+                        <span className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-md border border-subtle bg-surface-muted text-fg">
                           <Icon className="w-3 h-3 text-accent" />
                           <span>{item.category}</span>
                         </span>
-                        <span className="text-[10px] font-bold text-fg-muted">
+                        <span className="text-2xs font-bold text-fg-muted">
                           {item.initial}
                         </span>
                       </div>
@@ -293,7 +300,7 @@ export const DataDictionaryModal: React.FC<Props> = ({ isOpen, onClose, isDarkMo
                     </div>
 
                     {/* Bottom Action Hint */}
-                    <div className="mt-3 pt-2.5 border-t border-subtle flex items-center justify-between text-[11px] font-medium text-fg-muted group-hover:text-accent transition-colors">
+                    <div className="mt-3 pt-2.5 border-t border-subtle flex items-center justify-between text-xs font-medium text-fg-muted group-hover:text-accent transition-colors">
                       <span>상세 설명 열람</span>
                       <ChevronRight className="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" />
                     </div>
@@ -307,7 +314,7 @@ export const DataDictionaryModal: React.FC<Props> = ({ isOpen, onClose, isDarkMo
         {/* Modal Footer */}
         <div className="px-6 py-3 border-t border-subtle flex items-center justify-between text-xs bg-surface-muted/40 text-fg-muted transition-colors">
           <div className="flex items-center gap-2">
-            <span>출처: FlowHunt Official Glossary & Enterprise Synthetic Engine Core</span>
+            <span>사내 데이터 생성기 v2.1.0 데이터·AI·보안 표준 용어사전 (식약처 가이드라인 준수)</span>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -350,22 +357,10 @@ export const DataDictionaryModal: React.FC<Props> = ({ isOpen, onClose, isDarkMo
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-2">
-                {activeItem.url ? (
-                  <a
-                    href={activeItem.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline"
-                  >
-                    <span>FlowHunt 공식 원문 기사 확인</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                ) : <span />}
-
+              <div className="flex items-center justify-end pt-2 border-t border-subtle">
                 <button
                   onClick={() => setActiveItem(null)}
-                  className="ui-button-primary px-4 py-2 text-xs"
+                  className="ui-button-primary px-4 py-2 text-xs font-semibold cursor-pointer"
                 >
                   확인 완료
                 </button>

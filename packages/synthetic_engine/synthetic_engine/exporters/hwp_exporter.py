@@ -382,3 +382,11 @@ def build_review_documents(
         created_files["review_report"] = t3_dst
 
     return created_files
+# =============================================================================
+# 파일명: hwp_exporter.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/hwp_exporter.py
+# 목적: HWP 템플릿 기반 문서를 생성하고 텍스트를 치환함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================

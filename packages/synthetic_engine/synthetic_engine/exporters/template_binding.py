@@ -412,3 +412,11 @@ def html_preview(root):
                 parts.append("</tr>")
             parts.append("</table>")
     return "".join(parts) + "</body></html>"
+# =============================================================================
+# 파일명: template_binding.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/template_binding.py
+# 목적: 한컴 템플릿의 표 셀에 분석 결과를 바인딩함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================

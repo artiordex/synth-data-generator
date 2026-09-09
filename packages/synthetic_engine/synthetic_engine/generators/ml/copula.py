@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: copula.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/ml/copula.py
+# 목적: Gaussian Copula 기반 합성 데이터를 생성함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 from typing import Any
 import pandas as pd
@@ -8,6 +16,7 @@ from ..registry import register_synthesizer
 
 @register_synthesizer("gaussian_copula")
 class GaussianCopulaGenerator(BaseSynthesizer):
+    """컬럼 분포와 상관관계를 보존하는 Gaussian Copula 생성기임"""
     def __init__(self):
         self.synthesizer = None
         self.plan = None

@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: ctgan.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/ml/ctgan.py
+# 목적: CTGAN 기반 조건부 합성 데이터를 생성함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import os
 from math import lcm
@@ -10,6 +18,7 @@ from ..registry import register_synthesizer
 
 @register_synthesizer("ctgan")
 class CTGANGenerator(BaseSynthesizer):
+    """범주형·수치형 혼합 데이터를 위한 CTGAN 생성기임"""
     def __init__(self, epochs: int = 30, batch_size: int = 64, pac: int = 1, verbose: bool = False, enable_gpu: bool = False):
         self.epochs = max(1, epochs)
         self.raw_batch = batch_size

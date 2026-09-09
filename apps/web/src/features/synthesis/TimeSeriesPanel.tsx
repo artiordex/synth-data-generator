@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
+/**
+ * 파일명: TimeSeriesPanel.tsx
+ * 경로: apps/web/src/features/synthesis/TimeSeriesPanel.tsx
+ * 목적: 시계열 데이터 합성 화면을 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
+import React, { useEffect, useState } from 'react';
 import { Clock3, Download, RefreshCw, Upload, X } from 'lucide-react';
 import { generateTimeSeries, getDatasetProfile, getDownloadUrl, uploadDataset } from '../../services/api';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 
-export function TimeSeriesPanel({ isDarkMode, onClose }: { isDarkMode: boolean; onClose: () => void }) {
+export function TimeSeriesPanel({ isDarkMode, onClose, onStepChange }: { isDarkMode: boolean; onClose: () => void; onStepChange?: (step: number) => void }) {
   const [fileName, setFileName] = useState('');
   const [columns, setColumns] = useState<string[]>([]);
   const [entity, setEntity] = useState('');
@@ -12,6 +20,10 @@ export function TimeSeriesPanel({ isDarkMode, onClose }: { isDarkMode: boolean; 
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => {
+    onStepChange?.(result ? 4 : busy && fileName ? 3 : columns.length > 0 ? 2 : 1);
+  }, [busy, columns.length, fileName, onStepChange, result]);
+
   const upload = async (file: File) => {
     setBusy(true); setError('');
     try { const saved = await uploadDataset(file); const profile = await getDatasetProfile(saved.filename);

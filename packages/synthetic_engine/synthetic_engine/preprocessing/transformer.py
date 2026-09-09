@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: transformer.py
+# 경로: packages/synthetic_engine/synthetic_engine/preprocessing/transformer.py
+# 목적: 학습 전후 데이터 제약조건과 변환을 처리함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 from typing import Any
 import numpy as np
@@ -6,6 +14,7 @@ import pandas as pd
 from ..common.types import ColumnPlan
 
 def constraint_null_columns(constraints: list[dict[str, Any]]) -> set[str]:
+    """결측값 표시 제약조건이 적용된 컬럼을 추출함"""
     return {
         constraint["column"]
         for constraint in constraints
@@ -13,6 +22,7 @@ def constraint_null_columns(constraints: list[dict[str, Any]]) -> set[str]:
     }
 
 def prepare_training_frame(df: pd.DataFrame, plan: ColumnPlan, constraints: list[dict[str, Any]], reference: pd.DataFrame | None = None) -> pd.DataFrame:
+    """합성 모델 학습에 사용할 데이터프레임을 준비함"""
     training = pd.DataFrame(index=df.index)
     preserve_nulls = constraint_null_columns(constraints)
 
@@ -32,6 +42,7 @@ def prepare_training_frame(df: pd.DataFrame, plan: ColumnPlan, constraints: list
     return training
 
 def apply_constraints_before_training(df: pd.DataFrame, constraints: list[dict[str, Any]], plan: ColumnPlan) -> tuple[pd.DataFrame, ColumnPlan]:
+    """모델 학습 전에 입력 데이터와 처리 계획에 제약조건을 적용함"""
     output = df.copy()
     categorical = list(plan.categorical)
 
@@ -56,6 +67,7 @@ def apply_constraints_before_training(df: pd.DataFrame, constraints: list[dict[s
     return output, ColumnPlan(categorical, plan.numerical, plan.ignored, plan.pii, plan.rules)
 
 def apply_constraints_after_generation(df: pd.DataFrame, constraints: list[dict[str, Any]]) -> pd.DataFrame:
+    """생성된 데이터에 후처리 제약조건을 적용함"""
     output = df.copy()
 
     for constraint in constraints:

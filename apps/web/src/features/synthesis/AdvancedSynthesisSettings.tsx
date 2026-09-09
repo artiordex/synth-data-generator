@@ -1,3 +1,11 @@
+/**
+ * 파일명: AdvancedSynthesisSettings.tsx
+ * 경로: apps/web/src/features/synthesis/AdvancedSynthesisSettings.tsx
+ * 목적: 합성 모델과 개인정보 보호 설정을 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React from 'react';
 import { DatasetProfile, InformationType, ReviewMetadataInput, SynthesisRequest } from '../../types';
 
@@ -80,12 +88,12 @@ export function AdvancedSynthesisSettings({ options, onChange, profile, isDarkMo
           </select></td>
           <td className="py-2 pr-3">
             <div className={`max-h-20 overflow-y-auto rounded border p-2 ${isDarkMode ? 'border-slate-800 bg-slate-950/70' : 'border-slate-200 bg-slate-50'}`}>
-              <div className="mb-1 text-[10px] text-slate-500">
+              <div className="mb-1 text-2xs text-slate-500">
                 고유값 {(c.unique_values_total ?? c.unique_count).toLocaleString()}개{c.samples_truncated ? ` · 상위 ${values.length.toLocaleString()}개 표시` : ''}
               </div>
               {values.length ? <div className="flex flex-wrap gap-1">
-                {values.map((value, index) => <span key={`${c.name}-${value}-${index}`} className={`max-w-full rounded px-1.5 py-0.5 text-[10px] leading-5 ${isDarkMode ? 'bg-slate-800 text-slate-200' : 'bg-white text-slate-700 border border-slate-200'}`} title={value}>{value}</span>)}
-              </div> : <span className="text-[10px] text-slate-400">표시할 값 없음</span>}
+                {values.map((value, index) => <span key={`${c.name}-${value}-${index}`} className={`max-w-full rounded px-1.5 py-0.5 text-2xs leading-5 ${isDarkMode ? 'bg-slate-800 text-slate-200' : 'bg-white text-slate-700 border border-slate-200'}`} title={value}>{value}</span>)}
+              </div> : <span className="text-2xs text-slate-400">표시할 값 없음</span>}
             </div>
           </td>
           <td className="py-3 text-center"><input aria-label={`${c.name} 결측 의미 보존`} type="checkbox" checked={options.preserve_null_columns?.includes(c.name) ?? false}

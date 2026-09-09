@@ -1,8 +1,17 @@
+/**
+ * 파일명: StepReport.tsx
+ * 경로: apps/web/src/features/reports/StepReport.tsx
+ * 목적: 합성 결과 보고서 단계를 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useEffect, useState } from 'react';
 import { FileText, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AssessmentIssue, JobAssessmentReport, JobStatus } from '../../types';
 import { getDownloadUrl, getJobAssessment } from '../../services/api';
 import { DistributionComparisonChart } from './DistributionComparisonChart';
+import { SectionHeader } from '../../components/SectionHeader';
 
 interface StepReportProps {
   isDarkMode: boolean;
@@ -114,7 +123,7 @@ export const StepReport: React.FC<StepReportProps> = ({
             <div className={`mt-1 break-keep text-2xl font-black leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
               {activeJob.assessment_passed ? `${activeJob.assessment_grade ?? '-'} 등급` : '검토 필요'}
             </div>
-            <div className="mt-0.5 break-keep text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+            <div className="mt-0.5 break-keep text-2xs font-bold text-emerald-600 dark:text-emerald-400">
               {activeJob.assessment_passed ? '자동 점검 통과' : '측정 결과와 누락 항목 확인'}
             </div>
           </div>
@@ -128,7 +137,7 @@ export const StepReport: React.FC<StepReportProps> = ({
           <div className="mt-1 break-keep text-2xl font-black leading-tight text-sky-600 dark:text-sky-400">
             {activeJob.quality_score == null ? '미측정' : `${(activeJob.quality_score * 100).toFixed(1)}%`}
           </div>
-          <div className={`mt-0.5 break-keep text-[10px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>수치형 공통 20구간·결측 포함</div>
+          <div className={`mt-0.5 break-keep text-2xs ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>수치형 공통 20구간·결측 포함</div>
         </div>
 
         <div className="ui-panel min-w-0 p-5">
@@ -136,7 +145,7 @@ export const StepReport: React.FC<StepReportProps> = ({
           <div className="mt-1 break-keep text-2xl font-black leading-tight text-amber-600 dark:text-amber-400">
             {activeJob.reid_risk == null ? '미측정' : `${(activeJob.reid_risk * 100).toFixed(2)}%`}
           </div>
-          <div className={`mt-0.5 break-keep text-[10px] leading-snug ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>독립 대조 데이터를 이용한 단일 식별 위험도</div>
+          <div className={`mt-0.5 break-keep text-2xs leading-snug ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>독립 대조 데이터를 이용한 단일 식별 위험도</div>
         </div>
 
         <div className="ui-panel min-w-0 p-5">
@@ -144,32 +153,27 @@ export const StepReport: React.FC<StepReportProps> = ({
           <div className="mt-1 break-keep text-2xl font-black leading-tight text-indigo-600 dark:text-indigo-400">
             {activeJob.target_rows.toLocaleString()} 건
           </div>
-          <div className={`mt-0.5 break-keep text-[10px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{activeJob.model_type.toUpperCase()} 엔진</div>
+          <div className={`mt-0.5 break-keep text-2xs ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{activeJob.model_type.toUpperCase()} 엔진</div>
         </div>
       </div>
 
       <div className="ui-panel p-5">
         <div className="flex flex-col gap-3 border-b pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className={`flex items-center gap-2 text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-              {isPassed ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              ) : (
-                <AlertCircle className="h-4 w-4 text-amber-500" />
-              )}
-              자동 심의 판정 사유
-            </h3>
-            <p className={`mt-0.5 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              설정 품질 기준, Anonymeter, DCR, 중복 guardrail을 종합한 판정입니다.
-            </p>
-          </div>
-          <div className={`rounded-xl border px-3 py-2 text-xs font-bold ${
-            isPassed
-              ? isDarkMode ? 'border-emerald-700 bg-emerald-950/50 text-emerald-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : isDarkMode ? 'border-amber-700 bg-amber-950/50 text-amber-300' : 'border-amber-200 bg-amber-50 text-amber-700'
-          }`}>
-            {assessmentLoading ? '판정 로드 중' : isPassed ? '자동 점검 통과' : '검토 필요'}
-          </div>
+          <SectionHeader
+            title="자동 심의 판정 사유"
+            description="설정 품질 기준, Anonymeter, DCR, 중복 guardrail을 종합한 판정입니다."
+            Icon={isPassed ? CheckCircle2 : AlertCircle}
+            meta={
+              <div className={`rounded-xl border px-3 py-2 text-xs font-bold ${
+                isPassed
+                  ? isDarkMode ? 'border-emerald-700 bg-emerald-950/50 text-emerald-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : isDarkMode ? 'border-amber-700 bg-amber-950/50 text-amber-300' : 'border-amber-200 bg-amber-50 text-amber-700'
+              }`}>
+                {assessmentLoading ? '판정 로드 중' : isPassed ? '자동 점검 통과' : '검토 필요'}
+              </div>
+            }
+            className="w-full sm:items-center"
+          />
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
@@ -182,9 +186,9 @@ export const StepReport: React.FC<StepReportProps> = ({
             <div key={label} className={`rounded-xl border p-3 ${
               isDarkMode ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'
             }`}>
-              <div className={`text-[11px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
+              <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
               <div className={`mt-1 text-sm font-black ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>{value}</div>
-              <div className={`mt-0.5 text-[10px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{hint}</div>
+              <div className={`mt-0.5 text-2xs ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{hint}</div>
             </div>
           ))}
         </div>
@@ -212,17 +216,11 @@ export const StepReport: React.FC<StepReportProps> = ({
 
       {/* Submission Package Directory Structure & Download Box */}
       <div className="ui-panel space-y-4 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-              <FileText className="w-4 h-4 text-sky-500" />
-              제출용 3대 패키지 및 공문서 다운로드
-            </h3>
-            <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              한글(HWPX) 심의자료 3종과 HTML 확인본 생성 완료
-            </p>
-          </div>
-          {activeJob.package_zip && (
+        <SectionHeader
+          title="제출용 3대 패키지 및 공문서 다운로드"
+          description="한글(HWPX) 심의자료 3종과 HTML 확인본 생성 완료"
+          Icon={FileText}
+          action={activeJob.package_zip && (
             <a
               href={getDownloadUrl(activeJob.package_zip)}
               className="ui-button-primary px-5 py-2.5"
@@ -231,7 +229,7 @@ export const StepReport: React.FC<StepReportProps> = ({
               전체 패키지 압축 ZIP 다운로드
             </a>
           )}
-        </div>
+        />
 
         {/* Folder structure cards */}
         <div className="grid grid-cols-3 gap-4 pt-2">
@@ -241,10 +239,10 @@ export const StepReport: React.FC<StepReportProps> = ({
             <div className="text-xs font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
               1. 원본데이터 폴더
             </div>
-            <div className={`text-[11px] font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+            <div className={`text-xs font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
               {activeJob.original_filename}
             </div>
-            <div className="text-[10px] text-slate-400 font-mono truncate">
+            <div className="text-2xs text-slate-400 font-mono truncate">
               SHA-256: {activeJob.file_sha256}
             </div>
           </div>
@@ -255,10 +253,10 @@ export const StepReport: React.FC<StepReportProps> = ({
             <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
               2. 합성데이터 폴더
             </div>
-            <div className={`text-[11px] font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+            <div className={`text-xs font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
               합성데이터.csv & 합성데이터.xlsx
             </div>
-            <div className="text-[10px] text-slate-400">
+            <div className="text-2xs text-slate-400">
               {activeJob.target_rows}건 생성 완료 (체크포인트 저장됨)
             </div>
           </div>
@@ -269,7 +267,7 @@ export const StepReport: React.FC<StepReportProps> = ({
             <div className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
               3. 심의위원회 심의자료 (HWPX 3종)
             </div>
-            <div className={`text-[11px] space-y-0.5 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+            <div className={`text-xs space-y-0.5 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
               <div>[제출용] 원본데이터 명세서.hwpx</div>
               <div>[제출용] 합성데이터 명세서.hwpx</div>
               <div>[제출용] 안전성 및 유용성 측정결과서.hwpx</div>
@@ -287,11 +285,7 @@ export const StepReport: React.FC<StepReportProps> = ({
             setProfile(null);
             setActiveJob(null);
           }}
-          className={`px-6 py-2.5 rounded-xl text-xs font-bold border transition-colors ${
-            isDarkMode 
-              ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' 
-              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-sm'
-          }`}
+          className="ui-button-secondary px-6 py-2.5"
         >
           + 새 데이터셋 합성 작업 시작
         </button>

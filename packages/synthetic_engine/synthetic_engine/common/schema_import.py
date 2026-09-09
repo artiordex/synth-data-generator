@@ -1,4 +1,11 @@
-"""Normalize DDL, JSON Schema and OpenAPI definitions for dummy generation."""
+"""
+파일명: schema_import.py
+경로: packages/synthetic_engine/synthetic_engine/common/schema_import.py
+목적: DDL·JSON Schema·OpenAPI 스키마를 더미데이터 입력 구조로 변환함
+작성자: 개발팀
+작성일: 2026-09-09
+수정일: 2026-09-09
+"""
 from __future__ import annotations
 
 import json
@@ -7,6 +14,7 @@ from typing import Any
 
 
 def _rule_for(name: str, data_type: str, spec: dict[str, Any]) -> dict[str, Any] | None:
+    """컬럼 이름과 스키마 제약조건에 맞는 생성 규칙을 추론함"""
     if spec.get("enum"):
         return {"type": "choice", "values": spec["enum"]}
     if data_type in {"integer", "number"}:
@@ -23,6 +31,7 @@ def _rule_for(name: str, data_type: str, spec: dict[str, Any]) -> dict[str, Any]
 
 
 def _json_table(name: str, schema: dict[str, Any]) -> dict[str, Any]:
+    """JSON Schema 객체를 테이블과 컬럼 정의로 변환함"""
     required = set(schema.get("required", []))
     columns = []
     for column_name, spec in schema.get("properties", {}).items():
@@ -42,6 +51,7 @@ def _json_table(name: str, schema: dict[str, Any]) -> dict[str, Any]:
 
 
 def import_schema(source_type: str, content: str) -> dict[str, Any]:
+    """DDL·JSON Schema·OpenAPI 문서를 공통 스키마로 가져옴"""
     kind = source_type.lower().replace("_", "-")
     if kind in {"json-schema", "json", "openapi"}:
         document = json.loads(content)

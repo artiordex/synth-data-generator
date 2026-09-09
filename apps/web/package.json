@@ -9,13 +9,24 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.2",
+    "clsx": "^2.1.1",
+    "dompurify": "^3.2.4",
+    "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.395.0",
+    "marked": "^18.0.12",
+    "papaparse": "^5.5.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "lucide-react": "^0.395.0",
-    "clsx": "^2.1.1",
+    "recharts": "^2.15.1",
     "tailwind-merge": "^2.3.0"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.2.0",
+    "@types/file-saver": "^2.0.7",
+    "@types/jszip": "^3.4.1",
+    "@types/papaparse": "^5.3.15",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",

@@ -1,3 +1,11 @@
+/**
+ * 파일명: DistributionComparisonChart.tsx
+ * 경로: apps/web/src/features/reports/DistributionComparisonChart.tsx
+ * 목적: 원본·합성 데이터 분포 비교 차트를 표시함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   BarChart3, Layers, Sliders, CheckCircle2, AlertCircle, 
@@ -190,7 +198,7 @@ export const DistributionComparisonChart: React.FC<Props> = ({ jobId, isDarkMode
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                <span className={`px-1.5 py-0.5 rounded text-2xs font-bold ${
                   col.type === 'numerical'
                     ? isDarkMode ? 'bg-sky-500/20 text-sky-400' : 'bg-sky-100 text-sky-700'
                     : isDarkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'
@@ -198,7 +206,7 @@ export const DistributionComparisonChart: React.FC<Props> = ({ jobId, isDarkMode
                   {col.type === 'numerical' ? 'NUM' : 'CAT'}
                 </span>
                 <span>{col.name}</span>
-                <span className={`text-[10px] px-1 rounded font-bold ${
+                <span className={`text-2xs px-1 rounded font-bold ${
                   isHighSim 
                     ? isDarkMode ? 'text-emerald-400 bg-emerald-500/10' : 'text-emerald-700 bg-emerald-50'
                     : isDarkMode ? 'text-amber-400 bg-amber-500/10' : 'text-amber-700 bg-amber-50'
@@ -228,7 +236,7 @@ export const DistributionComparisonChart: React.FC<Props> = ({ jobId, isDarkMode
               <span className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                 {selectedCol.name}
               </span>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+              <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full ${
                 isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
               }`}>
                 {selectedCol.type === 'numerical' ? '연속/수치형 변수' : '범주/코드형 변수'}
@@ -477,7 +485,7 @@ export const DistributionComparisonChart: React.FC<Props> = ({ jobId, isDarkMode
                 <div className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                   구간 / 항목: [{hoveredBin.label}]
                 </div>
-                <div className="text-[11px] text-slate-400">
+                <div className="text-2xs text-slate-400">
                   마우스 호버된 구간의 원본 vs 합성 도수 및 비율 상세
                 </div>
               </div>
@@ -489,7 +497,7 @@ export const DistributionComparisonChart: React.FC<Props> = ({ jobId, isDarkMode
                 <span className="font-bold text-sky-600 dark:text-sky-400">
                   {hoveredBin.original_pct}%
                 </span>
-                <span className="text-[10px] text-slate-400 ml-1">({hoveredBin.original_count.toLocaleString()}건)</span>
+                <span className="text-2xs text-slate-400 ml-1">({hoveredBin.original_count.toLocaleString()}건)</span>
               </div>
 
               <div>
@@ -497,18 +505,18 @@ export const DistributionComparisonChart: React.FC<Props> = ({ jobId, isDarkMode
                 <span className="font-bold text-amber-600 dark:text-amber-400">
                   {hoveredBin.synthetic_pct}%
                 </span>
-                <span className="text-[10px] text-slate-400 ml-1">({hoveredBin.synthetic_count.toLocaleString()}건)</span>
+                <span className="text-2xs text-slate-400 ml-1">({hoveredBin.synthetic_count.toLocaleString()}건)</span>
               </div>
 
               <div className="flex items-center gap-1 font-bold">
                 <span className="text-slate-400">오차: </span>
                 {hoveredBin.diff_pct >= 0 ? (
-                  <span className="text-emerald-500 flex items-center text-[11px]">
+                  <span className="text-emerald-500 flex items-center text-xs">
                     <ArrowUpRight className="w-3.5 h-3.5" />
                     +{hoveredBin.diff_pct}%
                   </span>
                 ) : (
-                  <span className="text-rose-500 flex items-center text-[11px]">
+                  <span className="text-rose-500 flex items-center text-xs">
                     <ArrowDownRight className="w-3.5 h-3.5" />
                     {hoveredBin.diff_pct}%
                   </span>
@@ -571,17 +579,17 @@ export const DistributionComparisonChart: React.FC<Props> = ({ jobId, isDarkMode
                   isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}
               >
-                <div className="text-[10px] text-slate-400 font-semibold">{m.label}</div>
+                <div className="text-2xs text-slate-400 font-semibold">{m.label}</div>
                 <div className="mt-1.5 flex items-baseline justify-between">
                   <div className="text-sky-600 dark:text-sky-400 font-mono font-bold">
                     {m.orig ?? '값 없음'}
                   </div>
-                  <span className="text-[10px] text-slate-400">vs</span>
+                  <span className="text-2xs text-slate-400">vs</span>
                   <div className="text-amber-600 dark:text-amber-400 font-mono font-bold">
                     {m.synth ?? '값 없음'}
                   </div>
                 </div>
-                <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+                <div className="flex justify-between text-2xs text-slate-500 mt-1">
                   <span>원본</span>
                   <span>합성</span>
                 </div>
@@ -618,17 +626,17 @@ export const DistributionComparisonChart: React.FC<Props> = ({ jobId, isDarkMode
                   isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}
               >
-                <div className="text-[10px] text-slate-400 font-semibold">{m.label}</div>
+                <div className="text-2xs text-slate-400 font-semibold">{m.label}</div>
                 <div className="mt-1.5 flex items-baseline justify-between">
                   <div className="text-sky-600 dark:text-sky-400 font-mono font-bold truncate max-w-[45%]">
                     {m.orig}
                   </div>
-                  <span className="text-[10px] text-slate-400">vs</span>
+                  <span className="text-2xs text-slate-400">vs</span>
                   <div className="text-amber-600 dark:text-amber-400 font-mono font-bold truncate max-w-[45%]">
                     {m.synth}
                   </div>
                 </div>
-                <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+                <div className="flex justify-between text-2xs text-slate-500 mt-1">
                   <span>원본</span>
                   <span>합성</span>
                 </div>

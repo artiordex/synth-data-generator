@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: masker.py
+# 경로: packages/synthetic_engine/synthetic_engine/privacy/masker.py
+# 목적: 개인정보 형식을 보존하면서 마스킹 처리함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 
 import re
@@ -100,35 +108,99 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    COMPOUND_SURNAMES = ("남궁", "황보", "제갈", "선우", "독고", "사공", "동방", "서문", "소봉")
+
     @classmethod
-    def mask_name(cls, text: str, mask_char: str = "*") -> str:
+    def mask_name(cls, text: str, mask_char: str = "*", mask_style: str = "mid") -> str:
         """
-        이름 / 성명:
-        - 2글자: 성 + * (예: 김철 -> 김*)
-        - 3글자: 성 + * + 끝글자 (예: 홍길동 -> 홍*동)
-        - 4글자: 앞 1자 + ** + 끝글자 (예: 남궁선우 -> 남**우)
-        - 영문: 앞글자 + *** + 뒷글자 (예: John Doe -> J*** D**)
+        한국인 및 다국어 이름 정밀 마스킹 (개인정보보호위원회 비식별화 가이드라인 준수)
+        - 2글자 단성: 성 + 마스킹 (예: 김철 -> 김*)
+        - 3글자 단성: 성 + 마스킹 + 끝글자 (예: 홍길동 -> 홍*동)
+        - 3글자 복성: 성(2자) + 마스킹 (예: 황보연 -> 황보*)
+        - 4글자 복성: 성(2자) + 마스킹 + 끝글자 (예: 남궁민수 -> 남궁*수)
+        - 4글자 단성: 성 + 마스킹(2자) + 끝글자 (예: 신사임당 -> 신**당)
+        - 직책/호칭/부서 분리 보존: 홍길동 연구원 -> 홍*동 연구원, 김철수 박사(책임) -> 김*수 박사(책임)
+        - 다중 성명 구분자(쉼표, 슬래시 등) 지원: 홍길동, 김철수 -> 홍*동, 김*수
+        - 띄어쓰기 한글 성명 지원: 홍 길 동 -> 홍 * 동
+        - 영문/외국인 성명: John Doe -> J**n D*e
         """
         clean = text.strip()
         if not clean:
             return clean
 
-        # Korean Name
-        if re.match(r"^[가-힣]+$", clean):
-            length = len(clean)
-            if length <= 1:
-                return clean
-            elif length == 2:
-                return f"{clean[0]}{mask_char}"
-            elif length == 3:
-                return f"{clean[0]}{mask_char}{clean[2]}"
-            elif length == 4:
-                return f"{clean[0]}{mask_char * 2}{clean[3]}"
-            else:
-                return f"{clean[:1]}{mask_char * (length - 2)}{clean[-1:]}"
+        # 1. Multiple names separated by delimiters (comma, slash, semicolon, pipe)
+        for delim in (",", "/", ";", "|"):
+            if delim in clean:
+                sub_names = [cls.mask_name(part.strip(), mask_char, mask_style) for part in clean.split(delim)]
+                sep = f"{delim} " if delim == "," else f" {delim} "
+                return sep.join(sub_names)
 
-        # Foreign / Multi-word Name (e.g. John Doe)
-        words = clean.split()
+        prefix = ""
+        postfix = ""
+        inner = clean
+
+        # 2. Extract prefix roles
+        prefix_m = re.match(r"^(환자명\s*[:：]\s*|성명\s*[:：]\s*|이름\s*[:：]\s*|담당자\s*[:：]\s*|연구원\s*[:：]\s*|의뢰인\s*[:：]\s*|대표\s*[:：]\s*)", inner)
+        if prefix_m:
+            prefix = prefix_m.group(0)
+            inner = inner[len(prefix):].strip()
+
+        # 3. Extract postfix titles, honorifics, and/or parenthesized text
+        postfix_m = re.search(r"(\s*(?:연구책임자|책임연구원|수석연구원|선임연구원|전임연구원|주임연구원|연구원|대표이사|대표|원장|부원장|센터장|실장|본부장|이사|상무|전무|교수|박사|선생님|선생|의사|전문의|약사|간호사|팀장|부장|차장|과장|대리|주임|계장|사원|환자|수검자|피험자|의뢰인|작성자|검토자|승인자|담당자|보호자|서명자|님|씨|군|양)?\s*(?:[\(（][^\)）]+[\)）])?)$", inner)
+        if postfix_m and postfix_m.group(0).strip():
+            postfix = postfix_m.group(0)
+            inner = inner[:postfix_m.start()].strip()
+
+        # 4. Spaced Korean name e.g. "홍 길 동" or "김 철수"
+        spaced_hangul_m = re.match(r"^([가-힣])\s+([가-힣])(?:\s+([가-힣]))?$", inner)
+        if spaced_hangul_m:
+            g = [x for x in spaced_hangul_m.groups() if x is not None]
+            if len(g) == 2:
+                masked_inner = f"{g[0]} {mask_char}"
+            else:
+                masked_inner = f"{g[0]} {mask_char} {g[2]}"
+            return f"{prefix}{masked_inner}{postfix}"
+
+        # 5. Korean Hangul name
+        if re.match(r"^[가-힣]+$", inner):
+            length = len(inner)
+            is_compound = any(inner.startswith(s) for s in cls.COMPOUND_SURNAMES)
+
+            if is_compound:
+                if length <= 2:
+                    masked_inner = inner
+                elif length == 3:  # 황보연 -> 황보*
+                    masked_inner = f"{inner[:2]}{mask_char}" if mask_style != "first" else f"{mask_char * 2}{inner[2]}"
+                elif length == 4:  # 남궁민수 -> 남궁*수
+                    if mask_style == "last":
+                        masked_inner = f"{inner[:2]}{mask_char * 2}"
+                    elif mask_style == "first":
+                        masked_inner = f"{mask_char * 2}{inner[2:]}"
+                    else:
+                        masked_inner = f"{inner[:2]}{mask_char}{inner[3]}"
+                else:  # 남궁선우용 -> 남궁**용
+                    masked_inner = f"{inner[:2]}{mask_char * (length - 3)}{inner[-1]}"
+            else:
+                if length <= 1:
+                    masked_inner = inner
+                elif length == 2:  # 김철 -> 김*
+                    masked_inner = f"{inner[0]}{mask_char}" if mask_style != "first" else f"{mask_char}{inner[1]}"
+                elif length == 3:  # 홍길동 -> 홍*동
+                    if mask_style == "last":
+                        masked_inner = f"{inner[0]}{mask_char * 2}"
+                    elif mask_style == "first":
+                        masked_inner = f"{mask_char}{inner[1:]}"
+                    else:
+                        masked_inner = f"{inner[0]}{mask_char}{inner[2]}"
+                elif length == 4:  # 신사임당 -> 신**당
+                    masked_inner = f"{inner[0]}{mask_char * 2}{inner[3]}"
+                else:  # 5글자 이상
+                    masked_inner = f"{inner[0]}{mask_char * (length - 2)}{inner[-1]}"
+
+            return f"{prefix}{masked_inner}{postfix}"
+
+        # 6. English / Foreign Multi-word Name (e.g. John Doe)
+        words = inner.split()
         if len(words) > 1:
             masked_words = []
             for w in words:
@@ -136,9 +208,16 @@ class SmartMasker:
                     masked_words.append(f"{w[0]}{mask_char}" if len(w) == 2 else w)
                 else:
                     masked_words.append(f"{w[0]}{mask_char * (len(w) - 2)}{w[-1]}")
-            return " ".join(masked_words)
+            return f"{prefix}{' '.join(masked_words)}{postfix}"
+        elif len(words) == 1 and re.match(r"^[A-Za-z]+$", words[0]):
+            w = words[0]
+            if len(w) <= 2:
+                masked_inner = f"{w[0]}{mask_char}" if len(w) == 2 else w
+            else:
+                masked_inner = f"{w[0]}{mask_char * (len(w) - 2)}{w[-1]}"
+            return f"{prefix}{masked_inner}{postfix}"
 
-        return cls.mask_generic(clean, mask_char=mask_char)
+        return f"{prefix}{cls.mask_generic(inner, mask_char=mask_char)}{postfix}"
 
     @classmethod
     def mask_email(cls, text: str, mask_char: str = "*") -> str:
@@ -508,6 +587,7 @@ class SmartMasker:
 
         # 1. RRN / Resident Registration Number: 900101-1234567 -> 900101-1******
         def _mask_rrn(m):
+            """주민등록번호 뒷자리를 마스킹함"""
             front = m.group(1)
             sep = m.group(2) or "-"
             gender = m.group(3)
@@ -518,6 +598,7 @@ class SmartMasker:
 
         # 2. Phone / Mobile: 010-1234-5678 -> 010-****-5678, 02-412-8823 -> 02-****-8823
         def _mask_phone(m):
+            """전화번호 중간 자리를 마스킹함"""
             prefix = m.group(1)
             sep1 = m.group(2) or "-"
             sep2 = m.group(4) or "-"
@@ -527,6 +608,7 @@ class SmartMasker:
 
         # 3. Email: jinwoo.park84@mockmail.kr -> jin*****@mockmail.kr
         def _mask_email(m):
+            """이메일 사용자명 일부를 마스킹함"""
             user = m.group(1)
             domain = m.group(2)
             if len(user) <= 3:
@@ -538,6 +620,7 @@ class SmartMasker:
 
         # 4. Driver License: 11-19-284719-01 -> 11-19-******-01
         def _mask_dl(m):
+            """운전면허번호 식별 구간을 마스킹함"""
             r = m.group(1)
             yy = m.group(2)
             chk = m.group(3)
@@ -546,6 +629,7 @@ class SmartMasker:
 
         # 5. Passport: M38491827 -> M38****27
         def _mask_passport(m):
+            """여권번호 중간 숫자를 마스킹함"""
             letter = m.group(1)
             num = m.group(2)
             return f"{letter}{num[:2]}{mask_char * 4}{num[-2:]}"
@@ -553,6 +637,7 @@ class SmartMasker:
 
         # 6. Credit Card: 4328-****-****-1928, 1234-5678-9012-3456 -> 4328-56**-****-1928
         def _mask_card(m):
+            """카드번호 중간 구간을 마스킹함"""
             p1 = m.group(1)
             p2 = m.group(2)
             p4 = m.group(3)
@@ -562,6 +647,7 @@ class SmartMasker:
 
         # 7. Bank Account: 110-382-948123 -> 110-***-***123, 482901-01-382910, 293-910283-48207
         def _mask_bank(m):
+            """계좌번호 일부를 마스킹함"""
             full = m.group(0)
             parts = full.split("-")
             if len(parts) >= 3:
@@ -571,27 +657,24 @@ class SmartMasker:
 
         # 8. Health Insurance (11 digits without 010)
         def _mask_health_ins(m):
+            """건강보험 식별번호 일부를 마스킹함"""
             s = m.group(0)
             if len(s) == 11 and not s.startswith("010"):
                 return f"{s[:4]}{mask_char * 4}{s[-3:]}"
             return s
         res = re.sub(r"\b\d{11}\b", _mask_health_ins, res)
 
-        # 9. Names with prefixes: 예) 환자명: 홍길동, 주문자 이지은, 예금주: 박진우, 거주 홍길동
+        # 9. Names with prefixes: 예) 환자명: 홍길동, 연구책임자 김민수, 성명: 남궁민수
         def _mask_named_person(m):
+            """이름 문자열을 정밀 마스킹함"""
             prefix = m.group(1)
             name = m.group(2)
-            if len(name) == 2:
-                masked = name[0] + mask_char
-            elif len(name) == 3:
-                masked = name[0] + mask_char + name[2]
-            else:
-                masked = name[0] + mask_char * (len(name) - 2) + name[-1]
-            return f"{prefix}{masked}"
-        res = re.sub(r"(환자명\s*:\s*|환자\s*:\s*|성명\s*:\s*|성명\s*\(한글/영문\)\s*:\s*|예금주\s*:\s*|예금주\s*|주문자\s*|담당자\s*:\s*|수신자\s*:\s*|보호자\s*:\s*)([가-힣]{2,4})", _mask_named_person, res)
+            return f"{prefix}{cls.mask_name(name, mask_char=mask_char)}"
+        res = re.sub(r"(환자명\s*[:：]\s*|환자\s*[:：]\s*|성명\s*[:：]\s*|성명\s*\(한글/영문\)\s*[:：]\s*|예금주\s*[:：]\s*|예금주\s*|주문자\s*[:：]?\s*|담당자\s*[:：]\s*|수신자\s*[:：]\s*|보호자\s*[:：]\s*|연구원\s*[:：]?\s*|연구책임자\s*[:：]?\s*|책임자\s*[:：]?\s*|작성자\s*[:：]\s*|수검자\s*[:：]\s*|피험자\s*[:：]\s*|의뢰인\s*[:：]\s*|대표자\s*[:：]\s*|대표이사\s*[:：]?\s*)([가-힣]{2,4})", _mask_named_person, res)
 
         # 10. Korean Addresses: 서울시 송파구 올림픽로 300 102동 405호 -> 서울시 송파구 ********** 102동 405호
         def _mask_address(m):
+            """주소의 상세 구간을 마스킹함"""
             sido = m.group(1)
             gu_gun = m.group(2)
             rest = m.group(3)

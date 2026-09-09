@@ -10,7 +10,8 @@ import pandas as pd
 # Add packages/synthetic_engine to path if needed
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packages" / "synthetic_engine"))
 
-from synthetic_engine import SyntheticPipeline, SynthesisConfig
+from synthetic_engine import SyntheticPipeline, SynthesisConfig, read_table
+from synthetic_engine.exporters.package_exporter import split_leading_sequence, submission_folder_name
 
 def find_raw_datasets():
     base_dir = Path(__file__).resolve().parent.parent
@@ -26,7 +27,7 @@ def find_raw_datasets():
     # 2. Check storage/outputs/job-*/원본데이터/*
     outputs_dir = base_dir / "storage" / "outputs"
     if outputs_dir.exists():
-        for path in outputs_dir.glob("job-*/원본데이터/*"):
+        for path in list(outputs_dir.glob("job-*/원본데이터*/*")) + list(outputs_dir.glob("job-*/*/원본데이터*/*")):
             if path.is_file() and path.suffix.lower() in [".xlsx", ".xls", ".csv"]:
                 raw_files.append(("storage_output_raw", path))
 
@@ -71,6 +72,7 @@ def verify_dataset(category: str, raw_path: Path, output_base_dir: Path, model_t
         logs.append(f"[{pct}%] {msg}")
 
     try:
+        raw_df = read_table(raw_path)
         result = pipeline.execute(
             input_path=raw_path,
             output_dir=audit_job_dir,
@@ -89,15 +91,35 @@ def verify_dataset(category: str, raw_path: Path, output_base_dir: Path, model_t
         
         review_dir = package_dirs.get("review") if package_dirs else None
         review_input_json = (review_dir / "심의자료_입력내용.json") if review_dir else None
+        _, parsed_dataset_name = split_leading_sequence(raw_path.stem)
+        expected_original_dir = submission_folder_name("원본데이터", parsed_dataset_name)
+        expected_synthetic_dir = submission_folder_name("합성데이터", parsed_dataset_name)
+        expected_review_dir = submission_folder_name("심의자료", parsed_dataset_name)
+        synthetic_columns = list(syn_df.columns) if syn_df is not None else []
+        original_columns = list(raw_df.columns)
 
         checks = {
             "synthetic_df_valid": syn_df is not None and not syn_df.empty,
             "row_count": len(syn_df) if syn_df is not None else 0,
             "col_count": len(syn_df.columns) if syn_df is not None else 0,
+            "original_col_count": len(original_columns),
+            "columns_preserved": original_columns == synthetic_columns,
+            "missing_columns": [col for col in original_columns if col not in synthetic_columns],
+            "extra_columns": [col for col in synthetic_columns if col not in original_columns],
             "hwp_files_count": len(hwp_files),
             "hwp_files_exist": all(Path(v).exists() and Path(v).stat().st_size > 0 for v in hwp_files.values()) if hwp_files else False,
             "eval_report_exists": Path(report_path).exists() if report_path else False,
             "review_input_exists": review_input_json.exists() if review_input_json else False,
+            "folder_names_standard": (
+                package_dirs.get("original") and Path(package_dirs["original"]).name == expected_original_dir
+                and package_dirs.get("synthetic") and Path(package_dirs["synthetic"]).name == expected_synthetic_dir
+                and package_dirs.get("review") and Path(package_dirs["review"]).name == expected_review_dir
+            ),
+            "expected_folders": {
+                "original": expected_original_dir,
+                "synthetic": expected_synthetic_dir,
+                "review": expected_review_dir,
+            },
         }
 
         # Check JSD measurement in evaluation report
@@ -112,6 +134,8 @@ def verify_dataset(category: str, raw_path: Path, output_base_dir: Path, model_t
 
         status = "PASSED" if all([
             checks["synthetic_df_valid"],
+            checks["columns_preserved"],
+            checks["folder_names_standard"],
             checks["hwp_files_count"] >= 3,
             checks["hwp_files_exist"],
             checks["eval_report_exists"],
@@ -166,7 +190,13 @@ def main():
         summary_results.append(res)
         if res["status"] == "PASSED":
             passed_count += 1
-            print(f" Result: PASSED (Time: {res['elapsed_seconds']}s, Rows: {res['checks']['row_count']}, Cols: {res['checks']['col_count']}, HWPX Docs: {res['checks']['hwp_files_count']})")
+            print(
+                f" Result: PASSED (Time: {res['elapsed_seconds']}s, "
+                f"Rows: {res['checks']['row_count']}, "
+                f"Cols: {res['checks']['original_col_count']} -> {res['checks']['col_count']}, "
+                f"Columns preserved: {res['checks']['columns_preserved']}, "
+                f"HWPX Docs: {res['checks']['hwp_files_count']})"
+            )
         else:
             print(f" Result: {res['status']} - {res.get('error') or res.get('checks')}")
 

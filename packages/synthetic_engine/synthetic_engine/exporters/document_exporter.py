@@ -7,9 +7,15 @@ import re
 import zipfile
 import tempfile
 import shutil
+from html import escape
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 import pandas as pd
+
+
+WORD_CONTENT_COLUMN_CANDIDATES = ("문서_내용", "臾몄꽌_?댁슜")
+WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
 
 def export_pseudonymized_document(
@@ -68,6 +74,10 @@ def export_pseudonymized_document(
 
     # 3. Markdown Format (.md)
     if fmt == "md":
+        if _is_word_path(original_filepath):
+            output_path.write_text(convert_word_to_markdown(Path(original_filepath)), encoding="utf-8")
+            return output_path
+
         if "문서_내용" in df.columns:
             lines = [str(v).strip() for v in df["문서_내용"].dropna() if str(v).strip()]
             md_content = "\n\n".join(lines)
@@ -84,6 +94,16 @@ def export_pseudonymized_document(
                 header_line = "| " + " | ".join(headers) + " |"
                 md_content = "\n".join([header_line, divider] + rows)
         output_path.write_text(md_content, encoding="utf-8")
+        return output_path
+
+    # 3-B. HTML Format (.html)
+    if fmt in ("html", "htm"):
+        if _is_word_path(original_filepath):
+            body_html = convert_word_to_html(Path(original_filepath))
+            html_content = _wrap_document_html(original_filename or Path(original_filepath).name, body_html)
+        else:
+            html_content = _build_html_representation(df, title=original_filename or output_path.stem)
+        output_path.write_text(html_content, encoding="utf-8")
         return output_path
 
     # 4. Word Document (.docx)
@@ -126,6 +146,9 @@ def export_pseudonymized_document(
         if original_filepath and original_filepath.exists() and original_filepath.suffix.lower() == ".hwpx":
             if _in_place_replace_hwpx(original_filepath, output_path, replacements):
                 return output_path
+
+        if _is_word_path(original_filepath):
+            return convert_word_to_hwpx(Path(original_filepath), output_path)
 
         try:
             from hwpx.document import HwpxDocument
@@ -186,6 +209,236 @@ def export_pseudonymized_document(
     # Fallback to CSV for unknown formats
     df.to_csv(output_path, index=False, encoding="utf-8-sig")
     return output_path
+
+
+def _document_content_column(df: pd.DataFrame) -> Optional[str]:
+    for column in WORD_CONTENT_COLUMN_CANDIDATES:
+        if column in df.columns:
+            return column
+    return None
+
+
+def _is_word_path(path: Optional[Path]) -> bool:
+    return bool(path and Path(path).exists() and Path(path).suffix.lower() in {".docx", ".doc"})
+
+
+def _word_qn(local_name: str) -> str:
+    return f"{{{WORD_NS}}}{local_name}"
+
+
+def _rel_qn(local_name: str) -> str:
+    return f"{{{REL_NS}}}{local_name}"
+
+
+def _cell_text_to_html(text: str) -> str:
+    return text.replace("\n", "<br/>")
+
+
+def _markdown_escape_cell(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br>")
+
+
+def _markdown_link(label: str, url: Optional[str]) -> str:
+    if not url:
+        return label
+    safe_label = label.replace("[", "\\[").replace("]", "\\]")
+    safe_url = url.replace(")", "%29")
+    return f"[{safe_label}]({safe_url})"
+
+
+def _iter_word_block_items(document) -> Iterable[Tuple[str, Any]]:
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    for child in document.element.body.iterchildren():
+        if child.tag == _word_qn("p"):
+            yield "paragraph", Paragraph(child, document)
+        elif child.tag == _word_qn("tbl"):
+            yield "table", Table(child, document)
+
+
+def _load_word_document(input_path: Path):
+    import docx
+
+    if input_path.suffix.lower() == ".docx":
+        return docx.Document(input_path)
+
+    if input_path.suffix.lower() != ".doc":
+        raise ValueError(f"Unsupported Word extension: {input_path.suffix}")
+
+    if os.name != "nt":
+        raise RuntimeError("Legacy .doc conversion requires Microsoft Word automation on Windows.")
+
+    tmp_docx: Optional[Path] = None
+    try:
+        import pythoncom
+        import win32com.client
+
+        fd, tmp_name = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        tmp_docx = Path(tmp_name)
+        pythoncom.CoInitialize()
+        word = None
+        com_doc = None
+        try:
+            word = win32com.client.Dispatch("Word.Application")
+            word.Visible = False
+            com_doc = word.Documents.Open(str(input_path.resolve()))
+            com_doc.SaveAs(str(tmp_docx.resolve()), FileFormat=16)
+        finally:
+            if com_doc is not None:
+                try:
+                    com_doc.Close(False)
+                except Exception:
+                    pass
+            if word is not None:
+                try:
+                    word.Quit()
+                except Exception:
+                    pass
+            pythoncom.CoUninitialize()
+        return docx.Document(tmp_docx)
+    except Exception as exc:
+        raise RuntimeError(f"Legacy .doc conversion failed: {exc}") from exc
+    finally:
+        if tmp_docx is not None:
+            tmp_docx.unlink(missing_ok=True)
+
+
+def _word_relationship_target(paragraph, rel_id: Optional[str]) -> Optional[str]:
+    if not rel_id:
+        return None
+    for part_owner in (paragraph, getattr(paragraph, "_parent", None)):
+        part = getattr(part_owner, "part", None)
+        if part is None:
+            continue
+        rel = part.rels.get(rel_id)
+        if rel is not None:
+            return rel.target_ref
+    return None
+
+
+def _word_run_text(node) -> str:
+    parts: List[str] = []
+    for child in node.iter():
+        if child.tag == _word_qn("t"):
+            parts.append(child.text or "")
+        elif child.tag == _word_qn("tab"):
+            parts.append("\t")
+        elif child.tag == _word_qn("br"):
+            parts.append("\n")
+    return "".join(parts)
+
+
+def _word_paragraph_fragments(paragraph, link_format: str = "markdown") -> List[str]:
+    fragments: List[str] = []
+    for child in paragraph._p:
+        if child.tag == _word_qn("r"):
+            text = _word_run_text(child)
+            fragments.append(escape(text) if link_format == "html" else text)
+        elif child.tag == _word_qn("hyperlink"):
+            label = _word_run_text(child)
+            rel_id = child.get(_rel_qn("id"))
+            anchor = child.get(_word_qn("anchor"))
+            url = _word_relationship_target(paragraph, rel_id)
+            if anchor and not url:
+                url = f"#{anchor}"
+            if link_format == "html" and url:
+                fragments.append(f'<a href="{escape(url, quote=True)}">{escape(label)}</a>')
+            elif link_format == "markdown":
+                fragments.append(_markdown_link(label, url))
+            else:
+                fragments.append(label if not url else f"{label} ({url})")
+    return fragments
+
+
+def _word_paragraph_text(paragraph, link_format: str = "markdown") -> str:
+    text = "".join(_word_paragraph_fragments(paragraph, link_format=link_format))
+    if not text and getattr(paragraph, "text", None):
+        text = paragraph.text
+    return text
+
+
+def _word_heading_level(paragraph) -> Optional[int]:
+    style = paragraph.style
+    style_name = (style.name if style and style.name else "").strip().lower()
+    style_id = (style.style_id if style and style.style_id else "").strip().lower()
+    for value in (style_name, style_id):
+        match = re.search(r"(?:heading|제목)\s*([1-6])", value)
+        if match:
+            return int(match.group(1))
+        match = re.search(r"heading([1-6])", value)
+        if match:
+            return int(match.group(1))
+
+    p_pr = paragraph._p.pPr
+    if p_pr is not None and p_pr.outlineLvl is not None:
+        val = p_pr.outlineLvl.val
+        try:
+            return max(1, min(6, int(val) + 1))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _word_numbering_maps(document) -> Tuple[Dict[str, str], Dict[Tuple[str, str], str]]:
+    try:
+        numbering = document.part.numbering_part.element
+    except Exception:
+        return {}, {}
+
+    num_to_abstract: Dict[str, str] = {}
+    level_formats: Dict[Tuple[str, str], str] = {}
+    for num in numbering.findall(_word_qn("num")):
+        num_id = num.get(_word_qn("numId"))
+        abstract = num.find(_word_qn("abstractNumId"))
+        if num_id and abstract is not None:
+            num_to_abstract[num_id] = abstract.get(_word_qn("val"), "")
+
+    for abstract in numbering.findall(_word_qn("abstractNum")):
+        abstract_id = abstract.get(_word_qn("abstractNumId"), "")
+        for level in abstract.findall(_word_qn("lvl")):
+            ilvl = level.get(_word_qn("ilvl"), "0")
+            fmt = level.find(_word_qn("numFmt"))
+            if fmt is not None:
+                level_formats[(abstract_id, ilvl)] = fmt.get(_word_qn("val"), "bullet")
+    return num_to_abstract, level_formats
+
+
+def _word_list_info(paragraph, num_to_abstract: Dict[str, str], level_formats: Dict[Tuple[str, str], str]) -> Optional[Tuple[int, bool]]:
+    p_pr = paragraph._p.pPr
+    if p_pr is not None and p_pr.numPr is not None:
+        ilvl_value = p_pr.numPr.ilvl.val if p_pr.numPr.ilvl is not None else 0
+        num_id_value = p_pr.numPr.numId.val if p_pr.numPr.numId is not None else None
+        level = int(ilvl_value or 0)
+        abstract_id = num_to_abstract.get(str(num_id_value), "")
+        num_format = level_formats.get((abstract_id, str(level)), "bullet")
+        return level, num_format not in {"bullet", "none"}
+
+    style = paragraph.style
+    style_name = (style.name if style and style.name else "").lower()
+    style_id = (style.style_id if style and style.style_id else "").lower()
+    style_value = f"{style_name} {style_id}"
+    if "list" not in style_value and "bullet" not in style_value and "number" not in style_value:
+        return None
+    match = re.search(r"([2-9])", style_value)
+    level = int(match.group(1)) - 1 if match else 0
+    ordered = "number" in style_value
+    return level, ordered
+
+
+def _word_table_rows(table, link_format: str = "markdown") -> List[List[str]]:
+    rows: List[List[str]] = []
+    for row in table.rows:
+        values: List[str] = []
+        for cell in row.cells:
+            paragraphs = [
+                _word_paragraph_text(paragraph, link_format=link_format).strip()
+                for paragraph in cell.paragraphs
+            ]
+            values.append("\n".join(p for p in paragraphs if p))
+        rows.append(values)
+    return rows
 
 
 def _is_valid_pdf_binary(filepath: Path) -> bool:
@@ -305,6 +558,24 @@ def _generate_valid_pdf_fallback(df: pd.DataFrame, output_path: Path, title: str
     except Exception:
         pass
 
+    # Chromium provides Unicode fonts and pagination on Windows as well as Linux.
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(java_script_enabled=False)
+                page.route('**/*', lambda route: route.abort())
+                page.set_content(_build_html_representation(df, title), wait_until='load')
+                page.pdf(path=str(output_path), format='A4', print_background=True,
+                         margin={'top': '15mm', 'bottom': '15mm', 'left': '12mm', 'right': '12mm'})
+            finally:
+                browser.close()
+        if _is_valid_pdf_binary(output_path):
+            return output_path
+    except Exception:
+        pass
+
     # 2. Try ReportLab
     try:
         from reportlab.lib.pagesizes import letter
@@ -327,8 +598,8 @@ def _generate_valid_pdf_fallback(df: pd.DataFrame, output_path: Path, title: str
                     story.append(Spacer(1, 6))
         else:
             data = [[str(c) for c in df.columns]]
-            for _, row in df.head(200).iterrows():
-                data.append(["" if pd.isna(v) else str(v)[:50] for v in row.values])
+            for _, row in df.iterrows():
+                data.append(["" if pd.isna(v) else str(v) for v in row.values])
             t = Table(data)
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
@@ -346,24 +617,7 @@ def _generate_valid_pdf_fallback(df: pd.DataFrame, output_path: Path, title: str
     except Exception:
         pass
 
-    # 3. Try PyMuPDF
-    try:
-        import pymupdf
-        doc = pymupdf.open()
-        page = doc.new_page()
-        text = f"{title}\n\n"
-        if "문서_내용" in df.columns:
-            text += "\n\n".join(str(p) for p in df["문서_내용"].dropna())
-        else:
-            text += df.to_string(index=False)
-        page.insert_text(pymupdf.Point(50, 50), text[:2000])
-        doc.save(output_path)
-        if _is_valid_pdf_binary(output_path):
-            return output_path
-    except Exception:
-        pass
-
-    return output_path
+    raise RuntimeError('PDF 내보내기 엔진이 없습니다. WeasyPrint 또는 Playwright Chromium을 설치하세요.')
 
 
 def _build_html_representation(df: pd.DataFrame, title: str = "가명 데이터 문서") -> str:
@@ -371,15 +625,15 @@ def _build_html_representation(df: pd.DataFrame, title: str = "가명 데이터 
     if "문서_내용" in df.columns:
         body_parts = []
         for p in df["문서_내용"].dropna():
-            p_clean = str(p).strip().replace("\n", "<br/>")
+            p_clean = escape(str(p).strip()).replace("\n", "<br/>")
             if p_clean:
                 body_parts.append(f"<p>{p_clean}</p>")
         body_html = "\n".join(body_parts)
     else:
-        th_cells = "".join(f"<th>{col}</th>" for col in df.columns)
+        th_cells = "".join(f"<th>{escape(str(col))}</th>" for col in df.columns)
         tr_rows = []
         for _, row in df.iterrows():
-            td_cells = "".join(f"<td>{'' if pd.isna(v) else str(v)}</td>" for v in row.values)
+            td_cells = "".join(f"<td>{'' if pd.isna(v) else escape(str(v))}</td>" for v in row.values)
             tr_rows.append(f"<tr>{td_cells}</tr>")
         body_html = f"""
         <table class="styled-table">
@@ -396,7 +650,7 @@ def _build_html_representation(df: pd.DataFrame, title: str = "가명 데이터 
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>{title}</title>
+  <title>{escape(title)}</title>
   <style>
     body {{
       font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
@@ -437,8 +691,400 @@ def _build_html_representation(df: pd.DataFrame, title: str = "가명 데이터 
   </style>
 </head>
 <body>
-  <h1>{title}</h1>
+  <h1>{escape(title)}</h1>
   {body_html}
 </body>
 </html>
 """
+
+
+def _is_word_path(path: Optional[Path]) -> bool:
+    return bool(path and Path(path).exists() and Path(path).suffix.lower() in {".docx", ".doc"})
+
+
+def _wrap_document_html(title: str, body_html: str) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{escape(title)}</title>
+  <style>
+    body {{
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      color: #172033;
+      line-height: 1.65;
+      margin: 0;
+      background: #f5f7fb;
+    }}
+    main {{
+      max-width: 920px;
+      margin: 32px auto;
+      background: #fff;
+      padding: 44px 48px;
+      border: 1px solid #d8dee8;
+    }}
+    h1, h2, h3, h4, h5, h6 {{
+      color: #111827;
+      margin: 1.1em 0 0.45em;
+      line-height: 1.3;
+    }}
+    p {{ margin: 0.65em 0; white-space: pre-wrap; }}
+    ul, ol {{ margin: 0.65em 0 0.65em 1.45em; padding: 0; }}
+    li {{ margin: 0.2em 0; }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      table-layout: fixed;
+    }}
+    th, td {{
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+      vertical-align: top;
+      word-break: break-word;
+    }}
+    th {{
+      background: #eef3f8;
+      color: #111827;
+      font-weight: 700;
+      text-align: left;
+    }}
+    tr:nth-child(even) td {{ background: #f8fafc; }}
+    a {{ color: #0f63c7; }}
+  </style>
+</head>
+<body>
+  <main>
+    {body_html}
+  </main>
+</body>
+</html>
+"""
+
+
+def _iter_docx_blocks(document):
+    from docx.oxml.table import CT_Tbl
+    from docx.oxml.text.paragraph import CT_P
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    body = document.element.body
+    for child in body.iterchildren():
+        if isinstance(child, CT_P):
+            yield Paragraph(child, document)
+        elif isinstance(child, CT_Tbl):
+            yield Table(child, document)
+
+
+def _docx_rel_target(part: Any, rel_id: Optional[str]) -> str:
+    if not rel_id:
+        return ""
+    try:
+        return str(part.rels[rel_id].target_ref)
+    except Exception:
+        return ""
+
+
+def _docx_paragraph_text(paragraph) -> str:
+    from docx.oxml.ns import qn
+
+    chunks: List[str] = []
+    for child in paragraph._p.iterchildren():
+        tag = child.tag
+        if tag == qn("w:r"):
+            chunks.append("".join(t.text or "" for t in child.findall(".//w:t", child.nsmap)))
+        elif tag == qn("w:hyperlink"):
+            text = "".join(t.text or "" for t in child.findall(".//w:t", child.nsmap))
+            target = _docx_rel_target(paragraph.part, child.get(qn("r:id")))
+            anchor = child.get(qn("w:anchor"))
+            href = target or (f"#{anchor}" if anchor else "")
+            chunks.append(f"[{text}]({href})" if text and href else text)
+        elif tag == qn("w:br"):
+            chunks.append("\n")
+    return "".join(chunks).strip()
+
+
+def _docx_paragraph_html(paragraph) -> str:
+    from docx.oxml.ns import qn
+
+    chunks: List[str] = []
+    for child in paragraph._p.iterchildren():
+        tag = child.tag
+        if tag == qn("w:r"):
+            chunks.append(escape("".join(t.text or "" for t in child.findall(".//w:t", child.nsmap))))
+        elif tag == qn("w:hyperlink"):
+            text = "".join(t.text or "" for t in child.findall(".//w:t", child.nsmap))
+            target = _docx_rel_target(paragraph.part, child.get(qn("r:id")))
+            anchor = child.get(qn("w:anchor"))
+            href = target or (f"#{anchor}" if anchor else "")
+            chunks.append(f'<a href="{escape(href)}">{escape(text)}</a>' if text and href else escape(text))
+        elif tag == qn("w:br"):
+            chunks.append("<br/>")
+    return "".join(chunks).strip()
+
+
+def _docx_paragraph_kind(paragraph) -> Tuple[str, int]:
+    style_name = (paragraph.style.name if paragraph.style else "").lower()
+    if "heading" in style_name:
+        match = re.search(r"(\d+)", style_name)
+        return "heading", max(1, min(6, int(match.group(1)) if match else 1))
+    if "title" == style_name:
+        return "heading", 1
+    if "subtitle" in style_name:
+        return "heading", 2
+    if "list" in style_name or "bullet" in style_name:
+        return "list", 0
+    try:
+        if paragraph._p.pPr is not None and paragraph._p.pPr.numPr is not None:
+            return "list", 0
+    except Exception:
+        pass
+    return "paragraph", 0
+
+
+def _docx_tc_colspan(tc: Any) -> int:
+    from docx.oxml.ns import qn
+
+    grid_span = tc.tcPr.find(qn("w:gridSpan")) if tc.tcPr is not None else None
+    if grid_span is None:
+        return 1
+    try:
+        return max(1, int(grid_span.get(qn("w:val"), "1")))
+    except Exception:
+        return 1
+
+
+def _docx_tc_is_vmerge_continue(tc: Any) -> bool:
+    from docx.oxml.ns import qn
+
+    vmerge = tc.tcPr.find(qn("w:vMerge")) if tc.tcPr is not None else None
+    if vmerge is None:
+        return False
+    return vmerge.get(qn("w:val")) in (None, "", "continue")
+
+
+def _docx_cell_text(cell) -> str:
+    parts = []
+    for paragraph in cell.paragraphs:
+        text = _docx_paragraph_text(paragraph) or paragraph.text.strip()
+        if text:
+            parts.append(text)
+    return "\n".join(parts).strip()
+
+
+def _docx_cell_html(cell) -> str:
+    parts = []
+    for paragraph in cell.paragraphs:
+        text = _docx_paragraph_html(paragraph)
+        if not text and paragraph.text.strip():
+            text = escape(paragraph.text.strip())
+        if text:
+            parts.append(text)
+    return "<br/>".join(parts).strip()
+
+
+def _docx_table_rows(table) -> List[List[Dict[str, Any]]]:
+    rows: List[List[Dict[str, Any]]] = []
+    for row in table.rows:
+        current: List[Dict[str, Any]] = []
+        real_cells = list(row._tr.tc_lst)
+        for idx, tc in enumerate(real_cells):
+            if _docx_tc_is_vmerge_continue(tc):
+                current.append({"text": "", "colspan": _docx_tc_colspan(tc), "skip": True})
+                continue
+            cell = row.cells[min(idx, len(row.cells) - 1)]
+            current.append({
+                "text": _docx_cell_text(cell),
+                "html": _docx_cell_html(cell),
+                "colspan": _docx_tc_colspan(tc),
+                "skip": False,
+            })
+        if any(c["text"] for c in current):
+            rows.append(current)
+    return rows
+
+
+def _markdown_escape_cell(text: str) -> str:
+    return re.sub(r"\s+", " ", text).replace("\\", "\\\\").replace("|", "\\|").strip()
+
+
+def _word_blocks(input_path: Path) -> List[Dict[str, Any]]:
+    document = _load_word_document(input_path)
+    num_to_abstract, level_formats = _word_numbering_maps(document)
+    blocks: List[Dict[str, Any]] = []
+    for block in _iter_docx_blocks(document):
+        if hasattr(block, "rows"):
+            rows = _docx_table_rows(block)
+            if rows:
+                blocks.append({"type": "table", "rows": rows})
+            continue
+
+        text = _docx_paragraph_text(block) or block.text.strip()
+        if not text:
+            continue
+        html = _docx_paragraph_html(block) or escape(text)
+        heading_level = _word_heading_level(block)
+        list_info = _word_list_info(block, num_to_abstract, level_formats)
+        if heading_level:
+            kind, level = "heading", heading_level
+        elif list_info:
+            level, ordered = list_info
+            item = {"type": "list_item", "text": text, "html": html, "level": level, "ordered": ordered}
+            blocks.append(item)
+            continue
+        else:
+            kind, level = _docx_paragraph_kind(block)
+            if kind == "list":
+                kind = "list_item"
+        item: Dict[str, Any] = {"type": kind, "text": text, "html": html}
+        if kind == "heading":
+            item["level"] = level
+        elif kind == "list_item":
+            item["level"] = level
+            item["ordered"] = False
+        blocks.append(item)
+    return blocks
+
+
+def convert_word_to_markdown(input_path: Path) -> str:
+    md: List[str] = []
+    for block in _word_blocks(Path(input_path)):
+        if block["type"] == "heading":
+            md.append("#" * int(block.get("level", 1)) + " " + block["text"])
+        elif block["type"] in {"list", "list_item"}:
+            marker = "1." if block.get("ordered") else "-"
+            prefix = "  " * int(block.get("level", 0))
+            for line in block["text"].splitlines():
+                if line.strip():
+                    md.append(f"{prefix}{marker} {line.strip()}")
+        elif block["type"] == "table":
+            rows = block["rows"]
+            width = max(sum(int(c.get("colspan", 1)) for c in row if not c.get("skip")) for row in rows)
+            matrix: List[List[str]] = []
+            for row in rows:
+                out_row: List[str] = []
+                for cell in row:
+                    if cell.get("skip"):
+                        out_row.extend([""] * int(cell.get("colspan", 1)))
+                    else:
+                        out_row.append(_markdown_escape_cell(cell.get("text", "")))
+                        out_row.extend([""] * (int(cell.get("colspan", 1)) - 1))
+                matrix.append(out_row + [""] * (width - len(out_row)))
+            if matrix:
+                md.append("| " + " | ".join(matrix[0]) + " |")
+                md.append("| " + " | ".join(["---"] * width) + " |")
+                for row in matrix[1:]:
+                    md.append("| " + " | ".join(row) + " |")
+        else:
+            md.append(block["text"])
+        md.append("")
+    return "\n".join(md).strip()
+
+
+def convert_word_to_html(input_path: Path) -> str:
+    html_parts: List[str] = []
+    open_lists: List[bool] = []
+
+    def close_lists(to_level: int = 0) -> None:
+        while len(open_lists) > to_level:
+            ordered = open_lists.pop()
+            html_parts.append("</ol>" if ordered else "</ul>")
+
+    for block in _word_blocks(Path(input_path)):
+        if block["type"] == "heading":
+            close_lists()
+            level = int(block.get("level", 1))
+            html_parts.append(f"<h{level}>{block.get('html') or escape(block['text'])}</h{level}>")
+        elif block["type"] in {"list", "list_item"}:
+            level = int(block.get("level", 0))
+            ordered = bool(block.get("ordered"))
+            while len(open_lists) > level + 1:
+                close_lists(len(open_lists) - 1)
+            while len(open_lists) < level + 1:
+                open_lists.append(ordered)
+                html_parts.append("<ol>" if ordered else "<ul>")
+            if open_lists[-1] != ordered:
+                close_lists(level)
+                open_lists.append(ordered)
+                html_parts.append("<ol>" if ordered else "<ul>")
+            for line in block["html"].splitlines():
+                if line.strip():
+                    html_parts.append(f"<li>{line.strip()}</li>")
+        elif block["type"] == "table":
+            close_lists()
+            rows_html: List[str] = []
+            for r_idx, row in enumerate(block["rows"]):
+                cell_tag = "th" if r_idx == 0 else "td"
+                cells_html = []
+                for cell in row:
+                    if cell.get("skip"):
+                        continue
+                    colspan = int(cell.get("colspan", 1))
+                    attr = f' colspan="{colspan}"' if colspan > 1 else ""
+                    value = cell.get("html") or escape(cell.get("text", "")).replace("\n", "<br/>")
+                    cells_html.append(f"<{cell_tag}{attr}>{value}</{cell_tag}>")
+                rows_html.append("<tr>" + "".join(cells_html) + "</tr>")
+            html_parts.append("<table>" + "".join(rows_html) + "</table>")
+        else:
+            close_lists()
+            html_parts.append(f"<p>{block.get('html') or escape(block['text']).replace(chr(10), '<br/>')}</p>")
+    close_lists()
+    return "\n".join(html_parts)
+
+
+def convert_word_to_hwpx(input_path: Path, output_path: Path) -> Path:
+    from hwpx.document import HwpxDocument
+
+    doc = HwpxDocument.new()
+    for block in _word_blocks(Path(input_path)):
+        if block["type"] == "heading":
+            try:
+                doc.add_heading(block["text"], level=int(block.get("level", 1)))
+            except Exception:
+                doc.add_paragraph(block["text"])
+        elif block["type"] in {"list", "list_item"}:
+            marker = "1." if block.get("ordered") else "-"
+            prefix = "  " * int(block.get("level", 0))
+            for line in block["text"].splitlines():
+                if line.strip():
+                    doc.add_paragraph(f"{prefix}{marker} {line.strip()}")
+        elif block["type"] == "table":
+            rows = block["rows"]
+            width = max(sum(int(c.get("colspan", 1)) for c in row if not c.get("skip")) for row in rows)
+            table = doc.add_table(rows=len(rows), cols=width)
+            try:
+                table.set_column_widths([max(4000, int(42000 / max(width, 1)))] * width)
+            except Exception:
+                pass
+            for r_idx, row in enumerate(rows):
+                col = 0
+                for cell in row:
+                    span = int(cell.get("colspan", 1))
+                    if cell.get("skip"):
+                        col += span
+                        continue
+                    try:
+                        table.set_cell_text(r_idx, col, cell.get("text", ""))
+                        if r_idx == 0:
+                            table.set_cell_shading(r_idx, col, "#EEF3F8")
+                        if span > 1:
+                            table.merge_cells(r_idx, col, r_idx, min(width - 1, col + span - 1))
+                    except Exception:
+                        pass
+                    col += span
+        else:
+            doc.add_paragraph(block["text"])
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save_to_path(output_path)
+    return output_path
+# =============================================================================
+# 파일명: document_exporter.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/document_exporter.py
+# 목적: Word·문서 파일의 HTML·PDF·문자열 변환을 처리함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================

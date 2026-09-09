@@ -1,3 +1,6 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -93,10 +96,19 @@
     --ui-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 12px 30px -4px rgba(0, 0, 0, 0.4);
   }
 
+  *,
+  *::before,
+  *::after {
+    font-family: 'Pretendard Variable', Pretendard, 'Noto Sans KR', sans-serif;
+  }
+
   html {
     background: var(--ui-canvas);
-    font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", "Segoe UI", sans-serif;
+    font-family: 'Pretendard Variable', Pretendard, 'Noto Sans KR', sans-serif;
+    font-size: 15px;
     text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
@@ -104,13 +116,29 @@
     margin: 0;
     background: var(--ui-canvas);
     color: var(--ui-text);
+    font-family: 'Pretendard Variable', Pretendard, 'Noto Sans KR', sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp,
+  .font-mono,
+  [class*="font-mono"],
+  pre *,
+  code * {
+    font-family: Consolas, 'Courier New', monospace !important;
   }
 
   button,
   input,
   select,
   textarea {
-    font: inherit;
+    font-family: inherit;
   }
 
   button:not(:disabled),
@@ -150,7 +178,7 @@
   }
 
   .ui-section-title {
-    @apply flex items-center gap-2 text-sm font-bold tracking-tight;
+    @apply flex items-center gap-2 text-lg font-bold tracking-tight;
     color: var(--ui-text);
   }
 
@@ -160,7 +188,7 @@
   }
 
   .ui-button {
-    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-50;
+    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors disabled:opacity-50;
   }
 
   .ui-button-primary {
@@ -188,7 +216,7 @@
   }
 
   .ui-field {
-    @apply w-full rounded-lg border px-3 py-2 text-xs transition-colors;
+    @apply w-full rounded-lg border px-3 py-2 text-sm transition-colors;
     border-color: var(--ui-border-strong);
     background: var(--ui-surface-muted);
     color: var(--ui-text);
@@ -201,8 +229,16 @@
   }
 
   .ui-label {
-    @apply mb-1 block text-xs font-semibold;
+    @apply mb-1.5 block text-xs font-semibold;
     color: var(--ui-muted);
+  }
+
+  .ui-badge {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-bold leading-none border transition-colors;
+  }
+
+  .ui-badge-mono {
+    @apply ui-badge font-mono;
   }
 
   .ui-upload-zone {
@@ -235,11 +271,11 @@
   }
 
   .ui-table th {
-    @apply whitespace-nowrap px-4 py-3 font-semibold;
+    @apply whitespace-nowrap px-4 py-3 font-semibold text-xs text-fg-muted;
   }
 
   .ui-table td {
-    @apply border-t px-4 py-3;
+    @apply border-t px-4 py-3 text-xs;
     border-color: var(--ui-border);
   }
 
@@ -354,4 +390,169 @@ html:not(.dark) .app-shell .placeholder-slate-400::placeholder,
 html:not(.dark) .app-shell .placeholder-slate-500::placeholder {
   color: #64748b;
   opacity: 1;
+}
+
+/* ==========================================================================
+   Visual Studio Code Style Markdown Preview Typography & Layout
+   ========================================================================== */
+.markdown-preview-body {
+  font-family: 'Pretendard Variable', Pretendard, 'Noto Sans KR', 'Noto Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--color-fg-default);
+  line-height: 1.65;
+}
+
+
+.markdown-preview-body h1,
+.markdown-preview-body h2,
+.markdown-preview-body h3,
+.markdown-preview-body h4,
+.markdown-preview-body h5,
+.markdown-preview-body h6 {
+  color: var(--color-fg-default);
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.25;
+}
+
+.markdown-preview-body h1 {
+  font-size: 1.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.markdown-preview-body h2 {
+  font-size: 1.35rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.markdown-preview-body h3 {
+  font-size: 1.15rem;
+}
+
+.markdown-preview-body p {
+  margin-bottom: 1rem;
+}
+
+.markdown-preview-body .prose table,
+.markdown-preview-body table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 1.5rem 0 !important;
+  font-size: 0.875rem !important;
+  border: 1px solid var(--color-border-default) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  background-color: var(--color-bg-surface) !important;
+}
+
+.markdown-preview-body .prose thead,
+.markdown-preview-body thead {
+  background-color: var(--color-bg-surface-muted) !important;
+  border-bottom: 2px solid var(--color-border-default) !important;
+}
+
+.markdown-preview-body .prose th,
+.markdown-preview-body th {
+  border: 1px solid var(--color-border-subtle) !important;
+  padding: 0.75rem 1rem !important;
+  font-weight: 700 !important;
+  color: var(--color-fg-default) !important;
+  background-color: var(--color-bg-surface-muted) !important;
+  text-align: left !important;
+  letter-spacing: -0.01em !important;
+}
+
+.markdown-preview-body .prose td,
+.markdown-preview-body td {
+  border: 1px solid var(--color-border-subtle) !important;
+  padding: 0.7rem 1rem !important;
+  color: var(--color-fg-default) !important;
+  vertical-align: top !important;
+  line-height: 1.6 !important;
+}
+
+.markdown-preview-body .prose tr:nth-child(even) td,
+.markdown-preview-body tr:nth-child(even) td {
+  background-color: rgba(241, 245, 249, 0.5) !important;
+}
+
+:root.dark .markdown-preview-body .prose tr:nth-child(even) td,
+:root.dark .markdown-preview-body tr:nth-child(even) td {
+  background-color: rgba(30, 41, 59, 0.4) !important;
+}
+
+.markdown-preview-body .prose tr:hover td,
+.markdown-preview-body tr:hover td {
+  background-color: rgba(37, 99, 235, 0.05) !important;
+}
+
+:root.dark .markdown-preview-body .prose tr:hover td,
+:root.dark .markdown-preview-body tr:hover td {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+.markdown-preview-body blockquote {
+  border-left: 4px solid var(--color-accent);
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  background-color: var(--color-accent-subtle);
+  border-radius: 0 8px 8px 0;
+  color: var(--color-fg-muted);
+}
+
+.markdown-preview-body code {
+  font-family: 'Consolas', Monaco, 'Courier New', monospace;
+  font-size: 0.85em;
+  background-color: var(--color-bg-surface-muted);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.markdown-preview-body pre {
+  font-family: 'Consolas', Monaco, 'Courier New', monospace;
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.markdown-preview-body pre code {
+  font-family: 'Consolas', Monaco, 'Courier New', monospace;
+  background-color: transparent;
+  padding: 0;
+  border: none;
+  color: inherit;
+  font-size: 0.85rem;
+}
+
+.markdown-preview-body ul,
+.markdown-preview-body ol {
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-preview-body ul {
+  list-style-type: disc;
+}
+
+.markdown-preview-body ol {
+  list-style-type: decimal;
+}
+
+.markdown-preview-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-subtle);
+  margin: 1.5rem 0;
+}
+
+.markdown-preview-body img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 1rem auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }

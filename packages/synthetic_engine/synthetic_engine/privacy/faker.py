@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: faker.py
+# 경로: packages/synthetic_engine/synthetic_engine/privacy/faker.py
+# 목적: 컬럼 유형과 문맥을 반영한 일관 가명값을 생성함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import hashlib
 import random
@@ -9,9 +17,21 @@ from ..common.types import ColumnPlan
 from .token_vault import project_token
 from .masker import SmartMasker
 
+
+def _repeat_source_series(raw: pd.DataFrame, column: str, length: int) -> pd.Series:
+    """Return source values repeated to the synthetic row count."""
+    if column not in raw.columns or length <= 0:
+        return pd.Series([None] * max(length, 0))
+    source = raw[column].reset_index(drop=True)
+    if source.empty:
+        return pd.Series([None] * length)
+    return pd.Series([source.iloc[idx % len(source)] for idx in range(length)])
+
 class ContextAwareFaker:
+    """행과 컬럼 문맥을 사용해 개인정보 가명값을 생성함"""
     @staticmethod
     def extract_context_value(row: Any, target_columns: list[str]) -> Any:
+        """행에서 대상 컬럼과 일치하는 문맥 값을 추출함"""
         if isinstance(row, dict):
             for col in target_columns:
                 for k, v in row.items():
@@ -26,6 +46,7 @@ class ContextAwareFaker:
 
     @classmethod
     def generate_coherent_ssn(cls, age_val: Any, gender_val: Any) -> str:
+        """연령·성별 문맥을 반영한 주민등록번호 형식 값을 생성함"""
         current_year = 2026
         birth_year = 1990
         if age_val is not None:
@@ -53,6 +74,7 @@ class ContextAwareFaker:
 
     @classmethod
     def generate_coherent_phone(cls, col_name: str, region_val: Any) -> str:
+        """컬럼명과 지역 문맥을 반영한 전화번호 형식 값을 생성함"""
         region = str(region_val or "").strip()
         if "유선" in col_name or "tel" in col_name.lower():
             if "서울" in region: code = "02"
@@ -71,6 +93,7 @@ class ContextAwareFaker:
 
     @classmethod
     def generate_coherent_foreigner_id(cls, age_val: Any, gender_val: Any) -> str:
+        """연령·성별 문맥을 반영한 외국인등록번호 형식 값을 생성함"""
         current_year = 2026
         birth_year = 1990
         if age_val is not None:
@@ -98,12 +121,14 @@ class ContextAwareFaker:
 
     @classmethod
     def generate_passport(cls) -> str:
+        """여권번호 형식의 가명값을 생성함"""
         letter = random.choice(["M", "S", "G", "D", "R"])
         digits = f"{random.randint(10000000, 99999999):08d}"
         return f"{letter}{digits}"
 
     @classmethod
     def generate_driver_license(cls) -> str:
+        """운전면허번호 형식의 가명값을 생성함"""
         region_code = random.choice(["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "28"])
         yy = f"{random.randint(0, 26):02d}"
         serial = f"{random.randint(100000, 999999):06d}"
@@ -112,6 +137,7 @@ class ContextAwareFaker:
 
     @classmethod
     def generate_business_number(cls) -> str:
+        """사업자등록번호 형식의 가명값을 생성함"""
         part1 = f"{random.randint(100, 999):03d}"
         part2 = f"{random.randint(10, 99):02d}"
         part3 = f"{random.randint(10000, 99999):05d}"
@@ -119,12 +145,14 @@ class ContextAwareFaker:
 
     @classmethod
     def generate_corporate_number(cls) -> str:
+        """법인등록번호 형식의 가명값을 생성함"""
         part1 = f"{random.randint(100000, 999999):06d}"
         part2 = f"{random.randint(1000000, 9999999):07d}"
         return f"{part1}-{part2}"
 
     @classmethod
     def generate_credit_card(cls) -> str:
+        """카드번호 형식의 가명값을 생성함"""
         p1 = f"{random.randint(1000, 9999):04d}"
         p2 = f"{random.randint(1000, 9999):04d}"
         p3 = f"{random.randint(1000, 9999):04d}"
@@ -133,6 +161,7 @@ class ContextAwareFaker:
 
     @classmethod
     def generate_car_plate(cls) -> str:
+        """차량번호 형식의 가명값을 생성함"""
         num = random.choice([f"{random.randint(10, 99):02d}", f"{random.randint(100, 999):03d}"])
         hangeul = random.choice(["가", "나", "다", "라", "마", "거", "너", "더", "러", "머", "고", "노", "도", "로", "모", "구", "누", "두", "루", "무", "하", "허", "호"])
         tail = f"{random.randint(1000, 9999):04d}"
@@ -140,10 +169,12 @@ class ContextAwareFaker:
 
     @classmethod
     def generate_ip_address(cls, fake: Faker) -> str:
+        """IP 주소 형식의 가명값을 생성함"""
         return fake.ipv4() if hasattr(fake, "ipv4") else f"{random.randint(1,223)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
 
     @classmethod
     def faker_value_coherent(cls, fake: Faker, provider: str, col_name: str, row: Any) -> Any:
+        """개인정보 제공자 유형에 맞는 문맥 기반 가명값을 생성함"""
         if provider == "ssn":
             age = cls.extract_context_value(row, ["연령", "나이", "age"])
             gender = cls.extract_context_value(row, ["성별", "gender", "sex"])
@@ -195,6 +226,7 @@ class ContextAwareFaker:
 
 def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42,
               project_id: str = "default", key_version: str = "v1") -> tuple[pd.DataFrame, dict[str, Any]]:
+    """컬럼별 처리 계획에 따라 입력 데이터의 개인정보를 가명화함"""
     fake = Faker("ko_KR")
     Faker.seed(seed)
     random.seed(seed)
@@ -236,6 +268,7 @@ def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42,
     return output, summary
 
 def build_pii_output(raw: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPlan, seed: int) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """합성 결과의 개인정보 컬럼을 원본 문맥과 계획에 따라 처리함"""
     fake = Faker("ko_KR")
     Faker.seed(seed)
     random.seed(seed)
@@ -250,8 +283,8 @@ def build_pii_output(raw: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPla
             continue
         if action in ("mask", "smart_mask"):
             pii_type = spec.get("faker") or spec.get("pii_type")
-            if column in output.columns:
-                output[column] = SmartMasker.mask_series(output[column], pii_type=pii_type)
+            source = output[column] if column in output.columns else _repeat_source_series(raw, column, len(output))
+            output[column] = SmartMasker.mask_series(source, pii_type=pii_type)
             summary[column] = {"action": "mask", "mode": "smart_format_preserving", "pii_type": pii_type}
             continue
         if action == "hash":
@@ -269,4 +302,7 @@ def build_pii_output(raw: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPla
         output[column] = values
         summary[column] = {"action": "faker", "provider": provider, "consistent_mapping": False, "coherent_context": True}
 
+    ordered = [column for column in raw.columns if column in output.columns]
+    extras = [column for column in output.columns if column not in ordered]
+    output = output[ordered + extras]
     return output, {"summary": summary}

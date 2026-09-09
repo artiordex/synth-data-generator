@@ -8,6 +8,11 @@ import pytest
 from hwpx.document import HwpxDocument
 
 from synthetic_engine.common.types import ColumnPlan
+from synthetic_engine.exporters.package_exporter import (
+    make_submission_package_dirs,
+    numbered_submission_filename,
+    synthetic_data_filename,
+)
 from synthetic_engine.exporters.review_documents import build_review_context, build_review_documents
 from synthetic_engine.exporters.template_binding import TEMPLATE_NAMES
 from synthetic_engine.profiling.analyzer import classify_information_type
@@ -331,6 +336,18 @@ def test_numbered_original_file_uses_review_folder_naming(tmp_path):
     data = json.loads((tmp_path / "심의자료_입력내용.json").read_text(encoding="utf-8"))
     assert data["dataset_name"] == "고등학생 진로수업 경험과 진로정보 인식_세종"
     assert data["document_sequence"] == "1."
+
+
+def test_submission_package_uses_docs_folder_and_filename_conventions(tmp_path):
+    original_filename = "1. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx"
+    dirs = make_submission_package_dirs(tmp_path, "job-test", original_filename)
+
+    assert dirs["root"].name == "job-test_고등학생 진로수업 경험과 진로정보 인식_세종"
+    assert dirs["original"].name == "원본데이터_세종"
+    assert dirs["synthetic"].name == "합성데이터_세종"
+    assert dirs["review"].name == "심의자료_세종"
+    assert synthetic_data_filename("고등학생 진로수업 경험과 진로정보 인식_세종", "1.", ".xlsx") == "1. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx"
+    assert numbered_submission_filename("1. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx", 1) == "01. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx"
 
 
 def test_empty_data_has_no_old_samples(tmp_path):

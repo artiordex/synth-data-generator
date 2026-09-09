@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: dp.py
+# 경로: packages/synthetic_engine/synthetic_engine/privacy/dp.py
+# 목적: 수치형 데이터에 차분 프라이버시 노이즈를 적용함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import math
 from typing import Any
@@ -6,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 class DifferentialPrivacyManager:
+    """차분 프라이버시 적용을 위한 노이즈 처리를 제공함"""
     @staticmethod
     def apply_laplace_noise(
         df: pd.DataFrame,
@@ -14,6 +23,7 @@ class DifferentialPrivacyManager:
         delta: float = 1e-5,
         seed: int = 42,
     ) -> tuple[pd.DataFrame, dict[str, Any]]:
+        """수치형 컬럼에 라플라스 노이즈를 적용한 결과와 통계를 반환함"""
         if epsilon <= 0:
             return df, {"enabled": False, "epsilon": epsilon, "delta": delta}
 

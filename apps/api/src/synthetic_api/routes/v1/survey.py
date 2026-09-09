@@ -1,3 +1,11 @@
+"""
+파일명: survey.py
+경로: apps/api/src/synthetic_api/routes/v1/survey.py
+목적: 설문 모듈 분석·합성·다운로드 API를 제공함
+작성자: 개발팀
+작성일: 2026-09-09
+수정일: 2026-09-09
+"""
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
@@ -64,7 +72,7 @@ def _load_survey_tables(file_names: List[str]) -> Dict[str, pd.DataFrame]:
     return tables
 
 
-@router.post("/inspect")
+@router.post("/inspect", summary="설문조사 다중 모듈 구조 및 공통키 분석", description="여러 설문 모듈 파일의 응답자 식별자(ID), 리커트 척도, 공통 문항 구조 및 결합 적합도를 검사합니다.")
 def inspect_survey_modules(req: SurveyInspectRequest):
     """
     다중 설문 파일들을 업로드한 후 공통 키, 1:1 행 매핑 정합성, 조건부 분기 규칙, 리커트 척도를 자동 분석합니다.
@@ -224,7 +232,7 @@ def _run_survey_synthesis_task(job_id: str, req: SurveyGenerateRequest):
         SURVEY_JOBS[job_id]["error"] = str(exc)
 
 
-@router.post("/generate")
+@router.post("/generate", summary="복합 설문 모듈 통합 합성 데이터 생성", description="설문 응답 간 논리적 분기 규칙 및 리커트 척도 순서성을 보존하며 멀티 모듈 설문 합성데이터 및 심의 패키지를 생성합니다.")
 def generate_survey_synthesis(req: SurveyGenerateRequest):
     job_id = f"survey-{uuid.uuid4().hex[:8]}"
     SURVEY_JOBS[job_id] = {
@@ -250,7 +258,7 @@ def generate_survey_synthesis(req: SurveyGenerateRequest):
     }
 
 
-@router.get("/status/{job_id}")
+@router.get("/status/{job_id}", summary="설문 합성 작업 진행 상태 조회", description="비동기 실행 중인 설문 합성 작업의 단계별 진행률, 상태 메시지 및 완료 여부를 조회합니다.")
 def get_survey_job_status(job_id: str):
     job = SURVEY_JOBS.get(job_id)
     if not job:
@@ -258,7 +266,7 @@ def get_survey_job_status(job_id: str):
     return job
 
 
-@router.get("/download/{job_id}")
+@router.get("/download/{job_id}", summary="설문 합성 결과물 전체 ZIP 패키지 다운로드", description="합성된 설문 모듈별 데이터와 종합 심의 평가 리포트가 압축된 ZIP 파일을 다운로드합니다.")
 def download_survey_package(job_id: str):
     job = SURVEY_JOBS.get(job_id)
     if not job or job.get("status") != "completed":
@@ -273,7 +281,7 @@ def download_survey_package(job_id: str):
     )
 
 
-@router.get("/file/{job_id}/{filename}")
+@router.get("/file/{job_id}/{filename}", summary="설문 합성 개별 산출물 파일 다운로드", description="특정 설문 합성 작업 결과물 폴더 내의 개별 CSV 또는 리포트 파일을 다운로드합니다.")
 def download_survey_single_file(job_id: str, filename: str):
     job = SURVEY_JOBS.get(job_id)
     if not job or job.get('status') != 'completed':

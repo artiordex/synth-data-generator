@@ -14,7 +14,7 @@ def find_project_root() -> Path:
 PROJECT_ROOT = find_project_root()
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = 'Enterprise Synthetic Data Platform API'
+    PROJECT_NAME: str = '사내 데이터 생성기 API'
     VERSION: str = '2.1.0'
     API_V1_PREFIX: str = '/api/v1'
     

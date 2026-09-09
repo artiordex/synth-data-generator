@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: correlation.py
+# 경로: packages/synthetic_engine/synthetic_engine/quality/correlation.py
+# 목적: 원본과 합성 데이터의 컬럼 간 상관관계를 비교함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import math
 from typing import Any
@@ -7,6 +15,7 @@ import pandas as pd
 from ..common.types import ColumnPlan
 
 def fast_cramers_v(x_codes: np.ndarray, y_codes: np.ndarray, n_x: int, n_y: int) -> float:
+    """범주형 코드 배열에서 Cramér's V를 빠르게 계산함"""
     """Vectorized calculation of Cramér's V from factorized categorical codes using 2D bincount."""
     if n_x <= 1 or n_y <= 1 or len(x_codes) == 0:
         return 0.0
@@ -36,12 +45,14 @@ def fast_cramers_v(x_codes: np.ndarray, y_codes: np.ndarray, n_x: int, n_y: int)
     return float(np.sqrt(phi2corr / denom))
 
 def cramers_v(x: pd.Series, y: pd.Series) -> float:
+    """두 범주형 시리즈의 Cramér's V를 계산함"""
     """Calculate Cramér's V statistic for categorical-categorical association."""
     x_codes, x_uniques = pd.factorize(x.astype(str))
     y_codes, y_uniques = pd.factorize(y.astype(str))
     return fast_cramers_v(x_codes, y_codes, len(x_uniques), len(y_uniques))
 
 class CorrelationEvaluator:
+    """데이터프레임의 컬럼 상관관계 비교를 제공함"""
     """Evaluates 2D correlation and pairwise association preservation across all variables."""
 
     @staticmethod

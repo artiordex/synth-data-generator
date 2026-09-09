@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: catalog.py
+# 경로: packages/synthetic_engine/synthetic_engine/common/catalog.py
+# 목적: 더미데이터 표준 도메인과 템플릿을 조회함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import json
 import re
@@ -8,12 +16,14 @@ from typing import Any
 CATALOG_PATH = Path(__file__).parent / "domain_catalog.json"
 
 class DomainCatalog:
+    """표준 도메인 사전과 별칭을 메모리에 적재하고 조회함"""
     _domains: list[dict[str, Any]] = []
     _domain_map: dict[str, dict[str, Any]] = {}
     _alias_map: dict[str, dict[str, Any]] = {}
 
     @classmethod
     def _load(cls) -> None:
+        """도메인 카탈로그 파일을 최초 1회 메모리에 적재함"""
         if cls._domains:
             return
         if not CATALOG_PATH.exists():
@@ -30,6 +40,7 @@ class DomainCatalog:
 
     @classmethod
     def list_domains(cls, category: str | None = None) -> list[dict[str, Any]]:
+        """전체 또는 특정 분류의 도메인 목록을 반환함"""
         cls._load()
         if category:
             return [d for d in cls._domains if d.get("category") == category]
@@ -37,6 +48,7 @@ class DomainCatalog:
 
     @classmethod
     def get_categories(cls) -> list[str]:
+        """카탈로그에 정의된 도메인 분류 목록을 반환함"""
         cls._load()
         cats = []
         for d in cls._domains:
@@ -47,6 +59,7 @@ class DomainCatalog:
 
     @classmethod
     def get_domain(cls, domain_id: str) -> dict[str, Any] | None:
+        """도메인 식별자로 표준 도메인을 조회함"""
         cls._load()
         return cls._domain_map.get(domain_id)
 

@@ -1,8 +1,17 @@
+/**
+ * 파일명: BatchSynthesisPanel.tsx
+ * 경로: apps/web/src/features/synthesis/BatchSynthesisPanel.tsx
+ * 목적: 합성 파일 일괄 처리 화면을 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-09
+ */
 import React, { useEffect, useRef, useState } from 'react';
 import { BatchStatus, BatchUploadItem, JobStatus, ReviewMetadataInput, SynthesisRequest } from '../../types';
 import { uploadDatasets, startBatch, getBatch, cancelBatch, cancelSynthesis, getDownloadUrl } from '../../services/api';
 import { AdvancedSynthesisSettings, defaultSynthesisOptions, SynthesisOptions } from './AdvancedSynthesisSettings';
-import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
+import { TABLE_DATA_FILE_EXTENSIONS, TABLE_DATA_FORMATS_HINT, UnifiedFileUploader } from '../shared/UnifiedFileUploader';
+import { SectionHeader } from '../../components/SectionHeader';
 
 const labels: Record<string, string> = { pending: '대기', processing: '처리 중', completed: '완료',
   completed_with_errors: '일부 실패·취소', failed: '실패', canceled: '취소' };
@@ -12,8 +21,8 @@ const reviewFields: Array<[keyof Pick<ReviewMetadataInput, 'dataset_name' | 'spe
   ['overview', '정보 개요'], ['privacy_plan', '개인정보 처리계획'],
 ];
 
-export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, onClose, onOpenJob }: {
-  initialFiles: File[]; initialBatchId?: string | null; isDarkMode: boolean; onClose: () => void; onOpenJob: (job: JobStatus) => void;
+export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, onClose, onOpenJob, onStepChange }: {
+  initialFiles: File[]; initialBatchId?: string | null; isDarkMode: boolean; onClose: () => void; onOpenJob: (job: JobStatus) => void; onStepChange?: (step: number) => void;
 }) {
   const [files, setFiles] = useState<BatchUploadItem[]>([]);
   const [batch, setBatch] = useState<BatchStatus | null>(null);
@@ -33,6 +42,10 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
   const active = isRunning(batch);
   const field = 'ui-field';
   const good = files.filter(file => file.filename && file.profile && !file.error);
+
+  useEffect(() => {
+    onStepChange?.(batch ? (active ? 3 : 4) : files.length > 0 ? 2 : 1);
+  }, [active, batch, files.length, onStepChange]);
 
   async function upload(selected: File[]) {
     if (!selected.length) return;
@@ -92,16 +105,20 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
   }
 
   return <section className="ui-panel space-y-5 p-6">
-    <div className="flex justify-between items-center"><h2 className="ui-section-title text-base">파일 일괄 처리 · 최대 20개</h2>
-      <button type="button" onClick={onClose} className="ui-button-secondary">단일 파일 화면으로</button></div>
-    <p className="ui-help-text">파일별로 합성·평가·한글 문서 3종을 순서대로 생성합니다. 한 파일이 실패해도 다음 파일을 계속 처리합니다.</p>
+    <SectionHeader
+      title="파일 일괄 처리 · 최대 20개"
+      description="파일별로 합성·평가·한글 문서 3종을 순서대로 생성합니다. 한 파일이 실패해도 다음 파일을 계속 처리합니다."
+      action={<button type="button" onClick={onClose} className="ui-button-secondary">단일 파일 화면으로</button>}
+    />
     {error && <p role="alert" className="text-sm text-rose-600 break-words">{error}</p>}
     {!active && (
       <UnifiedFileUploader
         multiple
         maxFiles={20}
         title="일괄 처리 데이터 파일 업로드 (최대 20개)"
-        subtitle="CSV, Excel(XLSX/XLS), TSV, JSON, Parquet 등 여러 데이터셋을 드래그하거나 선택하여 일괄 업로드합니다."
+        subtitle="CSV, Excel(XLSX/XLS), TSV, TXT, JSON, JSONL, Parquet 등 여러 표 데이터셋을 드래그하거나 선택하여 일괄 업로드합니다."
+        accept={TABLE_DATA_FILE_EXTENSIONS}
+        formatsHint={TABLE_DATA_FORMATS_HINT}
         isUploading={busy}
         busyText="파일 업로드·분석 또는 작업 등록 중…"
         onFilesSelected={selectedFiles => void upload(selectedFiles)}

@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: assessment.py
+# 경로: packages/synthetic_engine/synthetic_engine/quality/assessment.py
+# 목적: 합성 데이터의 품질·개인정보 보호 종합 평가를 수행함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import math
 from typing import Any
@@ -12,6 +20,7 @@ from .correlation import CorrelationEvaluator
 from ..privacy.guardrails import PrivacyGuardrails
 
 def status_by_threshold(value: float | None, pass_max: float, review_max: float, lower_is_better: bool = True) -> str:
+    """평가값을 기준값과 비교해 상태 코드를 반환함"""
     if value is None or not math.isfinite(value): return "REVIEW"
     if lower_is_better:
         if value <= pass_max: return "PASS"
@@ -22,6 +31,7 @@ def status_by_threshold(value: float | None, pass_max: float, review_max: float,
     return "FAIL"
 
 def status_label(status: str) -> str:
+    """평가 상태 코드의 표시 문구를 반환함"""
     return {"PASS": "통과", "REVIEW": "검토 필요", "FAIL": "실패"}.get(status, status)
 
 def build_auto_assessment(
@@ -36,6 +46,7 @@ def build_auto_assessment(
     guardrail_report: dict[str, Any] | None = None,
     quality_threshold: float = 0.8,
 ) -> dict[str, Any]:
+    """품질 평가 결과를 자동 심의 판정 구조로 변환함"""
     anon_metrics = anonymeter_report or {}
     singling_risk = anon_metrics.get("singling_out_risk")
     link_risk = anon_metrics.get("linkability_risk")
@@ -142,6 +153,7 @@ def compute_column_distributions(
     n_bins: int = 20,
     top_categories: int = 12
 ) -> list[dict[str, Any]]:
+    """컬럼별 원본·합성 분포 비교 데이터를 계산함"""
     distributions = []
     
     # 1. Numerical columns
@@ -301,6 +313,7 @@ def evaluate(
     control: pd.DataFrame | None = None,
     quality_threshold: float = 0.8,
 ) -> dict[str, Any]:
+    """합성 결과의 품질과 개인정보 보호 지표를 종합 평가함"""
     comparable_columns = [column for column in plan.categorical + plan.numerical if column in original.columns and column in synthetic.columns]
     original_eval = original[comparable_columns].copy()
     synthetic_eval = synthetic[comparable_columns].copy()

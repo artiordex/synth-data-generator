@@ -1,4 +1,11 @@
-"""Group-based k-anonymity, l-diversity and t-closeness diagnostics."""
+"""
+파일명: klt.py
+경로: packages/synthetic_engine/synthetic_engine/privacy/klt.py
+목적: k-익명성·l-다양성·t-근접성 지표를 계산함
+작성자: 개발팀
+작성일: 2026-09-09
+수정일: 2026-09-09
+"""
 from __future__ import annotations
 
 from typing import Any
@@ -14,6 +21,7 @@ def evaluate_klt(
     l_threshold: int = 2,
     t_threshold: float = 0.2,
 ) -> dict[str, Any]:
+    """준식별자와 민감정보를 기준으로 KLT 지표를 평가함"""
     quasi = [c for c in quasi_identifiers if c in frame.columns]
     sensitive = [c for c in sensitive_columns if c in frame.columns]
     if not quasi:

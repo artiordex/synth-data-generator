@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: analyzer.py
+# 경로: packages/synthetic_engine/synthetic_engine/profiling/analyzer.py
+# 목적: 데이터 구조·개인정보·정보 유형을 분석하고 처리 계획을 생성함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import json
 import re
@@ -80,6 +88,7 @@ JOB_VALUE_PATTERN = re.compile(r"(관리자|전문가|사무|서비스|판매|�
 
 
 def normalize_information_type(value: Any) -> str | None:
+    """정보 유형 입력값을 준식별자 또는 일반정보로 정규화함"""
     text = str(value or "").strip()
     if not text:
         return None
@@ -93,6 +102,7 @@ def normalize_information_type(value: Any) -> str | None:
 
 
 def value_match_ratio(series: pd.Series, pattern: re.Pattern[str] | set[str], sample_size: int = 200) -> float:
+    """컬럼 값이 지정 패턴과 일치하는 비율을 계산함"""
     values = series.dropna().astype(str).map(lambda v: re.sub(r"\s+", "", v.strip())).head(sample_size)
     values = values[values != ""]
     if values.empty:
@@ -104,6 +114,7 @@ def value_match_ratio(series: pd.Series, pattern: re.Pattern[str] | set[str], sa
 
 
 def has_quasi_identifier_values(series: pd.Series) -> bool:
+    """컬럼 값에 준식별자 특성이 있는지 확인함"""
     non_null = int(series.notna().sum())
     if non_null == 0:
         return False
@@ -122,6 +133,7 @@ def has_quasi_identifier_values(series: pd.Series) -> bool:
 
 
 def classify_information_type(column: Any, series: pd.Series | None = None, pii_detected: bool = False) -> str:
+    """컬럼명과 값의 특성으로 정보 유형을 분류함"""
     name = str(column or "").strip()
     if pii_detected:
         return "준식별자"
@@ -149,6 +161,7 @@ def classify_information_type(column: Any, series: pd.Series | None = None, pii_
 
 
 def read_table(path: Path | str, sheet_name: str | int = 0) -> pd.DataFrame:
+    """지원 파일 형식을 판별해 데이터프레임으로 읽음"""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Input file not found: {path}")
@@ -379,6 +392,7 @@ def _read_document_as_dataframe(path: Path) -> pd.DataFrame:
 
 
 def infer_columns(df: pd.DataFrame, ignored: list[str]) -> tuple[list[str], list[str]]:
+    """데이터프레임 컬럼을 범주형과 수치형으로 추론함"""
     categorical: list[str] = []
     numerical: list[str] = []
 
@@ -401,6 +415,7 @@ def infer_columns(df: pd.DataFrame, ignored: list[str]) -> tuple[list[str], list
 
 
 def scan_pii_columns(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
+    """컬럼명·값·본문 패턴으로 개인정보 후보 컬럼을 탐지함"""
     from synthetic_engine.privacy.masker import SmartMasker
     detected: dict[str, dict[str, Any]] = {}
 
@@ -440,6 +455,7 @@ def scan_pii_columns(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
 
 
 def build_column_plan(config: dict[str, Any], df: pd.DataFrame) -> ColumnPlan:
+    """설정과 분석 결과를 합쳐 컬럼별 처리 계획을 생성함"""
     columns_config = config.get("columns", {})
     selected = columns_config.get("selected")
     ignored = list(columns_config.get("ignore", []))
@@ -459,8 +475,10 @@ def build_column_plan(config: dict[str, Any], df: pd.DataFrame) -> ColumnPlan:
 
     ignored = sorted(set(ignored + list(pii.keys())))
     inferred_categorical, inferred_numerical = infer_columns(df, ignored)
-    categorical = list(columns_config.get("categorical", inferred_categorical))
-    numerical = list(columns_config.get("numerical", inferred_numerical))
+    configured_categorical = columns_config.get("categorical")
+    configured_numerical = columns_config.get("numerical")
+    categorical = list(inferred_categorical if configured_categorical is None else configured_categorical)
+    numerical = list(inferred_numerical if configured_numerical is None else configured_numerical)
 
     for column in ignored:
         if column in categorical:

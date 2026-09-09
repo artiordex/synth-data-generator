@@ -1,3 +1,11 @@
+"""
+파일명: time_series.py
+경로: apps/api/src/synthetic_api/routes/v1/time_series.py
+목적: 시계열 데이터 합성 API를 제공함
+작성자: 개발팀
+작성일: 2026-09-09
+수정일: 2026-09-09
+"""
 from pathlib import Path
 import uuid
 from fastapi import APIRouter, HTTPException
@@ -14,7 +22,7 @@ class TimeSeriesRequest(BaseModel):
     target_entities: int | None = Field(default=None, ge=1, le=100000)
     seed: int = 42
 
-@router.post("/generate")
+@router.post("/generate", summary="패널/시계열 데이터 합성 생성", description="개체(Entity) 식별자와 시간(Time) 컬럼 구조를 유지하면서 동적 시계열 패턴 및 패널 길이를 보존하는 합성 데이터를 생성합니다.")
 def generate_time_series(req: TimeSeriesRequest):
     path = settings.UPLOAD_DIR / Path(req.file_name).name
     if not path.exists():

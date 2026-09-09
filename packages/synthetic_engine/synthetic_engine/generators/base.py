@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: base.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/base.py
+# 목적: 합성 생성기의 공통 인터페이스를 정의함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import pickle
 from abc import ABC, abstractmethod

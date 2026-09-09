@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: guardrails.py
+# 경로: packages/synthetic_engine/synthetic_engine/privacy/guardrails.py
+# 목적: 합성 결과의 복제·근접성·재식별 위험을 점검함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-09
+# =============================================================================
 from __future__ import annotations
 import math
 from typing import Any
