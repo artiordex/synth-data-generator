@@ -91,7 +91,15 @@ N과 M은 각각 실제 원본·합성 행 수다. 추가 처리계획 설명은
 uv run --locked --all-packages python scripts/create_review_example.py
 ```
 
-결과: `storage/outputs/review-example/`. HTML은 내용 확인본이며 한글 앱의
+원본 데이터셋 전수검증 및 심의자료 일괄 테스트:
+
+```powershell
+uv run --locked --all-packages python scripts/verify_synthetic_deliberation.py
+```
+
+결과: `storage/outputs/deliberation_audit/audit_summary_report.json` 및 개별 산출물 폴더.
+
+HTML은 내용 확인본이며 한글 앱의
 실제 페이지 렌더링과 동일하지 않다.
 
 `storage/templates/원본데이터 명세서.hwpx`, `합성데이터 명세서.hwpx`,

@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { Upload, RefreshCw } from 'lucide-react';
 
-export const SUPPORTED_FILE_EXTENSIONS = '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq';
-export const SUPPORTED_FORMATS_HINT = 'CSV · XLSX · XLS · TSV · JSON · PARQUET (최대 100MB)';
+export const SUPPORTED_FILE_EXTENSIONS = '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq,.pdf,.hwp,.hwpx,.hwpt,.doc,.docx,.md';
+export const SUPPORTED_FORMATS_HINT = 'CSV · XLSX · TSV · JSON · PARQUET · PDF · HWP · HWPX · HWPT · DOCX · MD (최대 100MB)';
 
 export interface UnifiedFileUploaderProps {
   title?: string;

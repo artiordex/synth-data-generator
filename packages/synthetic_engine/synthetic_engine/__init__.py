@@ -48,6 +48,7 @@ from .quality.jsd import jsd, categorical_jsd, numerical_jsd, binned_keys
 from .quality.assessment import build_auto_assessment, status_by_threshold, status_label, evaluate, compute_column_distributions
 from .exporters.review_documents import build_review_documents
 from .exporters.hwp_exporter import generate_filled_hwp
+from .exporters.document_exporter import export_pseudonymized_document
 from .exporters.package_exporter import make_submission_package_dirs, safe_path_part
 from .generators.base import BaseSynthesizer
 from .generators.registry import register_synthesizer, get_synthesizer, list_synthesizers

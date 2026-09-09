@@ -7,14 +7,14 @@ import pandas as pd
 
 from synthetic_api.application.services.dataset_service import DatasetService
 from synthetic_api.core.config import settings
-from synthetic_engine import read_table, scan_pii_columns, ColumnPlan, apply_pii, evaluate_klt
+from synthetic_engine import read_table, scan_pii_columns, ColumnPlan, apply_pii, evaluate_klt, export_pseudonymized_document
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
 class PseudonymizeRequest(BaseModel):
     file_name: str
     pii_actions: Dict[str, str] = {}  # col_name -> "faker" | "mask" | "hash" | "drop"
-    export_format: str = "csv"  # csv, xlsx
+    export_format: str = "csv"  # csv, xlsx, tsv, json, parquet, pdf, hwp, hwpx, docx, md, txt
     project_id: str = Field(default="default", min_length=1, max_length=100)
     token_key_version: str = Field(default="v1", min_length=1, max_length=30)
     quasi_identifiers: list[str] = Field(default_factory=list)
@@ -103,27 +103,41 @@ async def pseudonymize_dataset(req: PseudonymizeRequest):
 
     uid = uuid.uuid4().hex[:8]
     stem = Path(req.file_name).stem
-    fmt = req.export_format.lower()
+    fmt = req.export_format.lower().strip()
+    ext_map = {
+        "xlsx": "xlsx", "xls": "xlsx",
+        "tsv": "tsv",
+        "json": "json",
+        "parquet": "parquet", "pq": "parquet",
+        "pdf": "pdf",
+        "hwp": "hwp",
+        "hwpx": "hwpx",
+        "hwpt": "hwpt",
+        "docx": "docx", "doc": "docx",
+        "md": "md",
+        "txt": "txt",
+    }
+    out_ext = ext_map.get(fmt, "csv")
+    out_name = f"pseudonymized_{stem}_{uid}.{out_ext}"
+    out_path = pseudo_dir / out_name
 
-    if fmt in ("xlsx", "xls"):
-        out_name = f"pseudonymized_{stem}_{uid}.xlsx"
-        out_path = pseudo_dir / out_name
-        pseudo_df.to_excel(out_path, index=False)
-    elif fmt == "tsv":
-        out_name = f"pseudonymized_{stem}_{uid}.tsv"
-        out_path = pseudo_dir / out_name
-        pseudo_df.to_csv(out_path, sep="\t", index=False, encoding="utf-8-sig")
-    elif fmt == "json":
-        out_name = f"pseudonymized_{stem}_{uid}.json"
-        out_path = pseudo_dir / out_name
-        pseudo_df.to_json(out_path, orient="records", force_ascii=False, indent=2)
-    elif fmt in ("parquet", "pq"):
-        out_name = f"pseudonymized_{stem}_{uid}.parquet"
-        out_path = pseudo_dir / out_name
-        pseudo_df.to_parquet(out_path, index=False)
-    else:
-        out_name = f"pseudonymized_{stem}_{uid}.csv"
-        out_path = pseudo_dir / out_name
+    replacements = []
+    if "문서_내용" in raw_df.columns and "문서_내용" in pseudo_df.columns:
+        for orig_val, pseudo_val in zip(raw_df["문서_내용"].dropna(), pseudo_df["문서_내용"].dropna()):
+            o_str, p_str = str(orig_val).strip(), str(pseudo_val).strip()
+            if o_str and p_str and o_str != p_str:
+                replacements.append((o_str, p_str))
+
+    try:
+        export_pseudonymized_document(
+            pseudo_df,
+            target_fmt=fmt,
+            output_path=out_path,
+            original_filename=req.file_name,
+            original_filepath=file_path,
+            replacements=replacements
+        )
+    except Exception:
         pseudo_df.to_csv(out_path, index=False, encoding="utf-8-sig")
     download_url = f"/api/v1/files/download?path={out_path.as_posix()}"
     privacy_metrics = evaluate_klt(

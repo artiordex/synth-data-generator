@@ -52,6 +52,15 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
       const prof = await getDatasetProfile(uploadRes.filename);
       setProfile(prof);
 
+      // Auto-detect export format from original file extension
+      const ext = selectedFile.name.split('.').pop()?.toLowerCase() || '';
+      if (['pdf', 'hwp', 'hwpx', 'hwpt', 'docx', 'doc', 'md', 'xlsx', 'xls', 'tsv', 'json', 'parquet', 'pq', 'txt'].includes(ext)) {
+        if (ext === 'doc') setExportFormat('docx');
+        else if (ext === 'pq') setExportFormat('parquet');
+        else if (ext === 'xls') setExportFormat('xlsx');
+        else setExportFormat(ext);
+      }
+
       // Default actions for detected PII (or all columns if general document)
       const defaultActions: Record<string, string> = {};
       prof.columns.forEach(col => {
@@ -120,18 +129,20 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
 
       {/* Step 1: Upload Section */}
       {!profile && (
-        <UnifiedFileUploader
-          title="가명처리할 데이터 및 문서 파일 업로드"
-          subtitle="CSV, XLSX, TSV, JSON, Parquet뿐만 아니라 PDF, 한글(HWP/HWPX), 워드(DOCX/DOC), 마크다운(MD) 문서를 업로드하면 즉시 PII 자동 탐지 및 스마트 가명화 계획을 수립합니다."
-          accept=".csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq,.pdf,.hwp,.hwpx,.doc,.docx,.md"
-          formatsHint="CSV · XLSX · TSV · JSON · PARQUET · PDF · HWP · HWPX · DOCX · MD (최대 100MB)"
-          isUploading={isUploading}
-          busyText="파일 업로드 및 PII 자동 탐지 중..."
-          onFilesSelected={([selectedFile]) => {
-            if (selectedFile) handleFileUpload(selectedFile);
-          }}
-          onError={msg => setErrorMsg(msg)}
-        />
+        <div className="space-y-4">
+          <UnifiedFileUploader
+            title="가명처리할 데이터셋 또는 사내 문서 파일 업로드"
+            subtitle="CSV, Excel, TSV, JSON, Parquet 데이터셋 또는 HWP, HWPX, HWPT, Word, PDF, MD 문서를 드래그하거나 선택하세요."
+            accept=".csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq,.pdf,.hwp,.hwpx,.hwpt,.doc,.docx,.md"
+            formatsHint="CSV · XLSX · TSV · JSON · PARQUET · HWP · HWPX · HWPT · DOCX · PDF · MD (최대 100MB)"
+            isUploading={isUploading}
+            busyText="파일 업로드 및 PII 자동 탐지 중..."
+            onFilesSelected={([selectedFile]) => {
+              if (selectedFile) handleFileUpload(selectedFile);
+            }}
+            onError={msg => setErrorMsg(msg)}
+          />
+        </div>
       )}
 
       {/* Step 2: Inspection & Action Configuration */}
@@ -278,12 +289,12 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                                 : isDarkMode ? 'bg-slate-950 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
                             }`}
                           >
-                            <option value="mask">🛡️ 스마트 부분 마스킹 (주민번호 성별 보존 등)</option>
-                            <option value="faker">🎭 가명 치환 (한국형 Faker 가상값 생성)</option>
-                            <option value="token">🔑 프로젝트 일관 토큰 (HMAC)</option>
-                            <option value="hash">🔒 일방향 암호화 (SHA-256 해시)</option>
-                            <option value="drop">❌ 컬럼 삭제 (완전 제거)</option>
-                            <option value="none">⚪ 원본 유지 (가명화 미적용)</option>
+                            <option value="mask">스마트 부분 마스킹 (주민번호 성별 보존 등)</option>
+                            <option value="faker">가명 치환 (한국형 Faker 가상값 생성)</option>
+                            <option value="token">프로젝트 일관 토큰 (HMAC)</option>
+                            <option value="hash">일방향 암호화 (SHA-256 해시)</option>
+                            <option value="drop">컬럼 삭제 (완전 제거)</option>
+                            <option value="none">원본 유지 (가명화 미적용)</option>
                           </select>
                         </td>
                       </tr>
@@ -313,34 +324,39 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
 
             {/* Execution Controls */}
             <div className="pt-4 border-t dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <span className={`text-xs font-bold shrink-0 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                   내보내기 포맷:
                 </span>
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                    <input
-                      type="radio"
-                      name="pseudo_fmt"
-                      value="csv"
-                      checked={exportFormat === 'csv'}
-                      onChange={() => setExportFormat('csv')}
-                      className="text-emerald-600"
-                    />
-                    <span>CSV (UTF-8 BOM)</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs cursor-pointer ml-3">
-                    <input
-                      type="radio"
-                      name="pseudo_fmt"
-                      value="xlsx"
-                      checked={exportFormat === 'xlsx'}
-                      onChange={() => setExportFormat('xlsx')}
-                      className="text-emerald-600"
-                    />
-                    <span>Excel (XLSX)</span>
-                  </label>
-                </div>
+                <select
+                  value={exportFormat}
+                  onChange={e => setExportFormat(e.target.value)}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold outline-none transition-all ${
+                    isDarkMode ? 'bg-slate-950 border-slate-700 text-emerald-400' : 'bg-white border-slate-300 text-emerald-700'
+                  }`}
+                >
+                  <optgroup label="문서 내보내기">
+                    <option value="pdf">PDF 문서 (.pdf)</option>
+                    <option value="hwp">한글 문서 (.hwp)</option>
+                    <option value="hwpx">한글 표준 (.hwpx)</option>
+                    <option value="hwpt">한글 템플릿 (.hwpt)</option>
+                    <option value="docx">Word 문서 (.docx)</option>
+                    <option value="md">Markdown (.md)</option>
+                    <option value="txt">텍스트 (.txt)</option>
+                  </optgroup>
+                  <optgroup label="데이터 표 내보내기">
+                    <option value="csv">CSV 파일 (UTF-8 BOM)</option>
+                    <option value="xlsx">Excel 파일 (.xlsx)</option>
+                    <option value="tsv">TSV 파일 (.tsv)</option>
+                    <option value="json">JSON 파일 (.json)</option>
+                    <option value="parquet">Parquet 파일 (.parquet)</option>
+                  </optgroup>
+                </select>
+                <span className="text-[11px] text-slate-400">
+                  {['pdf', 'hwp', 'hwpx', 'hwpt', 'docx', 'md', 'txt'].includes(exportFormat)
+                    ? '원본 문서의 본문 서식 및 가명화된 텍스트가 서식 문서로 출력됩니다.'
+                    : '표 구조 데이터를 가명화하여 데이터셋 파일로 저장합니다.'}
+                </span>
               </div>
 
               <button
@@ -390,7 +406,7 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
               </div>
 
               {/* Toggle Preview: Before vs After */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className={`flex items-center p-1 rounded-xl border text-xs font-semibold ${
                   isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
                 }`}>
@@ -417,49 +433,92 @@ export const PseudonymStudio: React.FC<Props> = ({ isDarkMode }) => {
                 </div>
 
                 <span className="text-[11px] text-slate-400">
-                  {previewTab === 'after' ? '💡 마스킹/가명처리로 변경된 값은 초록색으로 강조됩니다.' : '원본 데이터 미리보기'}
+                  {previewTab === 'after' ? '마스킹/가명처리로 변경된 값은 초록색으로 강조 표시됩니다.' : '원본 데이터 미리보기'}
                 </span>
               </div>
 
-              {/* Data Grid */}
-              <div className="overflow-x-auto max-h-80 border rounded-xl dark:border-slate-800">
-                <table className="w-full text-left text-xs min-w-[500px]">
-                  <thead className={`sticky top-0 ${isDarkMode ? 'bg-slate-950 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
-                    <tr>
-                      {result.columns.map(c => (
-                        <th key={c} className="py-2.5 px-3 font-semibold border-b dark:border-slate-800 whitespace-nowrap">
-                          {c}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
-                    {(previewTab === 'after' ? result.pseudonymized_preview : result.original_preview).map((row, idx) => (
-                      <tr key={idx} className={isDarkMode ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
-                        {result.columns.map(c => {
-                          const val = row[c] !== undefined && row[c] !== null ? String(row[c]) : '';
-                          const origVal = result.original_preview[idx]?.[c] !== undefined && result.original_preview[idx]?.[c] !== null ? String(result.original_preview[idx]?.[c]) : '';
-                          const isChanged = previewTab === 'after' && val !== origVal && val.trim() !== '';
+              {/* If Document Narrative Text ("문서_내용" column present), render formatted Document Card View */}
+              {result.columns.includes('문서_내용') ? (
+                <div className={`p-4 rounded-xl border space-y-3 font-sans max-h-96 overflow-y-auto ${
+                  isDarkMode ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="text-xs font-bold text-emerald-500 flex items-center justify-between border-b pb-2 border-slate-700/40">
+                    <span>가명 처리 문서 본문 화면 미리보기</span>
+                    <span className="text-[11px] font-normal text-slate-400">
+                      총 {(previewTab === 'after' ? result.pseudonymized_preview : result.original_preview).length}개 문단
+                    </span>
+                  </div>
+                  <div className="space-y-2.5 text-xs leading-relaxed">
+                    {(previewTab === 'after' ? result.pseudonymized_preview : result.original_preview).map((row, idx) => {
+                      const textVal = String(row['문서_내용'] || '');
+                      const origTextVal = String(result.original_preview[idx]?.['문서_내용'] || '');
+                      const isChanged = previewTab === 'after' && textVal !== origTextVal;
+                      const paraNum = row['문단번호'] || idx + 1;
 
-                          return (
-                            <td key={c} className="py-2 px-3 whitespace-nowrap">
-                              {isChanged ? (
-                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">
-                                  {val}
-                                </span>
-                              ) : (
-                                <span className={isDarkMode ? 'text-slate-300' : 'text-slate-700'}>
-                                  {val}
-                                </span>
-                              )}
-                            </td>
-                          );
-                        })}
+                      return (
+                        <div key={idx} className={`p-2.5 rounded-lg border text-xs leading-relaxed flex items-start gap-3 ${
+                          isChanged
+                            ? isDarkMode ? 'bg-emerald-950/30 border-emerald-700/50 text-emerald-200' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                            : isDarkMode ? 'bg-slate-900/50 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                        }`}>
+                          <span className="px-2 py-0.5 rounded bg-slate-500/20 text-slate-400 font-mono text-[10px] font-bold shrink-0 mt-0.5">
+                            P{paraNum}
+                          </span>
+                          <div className="flex-1 break-all">
+                            {isChanged ? (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">
+                                {textVal}
+                              </span>
+                            ) : (
+                              <span>{textVal}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Standard Data Grid for Tabular Datasets */
+                <div className="overflow-x-auto max-h-80 border rounded-xl dark:border-slate-800">
+                  <table className="w-full text-left text-xs min-w-[500px]">
+                    <thead className={`sticky top-0 ${isDarkMode ? 'bg-slate-950 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
+                      <tr>
+                        {result.columns.map(c => (
+                          <th key={c} className="py-2.5 px-3 font-semibold border-b dark:border-slate-800 whitespace-nowrap">
+                            {c}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
+                      {(previewTab === 'after' ? result.pseudonymized_preview : result.original_preview).map((row, idx) => (
+                        <tr key={idx} className={isDarkMode ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
+                          {result.columns.map(c => {
+                            const val = row[c] !== undefined && row[c] !== null ? String(row[c]) : '';
+                            const origVal = result.original_preview[idx]?.[c] !== undefined && result.original_preview[idx]?.[c] !== null ? String(result.original_preview[idx]?.[c]) : '';
+                            const isChanged = previewTab === 'after' && val !== origVal && val.trim() !== '';
+
+                            return (
+                              <td key={c} className="py-2 px-3 whitespace-nowrap">
+                                {isChanged ? (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">
+                                    {val}
+                                  </span>
+                                ) : (
+                                  <span className={isDarkMode ? 'text-slate-300' : 'text-slate-700'}>
+                                    {val}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -192,11 +192,57 @@ def read_table(path: Path | str, sheet_name: str | int = 0) -> pd.DataFrame:
     if suffix in {".parquet", ".pq"}:
         return pd.read_parquet(path)
 
-    # Document files (PDF, HWP, HWPX, DOCX, DOC, MD)
-    if suffix in {".pdf", ".hwp", ".hwpx", ".docx", ".doc", ".md"}:
+    # Document files (PDF, HWP, HWPX, HWPT, DOCX, DOC, MD)
+    if suffix in {".pdf", ".hwp", ".hwpx", ".hwpt", ".docx", ".doc", ".md"}:
         return _read_document_as_dataframe(path)
 
-    raise ValueError(f"Unsupported input file type: {suffix} (지원 형식: CSV, XLSX, XLS, TSV, JSON, PARQUET, PDF, HWP, HWPX, DOCX, MD)")
+    raise ValueError(f"Unsupported input file type: {suffix} (지원 형식: CSV, XLSX, XLS, TSV, JSON, PARQUET, PDF, HWP, HWPX, HWPT, DOCX, MD)")
+
+
+def _extract_hwp_text_pure(path: Path) -> list[str]:
+    """Pure-python fallback to extract text from HWP binary stream using olefile & zlib."""
+    lines = []
+    try:
+        import olefile
+        import zlib
+        import struct
+        ole = olefile.OleFileIO(str(path))
+        sec_names = sorted([p for p in ole.listdir() if len(p) >= 2 and p[0] == "BodyText" and p[1].startswith("Section")])
+        for sec_p in sec_names:
+            sec_bytes = ole.openstream(sec_p).read()
+            try:
+                decomp = zlib.decompress(sec_bytes, -15)
+            except Exception:
+                try:
+                    decomp = zlib.decompress(sec_bytes)
+                except Exception:
+                    continue
+            pos = 0
+            while pos + 4 <= len(decomp):
+                header = struct.unpack("<I", decomp[pos:pos + 4])[0]
+                pos += 4
+                tag_id = header & 0x3FF
+                size = (header >> 20) & 0xFFF
+                if size == 0xFFF:
+                    if pos + 4 > len(decomp):
+                        break
+                    size = struct.unpack("<I", decomp[pos:pos + 4])[0]
+                    pos += 4
+                if pos + size > len(decomp):
+                    break
+                payload = decomp[pos:pos + size]
+                pos += size
+                if tag_id == 67:  # HWPTAG_STRING / HWPTAG_TEXT
+                    txt = payload.decode("utf-16le", errors="ignore").strip()
+                    if txt:
+                        for l in txt.splitlines():
+                            l_clean = l.strip()
+                            if l_clean:
+                                lines.append(l_clean)
+        ole.close()
+    except Exception:
+        pass
+    return lines
 
 
 def _read_document_as_dataframe(path: Path) -> pd.DataFrame:
@@ -293,7 +339,7 @@ def _read_document_as_dataframe(path: Path) -> pd.DataFrame:
         except Exception:
             pass
 
-    elif suffix == ".hwp":
+    elif suffix in {".hwp", ".hwpt"}:
         try:
             res = subprocess.run(["hwp5txt", str(path)], capture_output=True)
             txt = res.stdout.decode("utf-8", errors="ignore").strip()
@@ -302,6 +348,11 @@ def _read_document_as_dataframe(path: Path) -> pd.DataFrame:
                 return pd.DataFrame({"문단번호": list(range(1, len(lines) + 1)), "문서_내용": lines})
         except Exception:
             pass
+
+        # Pure Python OLE fallback for HWP
+        pure_lines = _extract_hwp_text_pure(path)
+        if pure_lines:
+            return pd.DataFrame({"문단번호": list(range(1, len(pure_lines) + 1)), "문서_내용": pure_lines})
 
     elif suffix == ".md":
         try:
