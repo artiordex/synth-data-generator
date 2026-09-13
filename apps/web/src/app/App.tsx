@@ -308,6 +308,9 @@ export default function App() {
         icon: ArrowLeftRight,
         steps: converterSteps,
         activeStep: converterStep,
+        onSelectStep: (stepItem) => {
+          setConverterStep(stepItem.id);
+        },
       };
     }
     if (activeTab === 'synthetic') {
@@ -474,7 +477,12 @@ export default function App() {
               <QuickDummyBuilder isDarkMode={isDarkMode} onStepChange={setDummyStep} />
             )}
             {activeTab === 'converter' && (
-              <DataConverterStudio isDarkMode={isDarkMode} onStepChange={setConverterStep} />
+              <DataConverterStudio
+                isDarkMode={isDarkMode}
+                onStepChange={setConverterStep}
+                activeStep={converterStep}
+                onSelectStep={setConverterStep}
+              />
             )}
             {activeTab === 'synthetic' && (
               <>

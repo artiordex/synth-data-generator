@@ -1,0 +1,123 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: hwp5_parser.py
+# 경로: packages/synthetic_engine/synthetic_engine/document_conversion/parsers/hwp5_parser.py
+# 목적: HWP 바이너리 문서를 pyhwp를 통해 IR 트리로 파싱함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
+"""Bounded HWP 5 record reading with explicit partial control-tree support."""
+from pathlib import Path
+import struct
+import zlib
+
+from ..core.ir import DocumentIR, SectionIR, ParagraphIR, TextRunIR, TabIR, LineBreakIR, UnsupportedRecordIR, ConversionWarning
+from ..core.source_ref import SourceRef
+from ..exceptions import DocumentConversionError, UnsupportedFeatureError
+
+
+# decompress 작업을 수행함
+def decompress(data: bytes, limit: int = 64 * 1024 ** 2) -> bytes:
+    decoder = zlib.decompressobj(-15)
+    output = decoder.decompress(data, limit + 1)
+    if len(output) > limit or decoder.unconsumed_tail or not decoder.eof:
+        raise DocumentConversionError('Invalid or oversized compressed HWP stream')
+    return output
+
+
+# records 작업을 수행함
+def records(data: bytes):
+    offset = 0
+    while offset < len(data):
+        start = offset
+        if len(data) - offset < 4:
+            raise DocumentConversionError('Truncated HWP record header')
+        packed, = struct.unpack_from('<I', data, offset)
+        offset += 4
+        tag, level, size = packed & 1023, (packed >> 10) & 1023, packed >> 20
+        if size == 4095:
+            if len(data) - offset < 4:
+                raise DocumentConversionError('Truncated extended HWP size')
+            size, = struct.unpack_from('<I', data, offset)
+            offset += 4
+        if size > len(data) - offset:
+            raise DocumentConversionError('Truncated HWP record payload')
+        yield tag, level, data[offset:offset+size], start
+        offset += size
+
+
+# 문단 텍스트 작업을 수행함
+def paragraph_text(payload: bytes, ref: SourceRef) -> ParagraphIR:
+    if len(payload) % 2:
+        raise DocumentConversionError('Odd length HWP UTF-16 text')
+    paragraph, pending = ParagraphIR(source_ref=ref), bytearray()
+    offset = 0
+    while offset < len(payload):
+        value, = struct.unpack_from('<H', payload, offset)
+        if value >= 32:
+            pending.extend(payload[offset:offset+2])
+            offset += 2
+            continue
+        if pending:
+            paragraph.inlines.append(TextRunIR(pending.decode('utf-16-le'), source_ref=ref))
+            pending.clear()
+        if value == 9:
+            paragraph.inlines.append(TabIR(source_ref=ref))
+        elif value == 10:
+            paragraph.inlines.append(LineBreakIR(source_ref=ref))
+        # HWP inline and extended controls occupy eight UTF-16 units.
+        size = 16 if value in {1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} else 2
+        if offset + size > len(payload):
+            raise DocumentConversionError('Truncated HWP text control')
+        offset += size
+    if pending:
+        paragraph.inlines.append(TextRunIR(pending.decode('utf-16-le'), source_ref=ref))
+    return paragraph
+
+
+class Hwp5Parser:
+    # parse 작업을 수행함
+    def parse(self, path: Path) -> DocumentIR:
+        import olefile
+        document = DocumentIR(source_format='hwp', source_path=str(path))
+        with olefile.OleFileIO(path) as archive:
+            header = archive.openstream('FileHeader').read()
+            if len(header) < 40 or not header.startswith(b'HWP Document File'):
+                raise DocumentConversionError('Not an HWP 5 document')
+            flags, = struct.unpack_from('<I', header, 36)
+            if flags & 6:
+                raise UnsupportedFeatureError('Encrypted/distribution HWP is unsupported')
+            streams = archive.listdir()
+            if len(streams) > 10000:
+                raise DocumentConversionError('Too many HWP streams')
+            total = 0
+            for entry in streams:
+                size = archive.get_size(entry)
+                total += size
+                if size > 64 * 1024 ** 2 or total > 256 * 1024 ** 2:
+                    raise DocumentConversionError('HWP stream size limit exceeded')
+                document.resources.add(archive.openstream(entry).read())
+            sections = sorted((p for p in streams if len(p) == 2 and p[0] == 'BodyText' and p[1].startswith('Section')),
+                              key=lambda p: int(p[1][7:]))
+            if not sections:
+                raise DocumentConversionError('HWP BodyText sections are missing')
+            expanded_total = 0
+            for index, entry in enumerate(sections, 1):
+                data = archive.openstream(entry).read()
+                if flags & 1:
+                    data = decompress(data)
+                expanded_total += len(data)
+                if expanded_total > 256 * 1024 ** 2:
+                    raise DocumentConversionError('Expanded HWP document exceeds size limit')
+                section = SectionIR(source_ref=SourceRef('hwp', section_no=index))
+                document.sections.append(section)
+                for tag, level, payload, offset in records(data):
+                    ref = SourceRef('hwp', section_no=index, record_offset=offset, object_id='/'.join(entry))
+                    if tag == 67:
+                        section.elements.append(paragraph_text(payload, ref))
+                    else:
+                        section.elements.append(UnsupportedRecordIR(tag, level, payload, source_ref=ref))
+        document.warnings.append(ConversionWarning('HWP5_PARTIAL_CONTROL_TREE',
+            'Paragraph text and raw records are preserved. Styles, tables, images, controls and line geometry are not yet semantically mapped.'))
+        return document

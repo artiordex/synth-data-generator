@@ -27,20 +27,60 @@ import {
   ExternalLink,
   Maximize2,
   Minimize2,
+  ChevronRight,
+  Sliders,
 } from 'lucide-react';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
-import { convertFile, ConvertResponse, getDownloadUrl } from '../../services/api';
+import { convertFile, ConvertResponse, getDownloadUrl, verifyDownloadUrl } from '../../services/api';
 import { MarkdownPreviewStudio } from './MarkdownPreviewStudio';
+import { DatasetComparisonStudio } from './DatasetComparisonStudio';
 
 interface Props {
   isDarkMode: boolean;
   onStepChange?: (step: number) => void;
+  activeStep?: number;
+  onSelectStep?: (step: number) => void;
 }
 
 const SUPPORTED_CONVERTER_EXTENSIONS =
-  '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq,.hwp,.hwpx,.doc,.docx,.pdf,.md';
+  '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.xml,.parquet,.pq,.hwp,.hwpx,.doc,.docx,.pdf,.md,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.heic';
 
-export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange }) => {
+const DOCUMENT_REVIEW_HTML_FIRST_FORMATS = new Set([
+  'pdf',
+  'hwp',
+  'hwpx',
+  'doc',
+  'docx',
+  'png',
+  'jpg',
+  'jpeg',
+  'tif',
+  'tiff',
+  'bmp',
+  'webp',
+  'heic',
+]);
+
+const chooseDocumentReviewTab = (
+  sourceFormat?: string,
+  targetFormat?: string,
+  hasHtmlPreview?: boolean
+): 'html' | 'markdown' => {
+  if (!hasHtmlPreview) return 'markdown';
+  const source = sourceFormat?.trim().toLowerCase() || '';
+  const target = targetFormat?.trim().toLowerCase() || '';
+  if (['html', 'htm'].includes(target)) return 'html';
+  if (DOCUMENT_REVIEW_HTML_FIRST_FORMATS.has(source)) return 'html';
+  if (['md', 'markdown', 'txt'].includes(target)) return 'markdown';
+  return 'html';
+};
+
+export const DataConverterStudio: React.FC<Props> = ({
+  isDarkMode,
+  onStepChange,
+  activeStep,
+  onSelectStep,
+}) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileCategory, setFileCategory] = useState<'document' | 'dataset' | null>(null);
   const [targetFormat, setTargetFormat] = useState<string>('md');
@@ -52,15 +92,53 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
   const [copiedHtml, setCopiedHtml] = useState<boolean>(false);
   const [htmlPreviewTab, setHtmlPreviewTab] = useState<'visual' | 'code'>('visual');
   const [isHtmlFullScreen, setIsHtmlFullScreen] = useState<boolean>(false);
+  const [downloadCheckStatus, setDownloadCheckStatus] = useState<'idle' | 'checking' | 'ready' | 'missing' | 'failed'>('idle');
+  const hasDocumentPreviewResult = Boolean(
+    result?.category === 'document' && (result.markdown_preview || result.html_preview)
+  );
 
   useEffect(() => {
     onStepChange?.(result ? 4 : isConverting ? 3 : selectedFile ? 2 : 1);
   }, [isConverting, onStepChange, result, selectedFile]);
 
+  // 상위 워크스페이스 헤더의 단계 선택에 따라 화면 전환 처리함
+  useEffect(() => {
+    if (activeStep === 1) {
+      if (selectedFile || result) {
+        handleReset();
+      }
+    } else if (activeStep === 2) {
+      if (result) {
+        setResult(null);
+      }
+    }
+  }, [activeStep]);
+
+  useEffect(() => {
+    if (!result?.download_url || result.download_ready === false) {
+      setDownloadCheckStatus(result ? 'missing' : 'idle');
+      return;
+    }
+    let cancelled = false;
+    setDownloadCheckStatus('checking');
+    verifyDownloadUrl(result.download_url)
+      .then((ok: boolean) => {
+        if (!cancelled) setDownloadCheckStatus(ok ? 'ready' : 'missing');
+      })
+      .catch(() => {
+        if (!cancelled) setDownloadCheckStatus('failed');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [result]);
+
   useEffect(() => {
     document.body.style.overflow = isHtmlFullScreen ? 'hidden' : '';
+    document.documentElement.style.overflow = isHtmlFullScreen ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     };
   }, [isHtmlFullScreen]);
 
@@ -73,6 +151,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [isHtmlFullScreen]);
 
+  // 업로드 파일 선택 시 확장자를 분석하여 카테고리(문서/데이터셋) 및 기본 타깃 포맷을 자동 설정함
   const handleSelectFile = (file: File) => {
     setErrorMsg(null);
     setResult(null);
@@ -86,7 +165,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
       .replace(/^_|_$/g, '');
     setTableName(cleanName || 'converted_data');
 
-    if (['hwp', 'hwpx', 'doc', 'docx', 'pdf', 'md'].includes(ext)) {
+    if (['hwp', 'hwpx', 'doc', 'docx', 'pdf', 'md', 'png', 'jpg', 'jpeg', 'tif', 'tiff', 'bmp', 'webp', 'heic'].includes(ext)) {
       setFileCategory('document');
       if (ext === 'md') {
         setTargetFormat('html');
@@ -103,10 +182,13 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
     }
   };
 
+  // 선택된 파일과 설정값을 백엔드 API로 전송하여 포맷 변환을 비동기 수행함
   const handleConvert = async () => {
     if (!selectedFile) return;
     setIsConverting(true);
     setErrorMsg(null);
+    setResult(null);
+    setDownloadCheckStatus('idle');
 
     try {
       const res = await convertFile({
@@ -122,6 +204,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
     }
   };
 
+  // 작업 상태 및 미리보기 데이터를 초기화하여 새 변환 준비 상태로 복원함
   const handleReset = () => {
     setSelectedFile(null);
     setFileCategory(null);
@@ -131,8 +214,10 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
     setCopiedHtml(false);
     setHtmlPreviewTab('visual');
     setIsHtmlFullScreen(false);
+    setDownloadCheckStatus('idle');
   };
 
+  // 변환된 마크다운 텍스트를 클립보드에 복사하고 알림 상태를 2초간 유지함
   const handleCopyMarkdown = () => {
     if (result?.markdown_preview) {
       void navigator.clipboard.writeText(result.markdown_preview);
@@ -141,6 +226,7 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
     }
   };
 
+  // 변환된 HTML 소스코드를 클립보드에 복사하고 알림 상태를 2초간 유지함
   const handleCopyHtml = () => {
     if (result?.html_preview) {
       void navigator.clipboard.writeText(result.html_preview);
@@ -149,16 +235,98 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
     }
   };
 
+  // 바이트 단위 파일 크기를 읽기 쉬운 포맷(Bytes, KB, MB) 문자열로 변환함
   const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024) return `${bytes} Bytes`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const fileExt = selectedFile?.name.split('.').pop()?.toLowerCase() || '';
   const showWordDocumentOption = fileCategory === 'document' && !['doc', 'docx'].includes(fileExt);
   const showHwpxDocumentOption = fileCategory === 'document' && fileExt !== 'hwpx';
   const showHwpDocumentOption = fileCategory === 'document' && ['pdf', 'hwpx'].includes(fileExt);
+  const normalizedTargetFormat = result?.target_format?.trim().toLowerCase() || '';
+  const previewMode: 'html' | 'markdown' | 'sql' | 'none' = result
+    ? normalizedTargetFormat === 'sql' && result.markdown_preview
+      ? 'sql'
+      : ['html', 'htm'].includes(normalizedTargetFormat) && result.html_preview
+        ? 'html'
+        : ['md', 'markdown'].includes(normalizedTargetFormat) && result.markdown_preview
+          ? 'markdown'
+          : result.html_preview
+            ? 'html'
+            : result.markdown_preview
+              ? 'markdown'
+              : 'none'
+    : 'none';
+  const isRenderedHtmlFallback = previewMode === 'html' && !['html', 'htm'].includes(normalizedTargetFormat);
+  const quality = result?.document_structure?.quality;
+  const hasQuality = Boolean(quality);
+  const requiresQualityReview = Boolean(
+    result?.status === 'review_required' || quality?.requires_review
+  );
+  const hasEmptyResult = Boolean(
+    result && (result.file_size <= 0 || (
+      result.category === 'document' &&
+      result.document_structure &&
+      result.document_structure.text_length <= 0 &&
+      !result.markdown_preview &&
+      !result.html_preview
+    ))
+  );
+  const apiDownloadReady = Boolean(result?.download_url && (result.download_ready ?? true) && !hasEmptyResult);
+  const downloadReady = apiDownloadReady && downloadCheckStatus === 'ready';
+  const downloadStatusLabel = (() => {
+    if (hasEmptyResult) return '결과가 비어 있어 다운로드 차단';
+    if (result?.download_ready === false) {
+      return result.status === 'review_required'
+        ? '품질 검토 완료 전 다운로드 차단'
+        : '다운로드 준비 안 됨';
+    }
+    if (!result?.download_url) return '다운로드 파일 없음';
+    switch (downloadCheckStatus) {
+      case 'checking':
+        return '다운로드 파일 확인 중';
+      case 'ready':
+        return '다운로드 가능';
+      case 'missing':
+        return '다운로드 파일을 찾을 수 없음';
+      case 'failed':
+        return '다운로드 확인 실패';
+      default:
+        return '다운로드 대기';
+    }
+  })();
+  const reviewPageText = quality?.ocr_review_pages?.length
+    ? `${quality.ocr_review_pages.join(', ')}페이지`
+    : '없음';
+  const averageConfidenceText = quality?.average_confidence == null
+    ? '미측정'
+    : `${(quality.average_confidence * 100).toFixed(1)}%`;
+  const ocrStatusLabel = (() => {
+    if (!hasQuality) return '품질 정보 없음';
+    switch (quality?.ocr_status) {
+      case 'completed':
+        return 'OCR 완료';
+      case 'review_required':
+        return 'OCR 검토 필요';
+      case 'failed':
+        return 'OCR 실패';
+      case 'not_required':
+        return 'OCR 불필요';
+      default:
+        return 'OCR 상태 확인';
+    }
+  })();
+  const ocrStatusClass = !hasQuality
+    ? 'border-slate-500/20 bg-slate-500/10 text-slate-700 dark:text-slate-300'
+    : quality?.requires_review
+    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+    : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+  const documentReviewInitialTab = result
+    ? chooseDocumentReviewTab(result.source_format, result.target_format, Boolean(result.html_preview))
+    : 'markdown';
 
   return (
     <div className="space-y-6">
@@ -178,9 +346,9 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
       {!selectedFile && (
         <UnifiedFileUploader
           title="변환할 데이터셋 또는 사내 문서 파일 업로드"
-          subtitle="CSV, Excel, TSV, JSON, Parquet 데이터셋 또는 HWP, HWPX, Word, PDF 문서를 드래그하거나 선택하세요."
+          subtitle="CSV, Excel, TSV, JSON, XML, Parquet 데이터셋 또는 HWP, HWPX, Word, PDF, 이미지 문서를 드래그하거나 선택하세요."
           accept={SUPPORTED_CONVERTER_EXTENSIONS}
-          formatsHint="CSV · XLSX · TSV · JSON · PARQUET · HWP · HWPX · DOCX · PDF (최대 100MB)"
+          formatsHint="CSV · XLSX · TSV · JSON · XML · PARQUET · HWP · HWPX · DOCX · PDF · PNG · JPG · JPEG · TIFF · BMP · WEBP · HEIC (최대 100MB)"
           onFilesSelected={([file]) => {
             if (file) handleSelectFile(file);
           }}
@@ -562,6 +730,27 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
                   </p>
                 </button>
 
+                {/* XML */}
+                <button
+                  type="button"
+                  onClick={() => setTargetFormat('xml')}
+                  className={`p-3.5 rounded-xl border text-left transition-all ${
+                    targetFormat === 'xml'
+                      ? 'border-accent bg-accent-subtle/80 ring-2 ring-accent/30 shadow-sm'
+                      : 'border-subtle hover:border-accent bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs sm:text-sm text-fg">XML (.xml)</span>
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                      시스템 연계
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-muted">
+                    행과 컬럼 구조를 XML 레코드로 변환하여 공공·사내 시스템 간 데이터 교환에 사용
+                  </p>
+                </button>
+
                 {/* SQL INSERT */}
                 <button
                   type="button"
@@ -631,22 +820,177 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
               )}
             </button>
           </div>
+          {isConverting && fileCategory === 'document' && (
+            <div className="rounded-xl border border-accent/20 bg-accent-subtle/40 p-4 text-xs text-fg-muted">
+              <div className="flex items-center gap-2 font-bold text-fg">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" />
+                <span>페이지 구조와 OCR 품질 정보를 계산하는 중입니다.</span>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {['업로드 확인', '페이지 분석', '출력 파일 생성'].map((stage, index) => (
+                  <div key={stage} className="rounded-lg border border-subtle bg-surface px-3 py-2">
+                    <div className="text-2xs font-bold text-fg-muted">단계 {index + 1}</div>
+                    <div className="mt-0.5 font-semibold text-fg">{stage}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Step 3: Result Card */}
       {result && (
-        <div className="bg-surface border border-subtle rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-subtle pb-5">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  변환 완료
+        <div
+          className={`bg-surface border border-subtle rounded-2xl shadow-sm ${
+            hasDocumentPreviewResult
+              ? 'overflow-visible p-3 sm:p-4 flex flex-col gap-3'
+              : 'p-6 sm:p-8 space-y-6'
+          }`}
+        >
+          {/* 상단 워크플로우 단계 전환 바 */}
+          <div
+            className={`${
+              hasDocumentPreviewResult
+                ? 'shrink-0 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-muted/60 border border-subtle text-xs px-3 py-1.5'
+                : 'shrink-0 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-muted/60 border border-subtle text-xs p-3'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-2xs font-bold uppercase tracking-wider text-fg-muted">워크플로우 단계:</span>
+              <div className="flex items-center gap-1.5 font-medium">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-2.5 py-1 rounded-lg text-fg-muted hover:text-fg hover:bg-surface border border-transparent hover:border-subtle transition-all flex items-center gap-1"
+                  title="파일 업로드 단계로 이동 (새 파일 선택)"
+                >
+                  <span className="w-4 h-4 rounded-full bg-surface-muted flex items-center justify-center text-2xs font-mono">1</span>
+                  <span>파일 업로드</span>
+                </button>
+                <ChevronRight className="w-3.5 h-3.5 text-fg-muted/40" />
+                <button
+                  type="button"
+                  onClick={() => setResult(null)}
+                  className="px-2.5 py-1 rounded-lg text-fg hover:text-accent hover:bg-surface border border-transparent hover:border-subtle transition-all flex items-center gap-1 font-bold"
+                  title="변환 설정 단계로 복귀하여 포맷 또는 옵션 변경"
+                >
+                  <span className="w-4 h-4 rounded-full bg-surface-muted flex items-center justify-center text-2xs font-mono">2</span>
+                  <span>변환 설정 (포맷 변경)</span>
+                </button>
+                <ChevronRight className="w-3.5 h-3.5 text-fg-muted/40" />
+                <span className="px-2.5 py-1 rounded-lg bg-accent/15 text-accent border border-accent/30 font-bold flex items-center gap-1">
+                  <span className="w-4 h-4 rounded-full bg-accent text-white flex items-center justify-center text-2xs font-mono">4</span>
+                  <span>결과 검토</span>
                 </span>
-                <span className="text-xs text-fg-muted font-mono">
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setResult(null)}
+              className="text-xs font-semibold text-accent hover:underline flex items-center gap-1"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>포맷 변경 후 재변환</span>
+            </button>
+          </div>
+
+          {hasDocumentPreviewResult ? (
+            <div className="shrink-0 flex flex-col gap-2 rounded-xl border border-subtle bg-surface-muted/55 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex flex-wrap items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-full text-2xs font-bold border flex items-center gap-1 ${requiresQualityReview ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'}`}>
+                  {requiresQualityReview ? <AlertCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                  {requiresQualityReview ? '변환 결과 검토 필요' : '변환 완료'}
+                </span>
+                {result.document_structure && (
+                  <span className={`px-2 py-0.5 rounded-full text-2xs font-bold border flex items-center gap-1 ${ocrStatusClass}`}>
+                    {quality?.requires_review || !hasQuality ? (
+                      <AlertCircle className="w-3 h-3" />
+                    ) : (
+                      <CheckCircle2 className="w-3 h-3" />
+                    )}
+                    {ocrStatusLabel}
+                  </span>
+                )}
+                <span className="text-2xs text-fg-muted font-mono shrink-0">
                   {result.source_format} → {result.target_format}
                 </span>
+                <h3
+                  className="min-w-[180px] max-w-[42vw] truncate text-sm font-bold text-fg"
+                  title={result.file_name}
+                >
+                  {result.file_name}
+                </h3>
+                <span className="text-2xs text-fg-muted font-mono truncate">
+                  {formatFileSize(result.file_size)}
+                  {result.document_structure?.pages_count != null && ` · ${result.document_structure.pages_count}페이지`}
+                  {result.document_structure?.block_count != null && ` · 블록 ${result.document_structure.block_count}`}
+                  {result.document_structure?.table_count != null && ` · 표 ${result.document_structure.table_count}`}
+                  {result.document_structure?.image_count != null && ` · 이미지 ${result.document_structure.image_count}`}
+                </span>
+              </div>
+
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setResult(null)}
+                  className="ui-button-secondary text-2xs px-2.5 py-1.5 flex items-center gap-1.5"
+                  title="현재 파일을 유지하고 다른 포맷(HTML, DOCX, MD 등)으로 설정을 변경하여 재변환합니다"
+                >
+                  <Sliders className="w-3 h-3 text-accent" />
+                  <span>설정 변경</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="ui-button-secondary text-2xs px-2.5 py-1.5"
+                  title="새로운 파일을 업로드합니다"
+                >
+                  다른 파일
+                </button>
+
+                {downloadReady ? (
+                  <a
+                    href={getDownloadUrl(result.download_url)}
+                    className="ui-button-primary text-2xs px-2.5 py-1.5 shadow-md shadow-accent/20 flex items-center gap-1.5"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>다운로드</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="ui-button-secondary text-2xs px-2.5 py-1.5 flex items-center gap-1.5 opacity-60"
+                  >
+                    {downloadCheckStatus === 'checking' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                    <span>{downloadStatusLabel}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-subtle pb-4 shrink-0">
+            <div>
+              <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center gap-1 ${requiresQualityReview ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'}`}>
+                    {requiresQualityReview ? <AlertCircle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    {requiresQualityReview ? '변환 결과 검토 필요' : '변환 완료'}
+                  </span>
+                  {result.document_structure && (
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center gap-1 ${ocrStatusClass}`}>
+                      {quality?.requires_review || !hasQuality ? (
+                        <AlertCircle className="w-3.5 h-3.5" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      )}
+                      {ocrStatusLabel}
+                    </span>
+                  )}
+                  <span className="text-xs text-fg-muted font-mono">
+                    {result.source_format} → {result.target_format}
+                  </span>
               </div>
               <h3 className="text-base sm:text-lg font-bold text-fg mt-1">
                 {result.file_name}
@@ -673,241 +1017,241 @@ export const DataConverterStudio: React.FC<Props> = ({ isDarkMode, onStepChange 
                   <span className="rounded-md border border-subtle bg-surface-muted px-2 py-1">
                     이미지 {result.document_structure.image_count}
                   </span>
+                  {result.document_structure.quality && !hasDocumentPreviewResult && (
+                    <div className="w-full pt-3" role="status">
+                      <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-surface border border-subtle">
+                        {/* 미리보기 텍스트 보존율 배지 */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-muted border border-subtle">
+                          <span className="text-2xs text-fg-muted font-bold">미리보기 텍스트 보존율:</span>
+                          {result.document_structure.quality.text_coverage != null ? (
+                            <span className={`text-xs font-mono font-bold ${
+                              result.document_structure.quality.text_coverage >= 0.85
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {(result.document_structure.quality.text_coverage * 100).toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="text-xs text-fg-muted">미측정</span>
+                          )}
+                        </div>
+
+                        {/* 평균 신뢰도 배지 */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-muted border border-subtle">
+                          <span className="text-2xs text-fg-muted font-bold">평균 신뢰도:</span>
+                          <span className={`text-xs font-mono font-bold ${
+                            quality?.average_confidence != null && quality.average_confidence >= 0.85
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : quality?.average_confidence != null
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-fg-muted'
+                          }`}>
+                            {averageConfidenceText}
+                          </span>
+                        </div>
+
+                        {/* 검토 페이지 배지 */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-muted border border-subtle">
+                          <span className="text-2xs text-fg-muted font-bold">검토 페이지:</span>
+                          <span className={`text-xs font-semibold ${
+                            quality?.ocr_review_pages?.length ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            {reviewPageText}
+                          </span>
+                        </div>
+
+                        {/* 품질 검증 통과 안내 태그 */}
+                        {quality?.text_coverage != null && quality.text_coverage >= 0.85 && (!quality.warnings || quality.warnings.length === 0) && (
+                          <span className="text-2xs font-bold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            품질 검증 통과
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 경고 목록 */}
+                      {result.document_structure.quality.warnings && result.document_structure.quality.warnings.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {result.document_structure.quality.warnings.map((warning: string, index: number) => (
+                            <p key={index} className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              <span>{warning}</span>
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {result.document_structure && !hasDocumentPreviewResult && (
+                <div className="mt-4 rounded-xl border border-subtle bg-surface-muted/50 p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-fg">OCR 처리 품질</div>
+                      <div className="mt-1 text-xs text-fg-muted">
+                        {ocrStatusLabel} · {quality?.ocr_engine === 'local' ? '로컬 엔진' : '엔진 정보 없음'} · {downloadStatusLabel}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                      <div className="rounded-lg border border-subtle bg-surface px-3 py-2">
+                        <div className="text-2xs font-bold text-fg-muted">페이지</div>
+                        <div className="font-bold text-fg">{result.document_structure?.pages_count ?? 1}</div>
+                      </div>
+                      <div className="rounded-lg border border-subtle bg-surface px-3 py-2">
+                        <div className="text-2xs font-bold text-fg-muted">진행률</div>
+                        <div className="font-bold text-fg">
+                          {quality?.page_progress?.length
+                            ? `${Math.round(quality.page_progress.reduce((sum: number, page: any) => sum + page.progress, 0) / quality.page_progress.length)}%`
+                            : hasQuality ? '100%' : '미확인'}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-subtle bg-surface px-3 py-2">
+                        <div className="text-2xs font-bold text-fg-muted">평균 신뢰도</div>
+                        <div className="font-bold text-fg">{averageConfidenceText}</div>
+                      </div>
+                      <div className="rounded-lg border border-subtle bg-surface px-3 py-2">
+                        <div className="text-2xs font-bold text-fg-muted">저신뢰 영역</div>
+                        <div className="font-bold text-fg">{quality?.low_confidence_regions?.length ?? 0}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!hasQuality && (
+                    <div className="mt-3 rounded-lg border border-slate-500/20 bg-slate-500/10 p-3 text-xs text-fg-muted">
+                      구형 변환 응답이라 OCR 품질 세부 정보가 포함되지 않았습니다. 결과 미리보기와 다운로드 파일을 직접 확인하세요.
+                    </div>
+                  )}
+
+                  {quality?.page_progress && quality.page_progress.length > 0 && (
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {quality.page_progress.slice(0, 6).map((page: any) => (
+                        <div key={page.page} className="rounded-lg border border-subtle bg-surface px-3 py-2 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-fg">{page.page}페이지</span>
+                            <span className={page.status === 'review_required' ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}>
+                              {page.progress}%
+                            </span>
+                          </div>
+                          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-muted">
+                            <div
+                              className={`h-full rounded-full ${page.status === 'review_required' ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                              style={{ width: `${page.progress}%` }}
+                            />
+                          </div>
+                          <div className="mt-1 text-2xs text-fg-muted">{page.message}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {quality?.low_confidence_regions && quality.low_confidence_regions.length > 0 && (
+                    <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+                      <div className="font-bold">검토가 필요한 영역</div>
+                      <div className="mt-1 space-y-1">
+                        {quality.low_confidence_regions.slice(0, 3).map((region: any, index: number) => (
+                          <div key={`${region.label}-${index}`}>
+                            {region.label}: {region.reason}
+                            {region.confidence != null && ` (${(region.confidence * 100).toFixed(1)}%)`}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {downloadCheckStatus === 'missing' && (
+                    <div className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
+                      다운로드 URL은 생성되었지만 서버에서 파일을 찾지 못했습니다. 다시 변환해 주세요.
+                    </div>
+                  )}
+                  {downloadCheckStatus === 'failed' && (
+                    <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+                      다운로드 파일 확인에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도하세요.
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
+                type="button"
+                onClick={() => setResult(null)}
+                className="ui-button-secondary text-xs px-3.5 py-2.5 flex items-center gap-1.5"
+                title="현재 파일을 유지하고 다른 포맷(HTML, DOCX, MD 등)으로 설정을 변경하여 재변환합니다"
+              >
+                <Sliders className="w-3.5 h-3.5 text-accent" />
+                <span>변환 설정 다시 하기 (포맷 변경)</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleReset}
                 className="ui-button-secondary text-xs px-4 py-2.5"
+                title="새로운 파일을 업로드합니다"
               >
                 다른 파일 변환
               </button>
 
-              <a
-                href={getDownloadUrl(result.download_url)}
-                className="ui-button-primary text-xs px-5 py-2.5 shadow-md shadow-accent/20 flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>변환 파일 다운로드</span>
-              </a>
-            </div>
-          </div>
-
-          {/* HTML Content Preview & Live Web Viewer */}
-          {result.html_preview && (
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-fg">
-                    <Globe className="w-4 h-4 text-accent" />
-                    <span>생성된 HTML 웹 문서 미리보기</span>
-                  </div>
-                  {/* Tabs: Visual Preview vs Source Code */}
-                  <div className="flex items-center bg-surface-muted p-0.5 rounded-lg border border-subtle">
-                    <button
-                      type="button"
-                      onClick={() => setHtmlPreviewTab('visual')}
-                      className={`text-2xs font-bold px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                        htmlPreviewTab === 'visual'
-                          ? 'bg-surface text-accent shadow-xs'
-                          : 'text-fg-muted hover:text-fg'
-                      }`}
-                    >
-                      <Eye className="w-3 h-3" />
-                      <span>웹 화면</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHtmlPreviewTab('code')}
-                      className={`text-2xs font-bold px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                        htmlPreviewTab === 'code'
-                          ? 'bg-surface text-accent shadow-xs'
-                          : 'text-fg-muted hover:text-fg'
-                      }`}
-                    >
-                      <Code2 className="w-3 h-3" />
-                      <span>소스 코드</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href={getDownloadUrl(result.download_url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 text-fg-muted hover:text-fg"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>새 탭에서 열기</span>
-                  </a>
-                  <button
-                    type="button"
-                    onClick={handleCopyHtml}
-                    className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 text-accent"
-                  >
-                    {copiedHtml ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-500" />
-                        <span className="text-emerald-500 font-bold">복사 완료!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>HTML 복사</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHtmlPreviewTab('visual');
-                      setIsHtmlFullScreen(value => !value);
-                    }}
-                    className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 text-accent"
-                  >
-                    {isHtmlFullScreen ? (
-                      <>
-                        <Minimize2 className="w-3.5 h-3.5" />
-                        <span>전체화면 닫기</span>
-                      </>
-                    ) : (
-                      <>
-                        <Maximize2 className="w-3.5 h-3.5" />
-                        <span>전체 페이지 보기</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {htmlPreviewTab === 'visual' ? (
-                <div className={`overflow-hidden border border-subtle bg-surface shadow-xs ${
-                  isHtmlFullScreen
-                    ? 'fixed inset-3 z-[9999] flex flex-col rounded-xl'
-                    : 'rounded-xl'
-                }`}>
-                  {isHtmlFullScreen && (
-                    <div className="flex items-center justify-between border-b border-subtle bg-surface px-4 py-2.5">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-bold text-fg">{result.file_name}</div>
-                        <div className="text-2xs font-medium text-fg-muted">
-                          전체 페이지 미리보기 · 내부 스크롤로 모든 페이지 검토
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsHtmlFullScreen(false)}
-                        className="ui-button-secondary px-3 py-1.5 text-xs"
-                      >
-                        <Minimize2 className="h-3.5 w-3.5" />
-                        닫기
-                      </button>
-                    </div>
-                  )}
-                  <iframe
-                    srcDoc={result.html_preview}
-                    title="전체 문서 HTML 미리보기"
-                    sandbox="allow-same-origin allow-scripts"
-                    className={`w-full flex-1 border-0 bg-white ${
-                      isHtmlFullScreen ? 'h-full min-h-0' : 'h-[72vh] min-h-[620px]'
-                    }`}
-                  />
-                </div>
+              {downloadReady ? (
+                <a
+                  href={getDownloadUrl(result.download_url)}
+                  className="ui-button-primary text-xs px-5 py-2.5 shadow-md shadow-accent/20 flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>변환 파일 다운로드</span>
+                </a>
               ) : (
-                <div className="relative rounded-xl border border-subtle bg-surface-muted/40 p-4 max-h-96 overflow-y-auto font-mono text-xs text-fg leading-relaxed whitespace-pre-wrap select-all">
-                  {result.html_preview}
-                </div>
+                <button
+                  type="button"
+                  disabled
+                  className="ui-button-secondary text-xs px-5 py-2.5 flex items-center gap-2 opacity-60"
+                >
+                  {downloadCheckStatus === 'checking' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span>{downloadStatusLabel}</span>
+                </button>
               )}
             </div>
+          </div>
           )}
 
-          {/* Markdown Preview Studio (VS Code Style Live Visual Rendering) */}
-          {result.markdown_preview && result.target_format !== 'SQL' && (
-            <div className="space-y-3">
+          {/* A. 문서 변환 결과: 고충실도 HTML 및 마크다운 전체 연속 스크롤 & 원본 나란히 대조 뷰어 */}
+          {result.category === 'document' && (result.markdown_preview || result.html_preview) && (
+            <div className="h-[82vh] min-h-[720px]">
               <MarkdownPreviewStudio
-                markdown={result.markdown_preview}
+                markdown={result.markdown_preview || ''}
                 fileName={result.file_name}
-                downloadUrl={getDownloadUrl(result.download_url)}
+                downloadUrl={downloadReady ? getDownloadUrl(result.download_url) : undefined}
+                originalFile={selectedFile}
+                originalUrl={result.original_file_url ? getDownloadUrl(result.original_file_url) : undefined}
+                htmlPreview={result.html_preview}
+                pagesCount={result.document_structure?.pages_count}
+                initialRightTab={documentReviewInitialTab}
               />
             </div>
           )}
 
-          {/* SQL Preview Panel */}
-          {result.markdown_preview && result.target_format === 'SQL' && (
+          {/* B. 정형 데이터셋 변환 결과: 원본 테이블과 변환 결과(SQL/Parquet/JSON/CSV) 양쪽 대조 & 전체 연속 스크롤 */}
+          {result.category === 'dataset' && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-fg">
-                  <Code2 className="w-4 h-4 text-accent" />
-                  <span>생성된 SQL INSERT 구문 미리보기</span>
-                </div>
-                <button
-                  onClick={handleCopyMarkdown}
-                  className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 text-accent"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      <span className="text-emerald-500 font-bold">복사 완료!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>SQL 구문 복사</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="relative rounded-xl border border-subtle bg-surface-muted/40 p-4 max-h-96 overflow-y-auto font-mono text-xs text-fg leading-relaxed whitespace-pre-wrap select-all">
-                {result.markdown_preview}
-              </div>
+              <DatasetComparisonStudio
+                originalFile={selectedFile}
+                originalUrl={result.original_file_url ? getDownloadUrl(result.original_file_url) : undefined}
+                originalFilename={result.original_filename || selectedFile?.name}
+                sourceFormat={result.source_format || 'CSV'}
+                targetFormat={result.target_format}
+                fileName={result.file_name}
+                downloadUrl={downloadReady ? getDownloadUrl(result.download_url) : undefined}
+                downloadReady={downloadReady}
+                rowsCount={result.rows_count}
+                columnsCount={result.columns_count}
+                columns={result.columns || []}
+                preview={result.preview || []}
+                markdownPreview={result.markdown_preview}
+                htmlPreview={result.html_preview}
+              />
             </div>
           )}
 
-          {/* Preview for tabular datasets */}
-          {result.preview && result.preview.length > 0 && result.columns && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-fg">
-                  <Table className="w-4 h-4 text-accent" />
-                  <span>변환 데이터 미리보기 (상위 15행)</span>
-                </div>
-                <span className="text-xs text-fg-muted">
-                  총 {result.columns.length}개 컬럼
-                </span>
-              </div>
-
-              <div className="overflow-x-auto rounded-xl border border-subtle bg-surface-muted/30">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-subtle bg-surface-muted/70 text-fg-muted">
-                      {result.columns.map((col, idx) => (
-                        <th key={idx} className="p-2.5 font-semibold whitespace-nowrap">
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-subtle">
-                    {result.preview.map((row, rIdx) => (
-                      <tr key={rIdx} className="hover:bg-surface-muted/50">
-                        {result.columns!.map((col, cIdx) => (
-                          <td key={cIdx} className="p-2.5 whitespace-nowrap text-fg-muted font-mono text-xs">
-                            {row[col] != null ? String(row[col]) : ''}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Document Result Notice */}
+          {/* C. 문서 변환 결과 안내 (미리보기 텍스트가 없는 바이너리 문서 전용) */}
           {result.category === 'document' && !result.markdown_preview && !result.html_preview && (
             <div className="p-4 rounded-xl bg-accent-subtle/50 border border-accent/20 text-xs text-fg leading-relaxed flex items-start gap-3">
               <CheckCircle2 className="w-4 h-4 text-accent shrink-0 mt-0.5" />

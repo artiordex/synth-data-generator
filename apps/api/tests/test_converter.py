@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_converter.py
+# 경로: apps/api/tests/test_converter.py
+# 목적: 문서 및 정형 데이터 변환 API 통합 테스트를 수행함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 import zipfile
 
 from hwpx.document import HwpxDocument
@@ -5,6 +14,7 @@ from hwpx.document import HwpxDocument
 from synthetic_api.routes.v1 import converter
 
 
+# converter PDF 문서 객체 또는 요소를 생성함
 def _make_converter_pdf(path):
     import pymupdf as fitz
 
@@ -21,6 +31,7 @@ def _make_converter_pdf(path):
         doc.save(path)
 
 
+# ordered 워드(DOCX) 객체 또는 요소를 생성함
 def _make_ordered_docx(path):
     content_types = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -82,11 +93,12 @@ def _make_ordered_docx(path):
         archive.writestr("word/document.xml", document)
 
 
+# pure 한글(HWP) to 한글 표준(HWPX) writes valid package 기능의 정상 동작 및 제약조건을 테스트함
 def test_pure_hwp_to_hwpx_writes_valid_package(tmp_path, monkeypatch):
     source = tmp_path / "source.hwp"
     source.write_bytes(b"placeholder")
     target = tmp_path / "target.hwpx"
-    monkeypatch.setattr(converter, "_extract_hwp_paragraphs_pure", lambda _: ["첫 문단", "둘째 문단"])
+    monkeypatch.setattr(converter.service, "_extract_hwp_paragraphs_pure", lambda _: ["첫 문단", "둘째 문단"])
 
     converter._convert_hwp_to_hwpx_pure(source, target)
 
@@ -97,6 +109,7 @@ def test_pure_hwp_to_hwpx_writes_valid_package(tmp_path, monkeypatch):
     assert "둘째 문단" in text
 
 
+# 한글 표준(HWPX) validation rejects broken zip 기능의 정상 동작 및 제약조건을 테스트함
 def test_hwpx_validation_rejects_broken_zip(tmp_path):
     target = tmp_path / "broken.hwpx"
     target.write_text("not a zip", encoding="utf-8")
@@ -107,6 +120,7 @@ def test_hwpx_validation_rejects_broken_zip(tmp_path):
         converter._validate_hwpx_output(target)
 
 
+# convert 한글(HWP) to 워드(DOCX) with 표 목록 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_hwp_to_docx_with_tables(tmp_path):
     import docx
     from synthetic_engine.exporters.hwp_high_fidelity_docx_converter import convert_any_hwp_to_docx
@@ -125,6 +139,7 @@ def test_convert_hwp_to_docx_with_tables(tmp_path):
         assert len(t.columns) == 7
 
 
+# convert 한글(HWP) to high 충실도 한글 표준(HWPX) with 표 목록 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_hwp_to_high_fidelity_hwpx_with_tables(tmp_path):
     import zipfile
     from pathlib import Path
@@ -145,6 +160,7 @@ def test_convert_hwp_to_high_fidelity_hwpx_with_tables(tmp_path):
         assert "기본" in plain or "식품" in plain or "번호" in plain or "1" in plain
 
 
+# convert api 한글(HWP) to 한글 표준(HWPX) endpoint 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_api_hwp_to_hwpx_endpoint():
     from fastapi.testclient import TestClient
     from synthetic_api.main import app
@@ -167,6 +183,7 @@ def test_convert_api_hwp_to_hwpx_endpoint():
         assert data.get("markdown_preview") is not None
 
 
+# structured PDF 문서 parse returns preview and metadata 기능의 정상 동작 및 제약조건을 테스트함
 def test_structured_pdf_parse_returns_preview_and_metadata(tmp_path):
     source = tmp_path / "layout.pdf"
     _make_converter_pdf(source)
@@ -182,6 +199,7 @@ def test_structured_pdf_parse_returns_preview_and_metadata(tmp_path):
     assert "PyMuPDF visual layout" in structure["parser_engines"]
 
 
+# structured 한글 표준(HWPX) parse returns 블록 목록 and 마크다운 기능의 정상 동작 및 제약조건을 테스트함
 def test_structured_hwpx_parse_returns_blocks_and_markdown(tmp_path):
     source = tmp_path / "sample.hwpx"
     doc = HwpxDocument.new()
@@ -197,6 +215,7 @@ def test_structured_hwpx_parse_returns_blocks_and_markdown(tmp_path):
     assert parsed["structure"]["block_count"] >= 1
 
 
+# convert PDF 문서 to 마크다운 endpoint includes document structure 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_pdf_to_markdown_endpoint_includes_document_structure(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -225,8 +244,12 @@ def test_convert_pdf_to_markdown_endpoint_includes_document_structure(tmp_path, 
     assert "Document Title" in data["markdown_preview"]
     assert data["document_structure"]["format"] == "PDF"
     assert data["document_structure"]["block_count"] >= 1
+    assert data["download_ready"] is True
+    assert data["document_structure"]["quality"]["ocr_status"] == "not_required"
+    assert data["document_structure"]["quality"]["page_progress"][0]["stage"] == "parse"
 
 
+# convert 워드(DOCX) to 마크다운 preserves 문서 블록 order and links 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_docx_to_markdown_preserves_block_order_and_links(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -257,6 +280,7 @@ def test_convert_docx_to_markdown_preserves_block_order_and_links(tmp_path, monk
     assert md.index("Before table") < md.index("| Name | Value |") < md.index("After table")
 
 
+# convert 워드(DOCX) to HTML 웹 문서 and 한글 표준(HWPX) outputs structured documents 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_docx_to_html_and_hwpx_outputs_structured_documents(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -283,6 +307,7 @@ def test_convert_docx_to_html_and_hwpx_outputs_structured_documents(tmp_path, mo
     html = html_res.json()["html_preview"]
     assert '<a href="https://example.com">link</a>' in html
     assert html.index("Before table") < html.index("<table>") < html.index("After table")
+    assert "page-break-inside: avoid" in html
 
     hwpx_res = client.post(
         "/api/v1/converter/convert",
@@ -294,6 +319,7 @@ def test_convert_docx_to_html_and_hwpx_outputs_structured_documents(tmp_path, mo
     assert zipfile.is_zipfile(out_path)
 
 
+# convert PDF 문서 to 한글 표준(HWPX) endpoint writes valid package 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_pdf_to_hwpx_endpoint_writes_valid_package(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -324,6 +350,7 @@ def test_convert_pdf_to_hwpx_endpoint_writes_valid_package(tmp_path, monkeypatch
     assert data["document_structure"]["format"] == "PDF"
 
 
+# convert PDF 문서 to 워드(DOCX) endpoint writes word 파일 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_pdf_to_docx_endpoint_writes_word_file(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -355,6 +382,7 @@ def test_convert_pdf_to_docx_endpoint_writes_word_file(tmp_path, monkeypatch):
     assert data["document_structure"]["format"] == "PDF"
 
 
+# convert PDF 문서 to 한글(HWP) endpoint routes to 한글(HWP) exporter 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_pdf_to_hwp_endpoint_routes_to_hwp_exporter(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -366,6 +394,7 @@ def test_convert_pdf_to_hwp_endpoint_routes_to_hwp_exporter(tmp_path, monkeypatc
         folder.mkdir()
         monkeypatch.setattr(settings, attr, folder)
 
+    # fake PDF 문서 to 한글(HWP) 작업을 수행함
     def fake_pdf_to_hwp(source, output):
         output.write_bytes(b"hwp-binary")
 
@@ -392,6 +421,7 @@ def test_convert_pdf_to_hwp_endpoint_routes_to_hwp_exporter(tmp_path, monkeypatc
     assert data["document_structure"]["format"] == "PDF"
 
 
+# convert 한글 표준(HWPX) to 마크다운 endpoint includes document structure 기능의 정상 동작 및 제약조건을 테스트함
 def test_convert_hwpx_to_markdown_endpoint_includes_document_structure(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -425,6 +455,7 @@ def test_convert_hwpx_to_markdown_endpoint_includes_document_structure(tmp_path,
     assert data["document_structure"]["format"] == "HWPX"
 
 
+# structured preview is not truncated for large document 기능의 정상 동작 및 제약조건을 테스트함
 def test_structured_preview_is_not_truncated_for_large_document(tmp_path):
     source = tmp_path / "large.md"
     filler = "\n\n".join(f"문서 본문 {idx:04d} " + ("가" * 120) for idx in range(2300))
@@ -434,3 +465,28 @@ def test_structured_preview_is_not_truncated_for_large_document(tmp_path):
 
     assert len(parsed["html_preview"]) > 250_000
     assert "끝 페이지 확인" in parsed["html_preview"]
+
+
+# convert empty 마크다운 rejects blank document 기능의 정상 동작 및 제약조건을 테스트함
+def test_convert_empty_markdown_rejects_blank_document(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from synthetic_api.core.config import settings
+
+    for attr in ("UPLOAD_DIR", "OUTPUT_DIR"):
+        folder = tmp_path / attr
+        folder.mkdir()
+        monkeypatch.setattr(settings, attr, folder)
+
+    app = FastAPI()
+    app.include_router(converter.router, prefix="/api/v1")
+    client = TestClient(app)
+
+    res = client.post(
+        "/api/v1/converter/convert",
+        files={"file": ("empty.md", b"   \n\n", "text/markdown")},
+        data={"target_format": "html"},
+    )
+
+    assert res.status_code == 422
+    assert "변환 가능한 텍스트" in res.json()["detail"]

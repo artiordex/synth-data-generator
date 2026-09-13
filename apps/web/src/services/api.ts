@@ -10,6 +10,7 @@ import { DatasetProfile, JobStatus, SynthesisRequest, AuditLogEntry, ColumnDistr
 
 const BASE_URL = '/api/v1';
 
+// 여러 데이터 파일을 일괄 업로드하고 프로파일 정보를 수신함
 export async function uploadDatasets(files: File[]): Promise<BatchUploadItem[]> {
   // 여러 데이터 파일을 일괄 업로드함
   const body = new FormData();
@@ -19,6 +20,7 @@ export async function uploadDatasets(files: File[]): Promise<BatchUploadItem[]> 
   return (await res.json()).files;
 }
 
+// 등록된 여러 데이터셋에 대한 배치 합성 작업을 시작함
 export async function startBatch(requests: SynthesisRequest[]): Promise<BatchStatus> {
   const res = await fetch(`${BASE_URL}/batches`, { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }) });
@@ -26,24 +28,28 @@ export async function startBatch(requests: SynthesisRequest[]): Promise<BatchSta
   return res.json();
 }
 
+// 지정한 배치 작업 ID의 상세 진행 상태를 조회함
 export async function getBatch(id: string): Promise<BatchStatus> {
   const res = await fetch(`${BASE_URL}/batches/${encodeURIComponent(id)}`);
   if (!res.ok) throw new Error('일괄 작업 조회 실패: ' + await res.text());
   return res.json();
 }
 
+// 최근 실행된 일괄(배치) 작업 목록을 조회함
 export async function getBatchesList(): Promise<(BatchStatus & { created_at: string })[]> {
   const res = await fetch(`${BASE_URL}/batches`);
   if (!res.ok) throw new Error('일괄 작업 이력 조회 실패');
   return res.json();
 }
 
+// 진행 중인 일괄(배치) 합성 작업을 즉시 취소함
 export async function cancelBatch(id: string): Promise<BatchStatus> {
   const res = await fetch(`${BASE_URL}/batches/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
   if (!res.ok) throw new Error('일괄 작업 취소 실패: ' + await res.text());
   return res.json();
 }
 
+// 단일 원본 데이터셋 파일을 서버에 안전하게 업로드함
 export async function uploadDataset(file: File): Promise<{ filename: string; path: string; sha256: string; size_bytes: number }> {
   const formData = new FormData();
   formData.append('file', file);
@@ -55,12 +61,14 @@ export async function uploadDataset(file: File): Promise<{ filename: string; pat
   return res.json();
 }
 
+// 업로드된 데이터셋의 컬럼 유형, 결측치 및 프로파일 정보를 조회함
 export async function getDatasetProfile(filename: string, pseudonym = false): Promise<DatasetProfile> {
   const res = await fetch(`${BASE_URL}/datasets/profile?file_name=${encodeURIComponent(filename)}${pseudonym ? '&pseudonym=true' : ''}`);
   if (!res.ok) throw new Error('프로파일링 정보 로드 실패: ' + (await res.text()));
   return res.json();
 }
 
+// 정형 데이터 합성 작업을 등록하고 비동기 생성을 시작함
 export async function startSynthesis(req: SynthesisRequest): Promise<JobStatus> {
   const res = await fetch(`${BASE_URL}/synthesis/start`, {
     method: 'POST',
@@ -71,6 +79,7 @@ export async function startSynthesis(req: SynthesisRequest): Promise<JobStatus> 
   return res.json();
 }
 
+// 실행 중인 정형 데이터 합성 작업을 취소함
 export async function cancelSynthesis(jobId: string): Promise<void> {
   const res = await fetch(`${BASE_URL}/synthesis/cancel/${jobId}`, {
     method: 'POST',
@@ -78,41 +87,59 @@ export async function cancelSynthesis(jobId: string): Promise<void> {
   if (!res.ok) throw new Error('작업 취소 실패: ' + (await res.text()));
 }
 
+// 특정 합성 작업 ID의 현재 진행률 및 상태를 조회함
 export async function getJobStatus(jobId: string): Promise<JobStatus> {
   const res = await fetch(`${BASE_URL}/jobs/${jobId}`);
   if (!res.ok) throw new Error('작업 상태 조회 실패: ' + (await res.text()));
   return res.json();
 }
 
+// 최근 수행된 합성 작업 목록 전체를 조회함
 export async function listJobs(): Promise<JobStatus[]> {
   const res = await fetch(`${BASE_URL}/jobs`);
   if (!res.ok) throw new Error('작업 목록 로드 실패: ' + (await res.text()));
   return res.json();
 }
 
+// 작업 수행에 대한 시스템 감사(Audit) 로그 목록을 조회함
 export async function getAuditLogs(jobId: string): Promise<AuditLogEntry[]> {
   const res = await fetch(`${BASE_URL}/review/audit-logs/${jobId}`);
   if (!res.ok) return [];
   return res.json();
 }
 
+// 결과 산출물 파일의 다운로드 URL 경로를 반환함
 export function getDownloadUrl(path: string): string {
   if (path.startsWith(`${BASE_URL}/files/download`)) return path;
   return `${BASE_URL}/files/download?path=${encodeURIComponent(path)}`;
 }
 
+// 파일 다운로드 URL의 유효성 및 실제 접근 가능 여부를 검증함
+export async function verifyDownloadUrl(path: string): Promise<boolean> {
+  try {
+    const url = getDownloadUrl(path);
+    const res = await fetch(url, { method: 'HEAD' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// 지원하는 더미 데이터 도메인 목록을 조회함
 export async function getDummyDomains(): Promise<{ categories: string[]; total_count: number; grouped_domains: Record<string, any[]>; domains: any[] }> {
   const res = await fetch(`${BASE_URL}/dummy/domains`);
   if (!res.ok) throw new Error('도메인 사전 로드 실패');
   return res.json();
 }
 
+// 특정 도메인에 대한 표준 더미 데이터 템플릿 목록을 조회함
 export async function getDummyTemplates(): Promise<{ templates: any[] }> {
   const res = await fetch(`${BASE_URL}/dummy/templates`);
   if (!res.ok) throw new Error('템플릿 로드 실패');
   return res.json();
 }
 
+// 컬럼명과 샘플 데이터를 기반으로 적합한 더미 데이터 생성 규칙을 추론함
 export async function inferDummyColumn(columnName: string): Promise<{ column_name: string; inferred_domain: any }> {
   const res = await fetch(`${BASE_URL}/dummy/infer-column`, {
     method: 'POST',
@@ -123,6 +150,7 @@ export async function inferDummyColumn(columnName: string): Promise<{ column_nam
   return res.json();
 }
 
+// 설정된 스키마와 규칙에 따라 더미 데이터를 생성함
 export async function generateDummyData(payload: {
   table_name: string;
   columns: { name: string; domain_id?: string; rule?: any; primary_key?: boolean; unique?: boolean; nullable?: boolean; constraints?: any }[];
@@ -148,6 +176,7 @@ export async function generateDummyData(payload: {
   return res.json();
 }
 
+// 여러 합성 알고리즘 모델 간 충실도 및 품질 지표를 비교함
 export async function compareSynthesisModels(fileName: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/synthesis/compare-models`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -157,6 +186,7 @@ export async function compareSynthesisModels(fileName: string): Promise<any> {
   return res.json();
 }
 
+// 외부 DDL 또는 파일로부터 더미 데이터 스키마를 가져옴
 export async function importDummySchema(sourceType: 'ddl' | 'json-schema' | 'openapi', content: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/dummy/import-schema`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -166,6 +196,7 @@ export async function importDummySchema(sourceType: 'ddl' | 'json-schema' | 'ope
   return res.json();
 }
 
+// 도메인과 템플릿 설정을 기반으로 더미 데이터 생성 스키마를 구성함
 export async function generateDummySchema(schemaDefinition: any, targetRows: number, scenario: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/dummy/generate-schema`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -175,6 +206,7 @@ export async function generateDummySchema(schemaDefinition: any, targetRows: num
   return res.json();
 }
 
+// 관계형 다중 테이블 간 참조 무결성 및 외래키 구조를 프로파일링함
 export async function profileRelational(payload: any): Promise<any> {
   const res = await fetch(`${BASE_URL}/relational/profile`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -183,6 +215,7 @@ export async function profileRelational(payload: any): Promise<any> {
   return res.json();
 }
 
+// 외래키 관계를 준수하며 다중 관계형 테이블 합성 데이터를 생성함
 export async function generateRelational(payload: any): Promise<any> {
   const res = await fetch(`${BASE_URL}/relational/generate`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -191,6 +224,7 @@ export async function generateRelational(payload: any): Promise<any> {
   return res.json();
 }
 
+// 시계열 데이터의 시간 순서 및 연속성을 보존하며 합성 데이터를 생성함
 export async function generateTimeSeries(payload: any): Promise<any> {
   const res = await fetch(`${BASE_URL}/time-series/generate`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -199,18 +233,21 @@ export async function generateTimeSeries(payload: any): Promise<any> {
   return res.json();
 }
 
+// 원본 데이터와 합성 데이터 간 컬럼별 통계 분포를 비교 조회함
 export async function getJobDistributions(jobId: string): Promise<{ job_id: string; columns: ColumnDistribution[] }> {
   const res = await fetch(`${BASE_URL}/jobs/${jobId}/distributions`);
   if (!res.ok) throw new Error('분포 비교 데이터 조회 실패');
   return res.json();
 }
 
+// 합성 작업 결과의 품질 및 프라이버시 종합 평가 리포트를 조회함
 export async function getJobAssessment(jobId: string): Promise<JobAssessmentReport> {
   const res = await fetch(`${BASE_URL}/jobs/${jobId}/assessment`);
   if (!res.ok) throw new Error('자동 심의 판정 데이터 조회 실패');
   return res.json();
 }
 
+// 정형 데이터 컬럼별 가명화 기법을 적용하고 지정 포맷으로 내보냄
 export async function pseudonymizeDataset(payload: {
   file_name: string;
   pii_actions: Record<string, string>;
@@ -239,30 +276,35 @@ export async function pseudonymizeDataset(payload: {
   return res.json();
 }
 
+// 최근 수행된 데이터셋 가명화 작업 이력 목록을 조회함
 export async function getPseudonymHistory(): Promise<any[]> {
   const res = await fetch(`${BASE_URL}/datasets/pseudonymize/history`);
   if (!res.ok) throw new Error('가명처리 이력 조회 실패');
   return res.json();
 }
 
+// 최근 수행된 더미 데이터 생성 작업 이력 목록을 조회함
 export async function getDummyHistory(): Promise<any[]> {
   const res = await fetch(`${BASE_URL}/dummy/history`);
   if (!res.ok) throw new Error('더미데이터 이력 조회 실패');
   return res.json();
 }
 
+// 전체 합성 작업 목록 및 요약 상태를 조회함
 export async function getJobsList(): Promise<JobStatus[]> {
   const res = await fetch(`${BASE_URL}/jobs`);
   if (!res.ok) throw new Error('합성 작업 이력 조회 실패');
   return res.json();
 }
 
+// 모든 작업 이력(합성, 가명화, 더미)을 일괄 삭제 초기화함
 export async function clearAllHistory(): Promise<{ status: string; deleted: Record<string, number> }> {
   const res = await fetch(`${BASE_URL}/history`, { method: 'DELETE' });
   if (!res.ok) throw new Error('통합 작업 이력 삭제 실패: ' + await res.text());
   return res.json();
 }
 
+// 선택한 작업 이력 항목들을 식별자 기준으로 삭제함
 export async function deleteSelectedHistory(items: Array<{ type: string; id: string; filename?: string }>): Promise<{ status: string; deleted: Record<string, number> }> {
   const res = await fetch(`${BASE_URL}/history/delete-selected`, {
     method: 'POST',
@@ -278,7 +320,9 @@ export interface ConvertResponse {
   category: 'document' | 'dataset';
   file_name: string;
   original_filename: string;
+  original_file_url?: string;
   download_url: string;
+  download_ready?: boolean;
   file_size: number;
   source_format: string;
   target_format: string;
@@ -300,10 +344,35 @@ export interface ConvertResponse {
     text_length: number;
     blocks?: Array<Record<string, any>>;
     tables?: Array<Record<string, any>>;
+    quality?: {
+      source_format: string;
+      text_coverage: number | null;
+      metric: string;
+      warnings: string[];
+      ocr_status?: string;
+      ocr_engine?: string;
+      average_confidence?: number | null;
+      requires_review?: boolean;
+      ocr_review_pages?: number[];
+      page_progress?: Array<{
+        page: number;
+        progress: number;
+        status: string;
+        message: string;
+      }>;
+      low_confidence_regions?: Array<{
+        page: number;
+        confidence: number | null;
+        label: string;
+        reason: string;
+      }>;
+    };
   };
   message: string;
 }
 
+
+// 업로드된 문서 또는 정형 데이터 파일을 대상 포맷으로 변환 요청함
 export async function convertFile(params: {
   file: File;
   targetFormat: string;
@@ -338,6 +407,7 @@ export async function convertFile(params: {
   return res.json();
 }
 
+// 과거 수행된 문서 및 데이터 변환 작업 이력 목록을 조회함
 export async function getConverterHistory(): Promise<any[]> {
   const res = await fetch(`${BASE_URL}/converter/history`);
   if (!res.ok) throw new Error('변환 이력 조회 실패');
@@ -415,6 +485,7 @@ export interface SurveyJobStatusResponse {
   error?: string;
 }
 
+// 설문조사 데이터셋의 문항 모듈 및 분기 논리를 분석함
 export async function inspectSurveyModules(fileNames: string[]): Promise<SurveyInspectionResponse> {
   const res = await fetch(`${BASE_URL}/survey/inspect`, {
     method: 'POST',
@@ -429,6 +500,7 @@ export async function inspectSurveyModules(fileNames: string[]): Promise<SurveyI
   return res.json();
 }
 
+// 설문조사 응답 상관성을 보존하는 결합 합성 작업을 요청함
 export async function generateSurveySynthesis(params: {
   file_names: string[];
   target_rows: number;
@@ -458,6 +530,7 @@ export async function generateSurveySynthesis(params: {
   return res.json();
 }
 
+// 설문 합성 작업의 비동기 진행 상태 및 로그를 조회함
 export async function getSurveyJobStatus(jobId: string): Promise<SurveyJobStatusResponse> {
   const res = await fetch(`${BASE_URL}/survey/status/${encodeURIComponent(jobId)}`);
   if (!res.ok) throw new Error('작업 상태 조회 실패: ' + await res.text());

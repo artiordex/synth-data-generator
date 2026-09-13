@@ -1,3 +1,11 @@
+/**
+ * 파일명: index.ts
+ * 경로: apps/web/src/types/index.ts
+ * 목적: 웹 프론트엔드 공통 도메인 데이터 모델 및 상태 인터페이스를 정의함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-13
+ */
 export type InformationType = "준식별자" | "일반정보";
 
 export interface ReviewColumnMetadata {

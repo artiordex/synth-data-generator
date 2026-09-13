@@ -9,8 +9,8 @@
 import React, { useState, useRef } from 'react';
 import { Upload, RefreshCw } from 'lucide-react';
 
-export const SUPPORTED_FILE_EXTENSIONS = '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq,.pdf,.hwp,.hwpx,.hwpt,.doc,.docx,.md';
-export const SUPPORTED_FORMATS_HINT = 'CSV · XLSX · TSV · JSON · PARQUET · PDF · HWP · HWPX · HWPT · DOCX · MD (최대 100MB)';
+export const SUPPORTED_FILE_EXTENSIONS = '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.xml,.parquet,.pq,.pdf,.hwp,.hwpx,.hwpt,.doc,.docx,.md,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.heic';
+export const SUPPORTED_FORMATS_HINT = 'CSV · XLSX · TSV · JSON · XML · PARQUET · PDF · HWP · HWPX · HWPT · DOCX · MD · PNG · JPG · TIFF · WEBP · HEIC (최대 100MB)';
 export const TABLE_DATA_FILE_EXTENSIONS = '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.parquet,.pq';
 export const TABLE_DATA_FORMATS_HINT = 'CSV · XLSX · XLS · TSV · TXT · JSON · JSONL · PARQUET/PQ (최대 100MB)';
 
