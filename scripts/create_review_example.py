@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: create_review_example.py
+# 경로: scripts/create_review_example.py
+# 목적: 한글 합성 데이터 심의 문서 예시 생성 스크립트를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 """Create reviewable Hangul examples without training a model or using real PII."""
 from pathlib import Path
 import pandas as pd

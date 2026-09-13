@@ -51,6 +51,19 @@ flowhunt_*
 # Environment & Secrets
 .env
 .env.local
+
+# Legacy scratch & local DBs
+app.db
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+scratch_*
+flowhunt_*
+
+# Environment & Secrets
+.env
+.env.local
 .cloudflared/
 *.pem
 *.key
@@ -60,3 +73,13 @@ flowhunt_*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Temporary & Scratch
+tmp/
+scratch/
+.tempmediaStorage/
+.orchestra/
+output/
+
+# AI/ML Model Weights (Large Binaries)
+storage/models/

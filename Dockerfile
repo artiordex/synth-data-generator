@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy package configurations and source modules
 COPY pyproject.toml uv.lock 프로젝트안내.md ./
 COPY packages/synthetic_engine packages/synthetic_engine
+COPY packages/ocr packages/ocr
 COPY apps/api apps/api
 
 # Install core engine & API packages

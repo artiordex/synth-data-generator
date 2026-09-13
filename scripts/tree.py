@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: tree.py
+# 경로: scripts/tree.py
+# 목적: 프로젝트 디렉터리 트리 구조를 출력함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
+# -*- coding: utf-8 -*-
 import sys
 import os
 import argparse
@@ -18,6 +27,7 @@ DEFAULT_IGNORES = {
     '.idea', '.vscode', 'coverage', '.turbo', '.cache'
 }
 
+# tree 데이터를 생성하여 반환함
 def generate_tree(dir_path: Path, max_depth: int = 3, current_depth: int = 0, prefix: str = '', ignores: Set[str] = None, dirs_only: bool = False, show_size: bool = False) -> List[str]:
     if ignores is None:
         ignores = DEFAULT_IGNORES
@@ -60,6 +70,7 @@ def generate_tree(dir_path: Path, max_depth: int = 3, current_depth: int = 0, pr
             lines.append(prefix + connector + entry.name + size_str)
     return lines
 
+# main 작업을 수행함
 def main():
     parser = argparse.ArgumentParser(description='Smart Project Tree Generator')
     parser.add_argument('path', nargs='?', default='.', help='Root directory path (default: current dir)')

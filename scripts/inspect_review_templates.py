@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: inspect_review_templates.py
+# 경로: scripts/inspect_review_templates.py
+# 목적: HWPX 심의 양식 템플릿 구조 및 단락 태그를 검사함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from pathlib import Path
 from zipfile import ZipFile
 from lxml import etree as E

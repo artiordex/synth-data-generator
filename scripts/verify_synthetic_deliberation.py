@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: verify_synthetic_deliberation.py
+# 경로: scripts/verify_synthetic_deliberation.py
+# 목적: 합성 데이터 심의 절차 및 재현성 검증 스크립트를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 #!/usr/bin/env python
 import os
 import sys
@@ -13,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packages" / "sy
 from synthetic_engine import SyntheticPipeline, SynthesisConfig, read_table
 from synthetic_engine.exporters.package_exporter import split_leading_sequence, submission_folder_name
 
+# raw 데이터셋 목록 대상을 탐색하여 반환함
 def find_raw_datasets():
     base_dir = Path(__file__).resolve().parent.parent
     raw_files = []
@@ -49,6 +59,7 @@ def find_raw_datasets():
 
     return unique_files
 
+# 데이터셋 정합성 및 무결성을 검증함
 def verify_dataset(category: str, raw_path: Path, output_base_dir: Path, model_type: str = "statistical"):
     dataset_name = raw_path.stem
     print(f"\n[Audit Target] [{category}] {raw_path.name}")
@@ -68,6 +79,7 @@ def verify_dataset(category: str, raw_path: Path, output_base_dir: Path, model_t
     pipeline = SyntheticPipeline(config=config)
 
     logs = []
+    # on progress 작업을 수행함
     def on_progress(pct, msg):
         logs.append(f"[{pct}%] {msg}")
 
@@ -162,6 +174,7 @@ def verify_dataset(category: str, raw_path: Path, output_base_dir: Path, model_t
             "error": str(e)
         }
 
+# main 작업을 수행함
 def main():
     parser = argparse.ArgumentParser(description="Audit and verify synthetic generation & review document generation across docs/ and storage/")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of datasets to test")
