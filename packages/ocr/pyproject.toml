@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocr-pipeline"
+version = "0.1.0"
+description = "Separated PDF and image OCR pipeline package"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python-headless>=4.9",
+    "pillow>=10",
+    "pymupdf>=1.24",
+    "pytesseract>=0.3.13",
+    "rapidfuzz>=3",
+    "easyocr>=1.7.2",
+    "rapidocr>=3.9.2,<4",
+]
+
+[tool.setuptools.packages.find]
+include = ["ocr*"]
