@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: sampling.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/sampling.py
+# 목적: 다변량 확률 분포 기반 합성 데이터 샘플링을 수행함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 """Generate enough valid records without keeping rejected records as a fallback."""
 import pandas as pd
 from collections import Counter
@@ -9,6 +18,7 @@ from .rule_based.engine import RuleEngine
 
 
 class SamplingExhaustedError(ValueError):
+    # SamplingExhaustedError 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, report):
         self.report = report
         super().__init__(f"유효한 합성 행을 충분히 생성하지 못했습니다: 목표 {report['target_rows']}행, "
@@ -16,11 +26,13 @@ class SamplingExhaustedError(ValueError):
                          "제약조건·생성 모델·최대 시도 횟수를 확인하세요.")
 
 
+# sample valid 행 목록 작업을 수행함
 def sample_valid_rows(gen, training, plan, config, constraints, conditions=None, progress=None):
     kept, attempts = [], []
     accepted = 0
     dp_reports = []
     columns = plan.categorical + plan.numerical
+    # 행 keys 작업을 수행함
     def row_keys(frame):
         data = frame[columns].astype(object).where(frame[columns].notna(), None)
         return list(map(tuple, data.values))

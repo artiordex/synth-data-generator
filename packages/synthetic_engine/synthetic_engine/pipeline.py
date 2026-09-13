@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: pipeline.py
+# 경로: packages/synthetic_engine/synthetic_engine/pipeline.py
+# 목적: 식약처 합성데이터 생성·가명화·품질평가 엔드투엔드 파이프라인을 실행함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-10
+# =============================================================================
 from __future__ import annotations
 import json
 import math
@@ -15,6 +23,7 @@ from .profiling.analyzer import read_table, build_column_plan
 from .profiling.notebook_presets import notebook_settings
 from .preprocessing.transformer import (
     apply_constraints_before_training,
+    infer_temporal_constraints,
     prepare_training_frame,
 )
 from .generators.registry import get_synthesizer
@@ -25,9 +34,17 @@ from .exporters.review_documents import build_review_documents
 from .exporters.package_exporter import make_submission_package_dirs, safe_path_part, split_leading_sequence, synthetic_data_filename
 
 class SyntheticPipeline:
+    """합성 데이터 생성 전체 워크플로우를 오케스트레이션하는 메인 파이프라인 클래스임"""
+
+    # SyntheticPipeline 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, config: SynthesisConfig):
+        """
+        @description 파이프라인 설정 객체를 주입받아 인스턴스를 초기화함
+        @param config: 모델 타입, 에포크, 시드, 품질 기준 등이 포함된 합성 설정 객체임
+        """
         self.config = config
 
+    # execute 작업을 수행함
     @seeded_pipeline
     def execute(
         self,
@@ -47,6 +64,27 @@ class SyntheticPipeline:
         review_metadata: dict[str, Any] | None = None,
         evaluation_excluded_columns: list[str] | None = None,
     ) -> dict[str, Any]:
+        """
+        @description 원본 데이터를 입력받아 가명화, 모델 학습, 합성 샘플링, 품질/안전성 평가 및 HWPX 보고서 패키징을 일괄 실행함
+        @param input_path: 원본 데이터셋 파일 경로임
+        @param output_dir: 합성 데이터 및 심의 산출물 저장 디렉터리 경로임
+        @param job_id: 작업 고유 식별자 문자열임
+        @param original_filename: 원본 파일의 파일명임
+        @param department_name: 신청 부서명 문자열임
+        @param selected_columns: 합성 대상 선택 컬럼 목록임
+        @param categorical_columns: 범주형으로 지정할 컬럼 목록임
+        @param numerical_columns: 수치형으로 지정할 컬럼 목록임
+        @param preserve_null_columns: 결측 패턴을 보존할 컬럼 목록임
+        @param conditions: 조건부 합성 생성 조건 딕셔너리임
+        @param constraints: 사용자 정의 도메인 규칙 및 제약조건 목록임
+        @param progress_callback: 진행률 콜백 함수(pct, msg)임
+        @param project_purpose: 연구 및 데이터 활용 목적 문자열임
+        @param review_metadata: 심의 문서 작성을 위한 메타데이터 딕셔너리임
+        @param evaluation_excluded_columns: 품질 평가에서 제외할 컬럼 목록임
+        @return: 합성 결과 메타데이터, 파일 경로, 품질 평가 지표 및 심의 상태가 포함된 결과 딕셔너리를 반환함
+        @throws ValueError: 컬럼명이 원본에 없거나 유효한 학습 데이터가 없는 경우 발생함
+        """
+        # 진행률 및 작업 상태 메시지를 안전하게 통지함
         def report_progress(pct: int, msg: str):
             if progress_callback: progress_callback(pct, msg)
 
@@ -91,6 +129,9 @@ class SyntheticPipeline:
                 "null_label": "비적용",
                 "not_null_label": "적용",
             })
+        auto_temporal_constraints = infer_temporal_constraints(
+            raw, columns=selected_scope, existing=user_constraints)
+        user_constraints.extend(auto_temporal_constraints)
 
         plan_cfg = {"columns": columns_config, "conditions": conditions or {}, "constraints": user_constraints}
         plan = build_column_plan(plan_cfg, raw)
@@ -221,6 +262,7 @@ class SyntheticPipeline:
                 "cat_cols_eval": eval_plan.categorical, "num_cols_eval": eval_plan.numerical,
                 "evaluation_excluded_columns": sorted(excluded),
                 "constraints": user_constraints, "conditions": conditions or {},
+                "auto_temporal_constraints": auto_temporal_constraints,
                 "effective_batch_size": getattr(gen, "batch_size", None),
                 "notebook_preset": preset['name'],
                 "holdout": {'training_rows': len(training), 'control_rows': control_size,

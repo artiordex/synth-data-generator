@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_advanced_capabilities.py
+# 경로: packages/synthetic_engine/tests/test_advanced_capabilities.py
+# 목적: 고급 문서 변환 기능 및 복합 서식 처리를 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import pandas as pd
 
 from synthetic_engine import (
@@ -9,6 +18,7 @@ from synthetic_engine import (
 )
 
 
+# project tokens are consistent and scoped 기능의 정상 동작 및 제약조건을 테스트함
 def test_project_tokens_are_consistent_and_scoped():
     first = project_token("customer-1", project_id="alpha", namespace="customer_id")
     assert first == project_token("customer-1", project_id="alpha", namespace="customer_id")
@@ -16,6 +26,7 @@ def test_project_tokens_are_consistent_and_scoped():
     assert first != project_token("customer-1", project_id="alpha", namespace="email")
 
 
+# klt reports group privacy 품질 지표 기능의 정상 동작 및 제약조건을 테스트함
 def test_klt_reports_group_privacy_metrics():
     frame = pd.DataFrame({"age_band": ["20", "20", "30", "30"],
                           "region": ["S", "S", "B", "B"],
@@ -26,6 +37,7 @@ def test_klt_reports_group_privacy_metrics():
     assert report["k"] == 2 and report["l"] == 2 and report["t"] == 0
 
 
+# 스키마 import supports ddl json 스키마 and openapi 기능의 정상 동작 및 제약조건을 테스트함
 def test_schema_import_supports_ddl_json_schema_and_openapi():
     ddl = """CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR(200) UNIQUE NOT NULL, age INTEGER CHECK (age BETWEEN 18 AND 99));
     CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,
@@ -42,6 +54,7 @@ def test_schema_import_supports_ddl_json_schema_and_openapi():
     assert api["tables"][0]["name"] == "User"
 
 
+# 더미 데이터 scenarios and panel generation 기능의 정상 동작 및 제약조건을 테스트함
 def test_dummy_scenarios_and_panel_generation():
     columns = [{"name": "score", "rule": {"type": "number_range", "min": 0, "max": 10, "integer": True}}]
     boundary = DummyDataGenerator().generate(columns, 5, scenario="boundary")

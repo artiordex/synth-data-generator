@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 import pandas as pd
 
+# calculate sha256 작업을 수행함
 def calculate_sha256(path_or_df: Path | pd.DataFrame) -> str:
     """파일 또는 데이터프레임의 SHA-256 해시를 계산함"""
     if isinstance(path_or_df, Path):
@@ -25,6 +26,7 @@ def calculate_sha256(path_or_df: Path | pd.DataFrame) -> str:
         csv_bytes = path_or_df.to_csv(index=False).encode("utf-8")
         return hashlib.sha256(csv_bytes).hexdigest()
 
+# 감지 system device 작업을 수행함
 def detect_system_device() -> dict[str, Any]:
     """현재 실행 환경의 CPU·GPU 장치 정보를 반환함"""
     gpu_available = False

@@ -17,6 +17,7 @@ from ..common.types import ColumnPlan
 class PrivacyGuardrails:
     """Privacy guardrails to detect training data memorization, exact clones, and proximity risks."""
 
+    # exact duplicates 데이터를 조건에 따라 필터링함
     @staticmethod
     def filter_exact_duplicates(
         raw: pd.DataFrame,
@@ -55,6 +56,7 @@ class PrivacyGuardrails:
             "rows_after": len(filtered_synthetic)
         }
 
+    # dcr 품질 및 지표를 평가함
     @staticmethod
     def evaluate_dcr(
         raw: pd.DataFrame,

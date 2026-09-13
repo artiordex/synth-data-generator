@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_advanced_capabilities_api.py
+# 경로: apps/api/tests/test_advanced_capabilities_api.py
+# 목적: 고급 합성데이터 생성 및 제약 조건 API 엔드포인트를 검증함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 import pandas as pd
 from fastapi.testclient import TestClient
 
@@ -5,6 +14,7 @@ from synthetic_api.core.config import settings
 from synthetic_api.main import app
 
 
+# 스키마 import and 가명화 privacy 품질 지표 기능의 정상 동작 및 제약조건을 테스트함
 def test_schema_import_and_pseudonym_privacy_metrics(tmp_path, monkeypatch):
     uploads, outputs = tmp_path / "uploads", tmp_path / "outputs"
     uploads.mkdir(); outputs.mkdir()
@@ -45,6 +55,7 @@ def test_schema_import_and_pseudonym_privacy_metrics(tmp_path, monkeypatch):
     assert comparison.json()["recommended_model"] == "statistical"
 
 
+# 관계형 데이터 and time series generation 기능의 정상 동작 및 제약조건을 테스트함
 def test_relational_and_time_series_generation(tmp_path, monkeypatch):
     uploads, outputs = tmp_path / "uploads", tmp_path / "outputs"
     uploads.mkdir(); outputs.mkdir()

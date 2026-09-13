@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: hma.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/relational/hma.py
+# 목적: Hierarchical Multi-table Algorithm 기반 관계형 합성을 수행함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 from typing import Any
 import pandas as pd
@@ -7,12 +15,14 @@ from ...common.types import TableRelationship
 class HMARelationalSynthesizer:
     """Multi-table hierarchical relational synthesizer using SDV HMASynthesizer."""
 
+    # HMARelationalSynthesizer 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
         self.synthesizer = None
         self.metadata = None
         self.table_names: list[str] = []
 
+    # fit 작업을 수행함
     def fit(
         self,
         tables: dict[str, pd.DataFrame],
@@ -59,6 +69,7 @@ class HMARelationalSynthesizer:
         )
         self.synthesizer.fit(tables)
 
+    # sample 작업을 수행함
     def sample(self, scale: float = 1.0) -> dict[str, pd.DataFrame]:
         if self.synthesizer is None:
             raise RuntimeError("HMARelationalSynthesizer is not fitted.")

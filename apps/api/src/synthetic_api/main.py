@@ -24,6 +24,7 @@ from synthetic_api.infrastructure.file_access import confined_file
 Base.metadata.create_all(bind=engine)
 setup_logging()
 
+# lifespan 작업을 수행함
 @asynccontextmanager
 async def lifespan(app):
     """서버 시작과 종료 시 공통 작업을 처리함"""
@@ -116,15 +117,18 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
+# redirect to docs 작업을 수행함
 @app.get("/api/v1/docs", include_in_schema=False)
 @app.get("/api/docs", include_in_schema=False)
 async def redirect_to_docs():
     return RedirectResponse(url="/docs")
 
+# redirect to openapi 작업을 수행함
 @app.get(f"{settings.API_V1_PREFIX}/openapi.json", include_in_schema=False)
 async def redirect_to_openapi():
     return RedirectResponse(url="/openapi.json")
 
+# health check 작업을 수행함
 @app.get("/health", include_in_schema=False)
 async def health_check():
     return {
@@ -139,6 +143,7 @@ assets_dir = web_dist / "assets"
 if assets_dir.exists() and assets_dir.is_dir():
     app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
+# serve spa 작업을 수행함
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(full_path: str):
     if full_path.startswith("api/") or full_path == "api":
@@ -158,6 +163,7 @@ async def serve_spa(full_path: str):
         "docs": f"{settings.API_V1_PREFIX}/docs"
     }
 
+# start 작업을 수행함
 def start():
     uvicorn.run(
         "synthetic_api.main:app",

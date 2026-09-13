@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: job_repo_impl.py
+# 경로: apps/api/src/synthetic_api/infrastructure/repositories/job_repo_impl.py
+# 목적: 작업 상태 영속화 및 진행 이력 관리 레포지토리 구현체임
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 import json
 
 from typing import List, Optional, Dict, Any
@@ -12,12 +21,14 @@ from synthetic_api.domain.models.job import JobStatus
 
 class JobRepository:
 
+    # JobRepository 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, db: Session):
 
         self.db = db
 
 
 
+    # save 작업을 수행함
     def save(self, job: JobStatus) -> JobStatus:
 
         entity = self.db.query(JobEntity).filter(JobEntity.id == job.id).first()
@@ -84,6 +95,7 @@ class JobRepository:
 
 
 
+    # by id 정보를 조회하여 반환함
     def get_by_id(self, job_id: str) -> Optional[JobStatus]:
 
         entity = self.db.query(JobEntity).filter(JobEntity.id == job_id).first()
@@ -96,6 +108,7 @@ class JobRepository:
 
 
 
+    # list all 작업을 수행함
     def list_all(self, limit: int = 50) -> List[JobStatus]:
 
         entities = self.db.query(JobEntity).order_by(JobEntity.created_at.desc()).limit(limit).all()
@@ -104,6 +117,7 @@ class JobRepository:
 
 
 
+    # domain 형식으로 변환하여 반환함
     def _to_domain(self, entity: JobEntity) -> JobStatus:
 
         folders = None

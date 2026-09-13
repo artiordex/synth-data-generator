@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_notebook_parity.py
+# 경로: packages/synthetic_engine/tests/test_notebook_parity.py
+# 목적: 노트북 프로파일링 파이프라인 동등성을 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import json
 
 import numpy as np
@@ -14,6 +23,7 @@ from synthetic_engine.quality.assessment import compute_column_distributions
 from synthetic_engine.pipeline import SyntheticPipeline
 
 
+# jsd matches notebook null bucket 기능의 정상 동작 및 제약조건을 테스트함
 @pytest.mark.parametrize('raw,syn', [([1, None], [1, 1]), ([1, 2, None], [1, 2, 2]),
                                     ([None, None], [1, 2]), ([None], [None])])
 def test_jsd_matches_notebook_null_bucket(raw, syn):
@@ -38,6 +48,7 @@ def test_jsd_matches_notebook_null_bucket(raw, syn):
     json.dumps(chart, allow_nan=False)
 
 
+# null 보정 preserves applicability 기능의 정상 동작 및 제약조건을 테스트함
 def test_null_repair_preserves_applicability():
     constraints = [{'type': 'null_indicator', 'column': 'income', 'indicator_column': 'applies'}]
     frame = pd.DataFrame({'income': [None, 4, 5, 6], 'applies': ['적용', '비적용', '적용', None]})
@@ -47,6 +58,7 @@ def test_null_repair_preserves_applicability():
     assert repaired.loc[2, 'applies'] == '적용'
 
 
+# sparse quantiles use notebook rounding 폴백 with null bucket 기능의 정상 동작 및 제약조건을 테스트함
 def test_sparse_quantiles_use_notebook_rounding_fallback_with_null_bucket():
     reference = pd.DataFrame({'x': [0] * 199 + [10]})
     sample = pd.DataFrame({'x': [0, 10, None]})
@@ -54,13 +66,16 @@ def test_sparse_quantiles_use_notebook_rounding_fallback_with_null_bucket():
 
 
 class BatchGenerator:
+    # BatchGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, batches):
         self.batches = iter(batches)
 
+    # sample 작업을 수행함
     def sample(self, num_rows, conditions=None):
         return next(self.batches).copy()
 
 
+# refills after 보정 and duplicate rejection 기능의 정상 동작 및 제약조건을 테스트함
 def test_refills_after_repair_and_duplicate_rejection():
     raw = pd.DataFrame({'value': [1, 2]})
     gen = BatchGenerator([pd.DataFrame({'value': [1, 3]}), pd.DataFrame({'value': [4, 5]})])
@@ -72,6 +87,7 @@ def test_refills_after_repair_and_duplicate_rejection():
     assert guardrails['final_exact_duplicates'] == 0
 
 
+# no success when all samples are training copies 기능의 정상 동작 및 제약조건을 테스트함
 def test_no_success_when_all_samples_are_training_copies():
     raw = pd.DataFrame({'value': [1, 2]})
     gen = BatchGenerator([raw, raw])
@@ -82,6 +98,7 @@ def test_no_success_when_all_samples_are_training_copies():
     assert error.value.report['attempts'] == 2
 
 
+# duplicate detection ignores numeric display and null sentinel 기능의 정상 동작 및 제약조건을 테스트함
 def test_duplicate_detection_ignores_numeric_display_and_null_sentinel():
     from synthetic_engine.privacy.guardrails import PrivacyGuardrails
     raw = pd.DataFrame({'value': pd.Series([1, None], dtype='Int64')})
@@ -91,7 +108,9 @@ def test_duplicate_detection_ignores_numeric_display_and_null_sentinel():
     assert report['exact_duplicates_found'] == 2
 
 
+# 노이즈 cannot break final range or null 규칙 목록 기능의 정상 동작 및 제약조건을 테스트함
 def test_noise_cannot_break_final_range_or_null_rules(monkeypatch):
+    # noisy 작업을 수행함
     def noisy(frame, *args, **kwargs):
         out = frame.copy()
         out['value'] = [-100, 200]
@@ -106,10 +125,13 @@ def test_noise_cannot_break_final_range_or_null_rules(monkeypatch):
     assert result.loc[1, 'value'] == 10
 
 
+# pipeline keeps features for training but excludes from evaluation 기능의 정상 동작 및 제약조건을 테스트함
 def test_pipeline_keeps_features_for_training_but_excludes_from_evaluation(tmp_path, monkeypatch):
     class Generator:
+        # fit 작업을 수행함
         def fit(self, training, plan):
             assert 'month_sin' in training and 'month_cos' in training
+        # sample 작업을 수행함
         def sample(self, num_rows, conditions=None):
             return pd.DataFrame({'value': np.random.uniform(10, 20, num_rows),
                                  'month_sin': np.zeros(num_rows), 'month_cos': np.ones(num_rows)})
@@ -118,6 +140,7 @@ def test_pipeline_keeps_features_for_training_but_excludes_from_evaluation(tmp_p
     path = tmp_path / 'data.csv'
     raw.to_csv(path, index=False)
     config = SynthesisConfig(sample_rows=3, sampling_batch_size=3, seed=123)
+    # run 작업을 수행함
     def run(job):
         return SyntheticPipeline(config).execute(input_path=path, output_dir=tmp_path / 'out',
             job_id=job, original_filename=path.name, categorical_columns=[], numerical_columns=list(raw.columns),
@@ -136,12 +159,14 @@ def test_pipeline_keeps_features_for_training_but_excludes_from_evaluation(tmp_p
             original_filename=path.name, evaluation_excluded_columns=list(raw.columns))
 
 
+# real ctgan cpu reproducibility and pac 일괄(배치) 작업 크기 기능의 정상 동작 및 제약조건을 테스트함
 def test_real_ctgan_cpu_reproducibility_and_pac_batch_size():
     from synthetic_engine.generators.ml.ctgan import CTGANGenerator
     frame = pd.DataFrame({'group': ['a', 'b', 'c'] * 7, 'value': np.arange(21, dtype=float)})
     plan = ColumnPlan(['group'], ['value'], [], {}, {})
     class Job:
         config = SynthesisConfig(seed=71)
+        # run 작업을 수행함
         @seeded_pipeline
         def run(self):
             gen = CTGANGenerator(epochs=1, batch_size=21, pac=3, enable_gpu=False)

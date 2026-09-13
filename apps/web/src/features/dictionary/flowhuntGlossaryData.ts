@@ -1,5 +1,12 @@
-// 식약처 사내 데이터 생성기 v2.1.0 공식 데이터·AI·프라이버시 표준 용어사전 데이터셋
-// 총 379종의 인공지능, LLM, 통계 가설 검정, OCR·문서 변환, 개인정보 비식별화 및 합성데이터 전문 용어 정의
+/**
+ * 파일명: flowhuntGlossaryData.ts
+ * 경로: apps/web/src/features/dictionary/flowhuntGlossaryData.ts
+ * 목적: 데이터·AI·프라이버시 표준 용어사전 데이터셋 및 카테고리 정의를 제공함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-09
+ * 수정일: 2026-09-13
+ */
+// 총 379종의 인공지능, LLM, 통계 가설 검정, OCR·문서 변환, 개인정보 비식별화 및 합성데이터 전문 용어를 정의함
 
 export interface GlossaryItem {
   id: string;

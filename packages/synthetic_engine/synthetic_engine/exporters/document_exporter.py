@@ -18,6 +18,7 @@ WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
 
+# pseudonymized document 데이터를 외부 포맷으로 내보냄
 def export_pseudonymized_document(
     df: pd.DataFrame,
     target_fmt: str,
@@ -211,6 +212,7 @@ def export_pseudonymized_document(
     return output_path
 
 
+# document content 컬럼 작업을 수행함
 def _document_content_column(df: pd.DataFrame) -> Optional[str]:
     for column in WORD_CONTENT_COLUMN_CANDIDATES:
         if column in df.columns:
@@ -218,26 +220,32 @@ def _document_content_column(df: pd.DataFrame) -> Optional[str]:
     return None
 
 
+# word 파일 경로 여부 및 유효성을 판별함
 def _is_word_path(path: Optional[Path]) -> bool:
     return bool(path and Path(path).exists() and Path(path).suffix.lower() in {".docx", ".doc"})
 
 
+# word qn 작업을 수행함
 def _word_qn(local_name: str) -> str:
     return f"{{{WORD_NS}}}{local_name}"
 
 
+# rel qn 작업을 수행함
 def _rel_qn(local_name: str) -> str:
     return f"{{{REL_NS}}}{local_name}"
 
 
+# 셀 텍스트 to HTML 웹 문서 작업을 수행함
 def _cell_text_to_html(text: str) -> str:
     return text.replace("\n", "<br/>")
 
 
+# 마크다운 escape 셀 작업을 수행함
 def _markdown_escape_cell(text: str) -> str:
     return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br>")
 
 
+# 마크다운 link 작업을 수행함
 def _markdown_link(label: str, url: Optional[str]) -> str:
     if not url:
         return label
@@ -246,6 +254,7 @@ def _markdown_link(label: str, url: Optional[str]) -> str:
     return f"[{safe_label}]({safe_url})"
 
 
+# iter word 문서 블록 items 작업을 수행함
 def _iter_word_block_items(document) -> Iterable[Tuple[str, Any]]:
     from docx.table import Table
     from docx.text.paragraph import Paragraph
@@ -257,6 +266,7 @@ def _iter_word_block_items(document) -> Iterable[Tuple[str, Any]]:
             yield "table", Table(child, document)
 
 
+# word document 데이터를 파일 또는 저장소에서 로드함
 def _load_word_document(input_path: Path):
     import docx
 
@@ -305,6 +315,7 @@ def _load_word_document(input_path: Path):
             tmp_docx.unlink(missing_ok=True)
 
 
+# word relationship target 작업을 수행함
 def _word_relationship_target(paragraph, rel_id: Optional[str]) -> Optional[str]:
     if not rel_id:
         return None
@@ -318,6 +329,7 @@ def _word_relationship_target(paragraph, rel_id: Optional[str]) -> Optional[str]
     return None
 
 
+# word run 텍스트 작업을 수행함
 def _word_run_text(node) -> str:
     parts: List[str] = []
     for child in node.iter():
@@ -330,6 +342,7 @@ def _word_run_text(node) -> str:
     return "".join(parts)
 
 
+# word 문단 fragments 작업을 수행함
 def _word_paragraph_fragments(paragraph, link_format: str = "markdown") -> List[str]:
     fragments: List[str] = []
     for child in paragraph._p:
@@ -352,6 +365,7 @@ def _word_paragraph_fragments(paragraph, link_format: str = "markdown") -> List[
     return fragments
 
 
+# word 문단 텍스트 작업을 수행함
 def _word_paragraph_text(paragraph, link_format: str = "markdown") -> str:
     text = "".join(_word_paragraph_fragments(paragraph, link_format=link_format))
     if not text and getattr(paragraph, "text", None):
@@ -359,6 +373,7 @@ def _word_paragraph_text(paragraph, link_format: str = "markdown") -> str:
     return text
 
 
+# word heading level 작업을 수행함
 def _word_heading_level(paragraph) -> Optional[int]:
     style = paragraph.style
     style_name = (style.name if style and style.name else "").strip().lower()
@@ -381,6 +396,7 @@ def _word_heading_level(paragraph) -> Optional[int]:
     return None
 
 
+# word numbering maps 작업을 수행함
 def _word_numbering_maps(document) -> Tuple[Dict[str, str], Dict[Tuple[str, str], str]]:
     try:
         numbering = document.part.numbering_part.element
@@ -405,6 +421,7 @@ def _word_numbering_maps(document) -> Tuple[Dict[str, str], Dict[Tuple[str, str]
     return num_to_abstract, level_formats
 
 
+# word list info 작업을 수행함
 def _word_list_info(paragraph, num_to_abstract: Dict[str, str], level_formats: Dict[Tuple[str, str], str]) -> Optional[Tuple[int, bool]]:
     p_pr = paragraph._p.pPr
     if p_pr is not None and p_pr.numPr is not None:
@@ -427,6 +444,7 @@ def _word_list_info(paragraph, num_to_abstract: Dict[str, str], level_formats: D
     return level, ordered
 
 
+# word 표(테이블) 행 목록 작업을 수행함
 def _word_table_rows(table, link_format: str = "markdown") -> List[List[str]]:
     rows: List[List[str]] = []
     for row in table.rows:
@@ -441,6 +459,7 @@ def _word_table_rows(table, link_format: str = "markdown") -> List[List[str]]:
     return rows
 
 
+# valid PDF 문서 binary 여부 및 유효성을 판별함
 def _is_valid_pdf_binary(filepath: Path) -> bool:
     """Check if file starts with %PDF magic header."""
     try:
@@ -452,6 +471,7 @@ def _is_valid_pdf_binary(filepath: Path) -> bool:
         return False
 
 
+# in place replace 한글 표준(HWPX) 작업을 수행함
 def _in_place_replace_hwpx(original_filepath: Path, output_path: Path, replacements: List[Tuple[str, str]]) -> bool:
     """In-place text node replacement for HWPX files while keeping 100% of XML styles, layout, and embedded files."""
     try:
@@ -463,6 +483,7 @@ def _in_place_replace_hwpx(original_filepath: Path, output_path: Path, replaceme
                         try:
                             xml_str = content.decode("utf-8")
                             
+                            # replace 텍스트 node 작업을 수행함
                             def replace_text_node(match):
                                 prefix, inner_text, suffix = match.group(1), match.group(2), match.group(3)
                                 for orig, pseudo in replacements:
@@ -480,12 +501,14 @@ def _in_place_replace_hwpx(original_filepath: Path, output_path: Path, replaceme
         return False
 
 
+# in place replace 워드(DOCX) 작업을 수행함
 def _in_place_replace_docx(original_filepath: Path, output_path: Path, replacements: List[Tuple[str, str]]) -> bool:
     """In-place text run replacement for DOCX files keeping 100% of formatting, tables, and images."""
     try:
         import docx
         doc = docx.Document(original_filepath)
 
+        # replace in 문단 작업을 수행함
         def replace_in_paragraph(paragraph):
             for run in paragraph.runs:
                 for orig, pseudo in replacements:
@@ -507,6 +530,7 @@ def _in_place_replace_docx(original_filepath: Path, output_path: Path, replaceme
         return False
 
 
+# in place replace 한글(HWP) 작업을 수행함
 def _in_place_replace_hwp(original_filepath: Path, output_path: Path, replacements: List[Tuple[str, str]]) -> bool:
     """In-place text replacement for HWP 5.0 files."""
     try:
@@ -517,6 +541,7 @@ def _in_place_replace_hwp(original_filepath: Path, output_path: Path, replacemen
         return False
 
 
+# in place replace PDF 문서 작업을 수행함
 def _in_place_replace_pdf(original_filepath: Path, output_path: Path, replacements: List[Tuple[str, str]]) -> bool:
     """In-place text replacement for PDF files using PyMuPDF."""
     try:
@@ -546,6 +571,7 @@ def _in_place_replace_pdf(original_filepath: Path, output_path: Path, replacemen
         return False
 
 
+# valid PDF 문서 폴백 데이터를 생성하여 반환함
 def _generate_valid_pdf_fallback(df: pd.DataFrame, output_path: Path, title: str) -> Path:
     """Guarantees output file is always a valid binary PDF document starting with %PDF."""
     # 1. Try WeasyPrint
@@ -620,6 +646,7 @@ def _generate_valid_pdf_fallback(df: pd.DataFrame, output_path: Path, title: str
     raise RuntimeError('PDF 내보내기 엔진이 없습니다. WeasyPrint 또는 Playwright Chromium을 설치하세요.')
 
 
+# HTML 웹 문서 representation 구조를 생성 및 조립함
 def _build_html_representation(df: pd.DataFrame, title: str = "가명 데이터 문서") -> str:
     """Build modern responsive HTML with CSS styles for PDF conversion or preview."""
     if "문서_내용" in df.columns:
@@ -698,10 +725,12 @@ def _build_html_representation(df: pd.DataFrame, title: str = "가명 데이터 
 """
 
 
+# word 파일 경로 여부 및 유효성을 판별함
 def _is_word_path(path: Optional[Path]) -> bool:
     return bool(path and Path(path).exists() and Path(path).suffix.lower() in {".docx", ".doc"})
 
 
+# wrap document HTML 웹 문서 작업을 수행함
 def _wrap_document_html(title: str, body_html: str) -> str:
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -763,6 +792,7 @@ def _wrap_document_html(title: str, body_html: str) -> str:
 """
 
 
+# iter 워드(DOCX) 블록 목록 작업을 수행함
 def _iter_docx_blocks(document):
     from docx.oxml.table import CT_Tbl
     from docx.oxml.text.paragraph import CT_P
@@ -777,6 +807,7 @@ def _iter_docx_blocks(document):
             yield Table(child, document)
 
 
+# 워드(DOCX) rel target 작업을 수행함
 def _docx_rel_target(part: Any, rel_id: Optional[str]) -> str:
     if not rel_id:
         return ""
@@ -786,6 +817,7 @@ def _docx_rel_target(part: Any, rel_id: Optional[str]) -> str:
         return ""
 
 
+# 워드(DOCX) 문단 텍스트 작업을 수행함
 def _docx_paragraph_text(paragraph) -> str:
     from docx.oxml.ns import qn
 
@@ -805,6 +837,7 @@ def _docx_paragraph_text(paragraph) -> str:
     return "".join(chunks).strip()
 
 
+# 워드(DOCX) 문단 HTML 웹 문서 작업을 수행함
 def _docx_paragraph_html(paragraph) -> str:
     from docx.oxml.ns import qn
 
@@ -824,6 +857,7 @@ def _docx_paragraph_html(paragraph) -> str:
     return "".join(chunks).strip()
 
 
+# 워드(DOCX) 문단 kind 작업을 수행함
 def _docx_paragraph_kind(paragraph) -> Tuple[str, int]:
     style_name = (paragraph.style.name if paragraph.style else "").lower()
     if "heading" in style_name:
@@ -843,6 +877,7 @@ def _docx_paragraph_kind(paragraph) -> Tuple[str, int]:
     return "paragraph", 0
 
 
+# 워드(DOCX) tc colspan 작업을 수행함
 def _docx_tc_colspan(tc: Any) -> int:
     from docx.oxml.ns import qn
 
@@ -855,6 +890,7 @@ def _docx_tc_colspan(tc: Any) -> int:
         return 1
 
 
+# 워드(DOCX) tc is vmerge continue 작업을 수행함
 def _docx_tc_is_vmerge_continue(tc: Any) -> bool:
     from docx.oxml.ns import qn
 
@@ -864,6 +900,7 @@ def _docx_tc_is_vmerge_continue(tc: Any) -> bool:
     return vmerge.get(qn("w:val")) in (None, "", "continue")
 
 
+# 워드(DOCX) 셀 텍스트 작업을 수행함
 def _docx_cell_text(cell) -> str:
     parts = []
     for paragraph in cell.paragraphs:
@@ -873,6 +910,7 @@ def _docx_cell_text(cell) -> str:
     return "\n".join(parts).strip()
 
 
+# 워드(DOCX) 셀 HTML 웹 문서 작업을 수행함
 def _docx_cell_html(cell) -> str:
     parts = []
     for paragraph in cell.paragraphs:
@@ -884,6 +922,7 @@ def _docx_cell_html(cell) -> str:
     return "<br/>".join(parts).strip()
 
 
+# 워드(DOCX) 표(테이블) 행 목록 작업을 수행함
 def _docx_table_rows(table) -> List[List[Dict[str, Any]]]:
     rows: List[List[Dict[str, Any]]] = []
     for row in table.rows:
@@ -905,10 +944,12 @@ def _docx_table_rows(table) -> List[List[Dict[str, Any]]]:
     return rows
 
 
+# 마크다운 escape 셀 작업을 수행함
 def _markdown_escape_cell(text: str) -> str:
     return re.sub(r"\s+", " ", text).replace("\\", "\\\\").replace("|", "\\|").strip()
 
 
+# word 블록 목록 작업을 수행함
 def _word_blocks(input_path: Path) -> List[Dict[str, Any]]:
     document = _load_word_document(input_path)
     num_to_abstract, level_formats = _word_numbering_maps(document)
@@ -947,6 +988,7 @@ def _word_blocks(input_path: Path) -> List[Dict[str, Any]]:
     return blocks
 
 
+# word to 마크다운 데이터를 대상 포맷으로 변환함
 def convert_word_to_markdown(input_path: Path) -> str:
     md: List[str] = []
     for block in _word_blocks(Path(input_path)):
@@ -982,10 +1024,12 @@ def convert_word_to_markdown(input_path: Path) -> str:
     return "\n".join(md).strip()
 
 
+# word to HTML 웹 문서 데이터를 대상 포맷으로 변환함
 def convert_word_to_html(input_path: Path) -> str:
     html_parts: List[str] = []
     open_lists: List[bool] = []
 
+    # close lists 작업을 수행함
     def close_lists(to_level: int = 0) -> None:
         while len(open_lists) > to_level:
             ordered = open_lists.pop()
@@ -1033,6 +1077,7 @@ def convert_word_to_html(input_path: Path) -> str:
     return "\n".join(html_parts)
 
 
+# word to 한글 표준(HWPX) 데이터를 대상 포맷으로 변환함
 def convert_word_to_hwpx(input_path: Path, output_path: Path) -> Path:
     from hwpx.document import HwpxDocument
 

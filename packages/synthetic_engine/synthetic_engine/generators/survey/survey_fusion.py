@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: survey_fusion.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/survey/survey_fusion.py
+# 목적: 복수 설문 문항 간 응답 상관성 및 결합 확률을 모델링함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 
 import json
@@ -53,6 +61,7 @@ class SurveyFusionEngine:
     리커트 척도 서열성 보존, 다지역 풀링(Pooled) 조건부 생성 및 엑셀 심의 평가서 생성 엔진.
     """
 
+    # inspect modules 작업을 수행함
     @staticmethod
     def inspect_modules(tables: Dict[str, pd.DataFrame]) -> SurveyInspectionResult:
         if not tables:
@@ -135,6 +144,7 @@ class SurveyFusionEngine:
             available_regions=available_regions,
         )
 
+    # fuse 표 목록 작업을 수행함
     @staticmethod
     def fuse_tables(
         tables: Dict[str, pd.DataFrame],
@@ -185,6 +195,7 @@ class SurveyFusionEngine:
 
         return fused_df, module_metas
 
+    # synthesize fused 설문조사 작업을 수행함
     @staticmethod
     def synthesize_fused_survey(
         fused_raw: pd.DataFrame,
@@ -206,6 +217,7 @@ class SurveyFusionEngine:
         결합된 설문 와이드 테이블을 AI 모델로 학습하고 증강 샘플링하며,
         조건부 분기(Skip-Logic) 무결성 100% 보정 및 리커트 척도 순서성을 보존합니다.
         """
+        # 분석 리포트 작업을 수행함
         def report(pct: int, msg: str):
             if progress_callback:
                 progress_callback(pct, msg)
@@ -287,6 +299,7 @@ class SurveyFusionEngine:
         }
         return synthetic_df, extra_meta
 
+    # 분할 synthesized 작업을 수행함
     @staticmethod
     def split_synthesized(
         fused_synthetic_df: pd.DataFrame,
@@ -299,6 +312,7 @@ class SurveyFusionEngine:
             split_results[meta.file_key] = sub_df
         return split_results
 
+    # 설문조사 synthesis 품질 및 지표를 평가함
     @staticmethod
     def evaluate_survey_synthesis(
         fused_raw: pd.DataFrame,
@@ -343,6 +357,7 @@ class SurveyFusionEngine:
             "total_columns": len(fused_raw.columns)
         }
 
+    # excel compliance 분석 리포트 데이터를 생성하여 반환함
     @staticmethod
     def generate_excel_compliance_report(
         eval_metrics: Dict[str, Any],
@@ -358,6 +373,7 @@ class SurveyFusionEngine:
             # 1. 시트: 종합 심의 요약
             logic_data = eval_metrics.get("logic_integrity", {})
             k_data = eval_metrics.get("k_anonymity", {})
+            # percentage 작업을 수행함
             def percentage(value):
                 return f'{value * 100:.1f}%' if isinstance(value, (int, float)) and math.isfinite(value) else '미측정'
 

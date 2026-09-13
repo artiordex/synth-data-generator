@@ -19,6 +19,7 @@ PENDING = "담당자 확인 필요"
 ACTIONS = {"drop": "삭제", "mask": "마스킹", "hash": "SHA-256 해시 변환", "faker": "가상 값 생성"}
 
 
+# readable 컬럼 name 작업을 수행함
 def readable_column_name(value: Any) -> str:
     text = clean(value).strip()
     text = re.sub(r"[_\-]+", " ", text)
@@ -26,6 +27,7 @@ def readable_column_name(value: Any) -> str:
     return text
 
 
+# general 응답 subject 작업을 수행함
 def general_response_subject(column_name: str) -> str:
     parts = [part.strip() for part in re.split(r"[_\-]+", column_name) if part.strip()]
     if len(parts) >= 2:
@@ -33,6 +35,7 @@ def general_response_subject(column_name: str) -> str:
     return readable_column_name(column_name)
 
 
+# describe original 컬럼 작업을 수행함
 def describe_original_column(column_name: Any, information_type: str, series: pd.Series) -> str:
     name = readable_column_name(column_name)
     compact = re.sub(r"\s+", "", name)
@@ -69,6 +72,7 @@ def describe_original_column(column_name: Any, information_type: str, series: pd
     return f"{name} 응답정보"
 
 
+# ambiguous description 여부 및 유효성을 판별함
 def is_ambiguous_description(column_name: Any, information_type: str, description: str) -> bool:
     name = readable_column_name(column_name)
     if information_type == "준식별자":
@@ -76,10 +80,12 @@ def is_ambiguous_description(column_name: Any, information_type: str, descriptio
     return description == f"{name} 응답정보"
 
 
+# sample values for prompt 작업을 수행함
 def sample_values_for_prompt(series: pd.Series) -> list[str]:
     return [clean(value)[:40] for value in series.dropna().astype(str).drop_duplicates().head(8).tolist()]
 
 
+# maybe polish description 작업을 수행함
 def maybe_polish_description(column_name: Any, information_type: str, series: pd.Series, base_description: str) -> str:
     if env_bool("OPENAI_COLUMN_DESCRIPTION_ONLY_AMBIGUOUS", True) and not is_ambiguous_description(column_name, information_type, base_description):
         return base_description
@@ -92,6 +98,7 @@ def maybe_polish_description(column_name: Any, information_type: str, series: pd
     return polished or base_description
 
 
+# describe information area 작업을 수행함
 def describe_information_area(group: str, columns: list[dict[str, Any]], dataset_name: str) -> str:
     names = "".join(col["name"] for col in columns)
     compact_dataset = re.sub(r"\s+", "", dataset_name)
@@ -111,6 +118,7 @@ def describe_information_area(group: str, columns: list[dict[str, Any]], dataset
     return "조사 문항 응답 및 일반 현황 정보"
 
 
+# information area summaries 구조를 생성 및 조립함
 def build_information_area_summaries(columns: list[dict[str, Any]], dataset_name: str) -> dict[str, str]:
     summaries = {}
     for group in ("준식별자", "일반정보"):
@@ -120,6 +128,7 @@ def build_information_area_summaries(columns: list[dict[str, Any]], dataset_name
     return summaries
 
 
+# default special notes 작업을 수행함
 def default_special_notes(raw: pd.DataFrame, detected: dict[str, Any]) -> str:
     missing = int(raw.isna().sum().sum())
     duplicated = int(raw.duplicated().sum())
@@ -130,11 +139,13 @@ def default_special_notes(raw: pd.DataFrame, detected: dict[str, Any]) -> str:
     return f"{', '.join(notes)}이 확인됨. 정보영역 및 항목 설명은 자동 분류 결과 기준으로 작성되어 담당자 검토 필요."
 
 
+# clean 작업을 수행함
 def clean(value: Any) -> str:
     # XML 1.0 cannot represent most ASCII control characters.
     return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(value))
 
 
+# measured 작업을 수행함
 def measured(value: Any) -> str:
     try:
         number = float(value)
@@ -143,6 +154,7 @@ def measured(value: Any) -> str:
         return "미측정"
 
 
+# 분석 리포트 value 작업을 수행함
 def report_value(value: Any) -> str:
     try:
         number = float(value)
@@ -153,11 +165,13 @@ def report_value(value: Any) -> str:
     return "<0.01" if 0 < number < 0.005 else f"{number:.2f}"
 
 
+# 분석 리포트 모델 name 작업을 수행함
 def report_model_name(model_type: str) -> str:
     return {"ctgan": "CTGAN", "tvae": "TVAE", "gaussian_copula": "Gaussian Copula",
             "statistical": "통계 기반 모형"}.get(model_type, clean(model_type))
 
 
+# review context 구조를 생성 및 조립함
 def build_review_context(
     raw: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPlan,
     original_filename: str, model_type: str, metrics: dict[str, Any],
@@ -255,6 +269,7 @@ def build_review_context(
     }
 
 
+# review documents 구조를 생성 및 조립함
 def build_review_documents(*, raw: pd.DataFrame, synthetic: pd.DataFrame,
                            plan: ColumnPlan, original_filename: str, model_type: str,
                            metrics: dict[str, Any], output_review_dir: Path,

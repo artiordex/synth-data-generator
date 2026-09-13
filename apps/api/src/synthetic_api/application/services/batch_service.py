@@ -1,11 +1,12 @@
-"""
-파일명: batch_service.py
-경로: apps/api/src/synthetic_api/application/services/batch_service.py
-목적: 여러 합성 작업의 일괄 실행과 결과 패키징을 관리함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: batch_service.py
+# 경로: apps/api/src/synthetic_api/application/services/batch_service.py
+# 목적: 다중 합성 작업의 일괄 실행 및 상태 관리 서비스를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import json
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -33,17 +34,27 @@ TERMINAL = TERMINAL_JOB_STATUSES
 class BatchService:
     """여러 합성 작업을 하나의 일괄 작업으로 관리함"""
 
+    # list recent 작업을 수행함
     @staticmethod
     def list_recent():
-        """최근 일괄 작업 목록을 조회함"""
+        """
+        @description 최근 등록된 일괄(배치) 합성 작업 목록을 최대 50건 조회함
+        @return: 조회된 일괄 작업 세부 정보 딕셔너리 리스트를 반환함
+        """
         with SessionLocal() as db:
             ids = [row.id for row in db.query(BatchEntity)
                    .order_by(BatchEntity.created_at.desc()).limit(50).all()]
         return [BatchService.get(batch_id) for batch_id in ids]
 
+    # start 작업을 수행함
     @staticmethod
     def start(requests: list[SynthesisRequest]):
-        """합성 요청 목록을 일괄 작업으로 등록하고 실행함"""
+        """
+        @description 1~20개의 합성 요청을 일괄 작업으로 등록하고 백그라운드 워커에서 실행함
+        @param requests: 일괄 처리할 SynthesisRequest 객체 리스트임
+        @return: 생성된 배치 ID 및 하위 작업 요약 딕셔너리를 반환함
+        @throws ValueError: 요청 개수 범위를 초과하거나 대상 파일이 존재하지 않는 경우 발생함
+        """
         if not 1 <= len(requests) <= 20:
             raise ValueError("한 번에 1~20개 파일을 처리할 수 있습니다.")
         root = settings.UPLOAD_DIR.resolve()
@@ -63,9 +74,15 @@ class BatchService:
         _WORKER.submit(BatchService._run_batch, batch_id)
         return BatchService.get(batch_id)
 
+    # get 작업을 수행함
     @staticmethod
     def get(batch_id):
-        """일괄 작업과 하위 작업의 현재 상태를 조회함"""
+        """
+        @description 일괄 작업 및 소속 하위 작업들의 실시간 진행 상태와 통계를 집계 조회함
+        @param batch_id: 조회할 일괄 작업 고유 식별자임
+        @return: 하위 작업 목록 및 종합 진행률 딕셔너리를 반환함
+        @throws FileNotFoundError: 해당 배치 ID가 존재하지 않는 경우 발생함
+        """
         with SessionLocal() as db:
             batch = db.get(BatchEntity, batch_id)
             if batch is None:
@@ -84,18 +101,27 @@ class BatchService:
                     'progress': min(progress, 99) if batch.status in {'pending', 'processing'} else progress,
                     'jobs': [j.model_dump() for j in jobs], 'package_zip': batch.package_zip, 'error': batch.error}
 
+    # cancel 작업을 수행함
     @staticmethod
     def cancel(batch_id):
-        """일괄 작업에 포함된 실행 중 작업을 취소함"""
+        """
+        @description 일괄 작업에 포함된 모든 미완료 하위 작업을 일괄 취소함
+        @param batch_id: 취소할 일괄 작업 고유 식별자임
+        @return: 갱신된 일괄 작업 상태 스냅샷을 반환함
+        """
         snapshot = BatchService.get(batch_id)
         for job in snapshot['jobs']:
             if job['status'] not in TERMINAL:
                 SynthesisService.cancel_job(job['id'])
         return BatchService.get(batch_id)
 
+    # 일괄(배치) 작업 작업을 실행함
     @staticmethod
     def _run_batch(batch_id):
-        """일괄 작업을 순차 실행하고 결과 ZIP을 생성함"""
+        """
+        @description 백그라운드 스레드에서 배치 내 하위 작업들을 순차 실행하고 산출물 ZIP을 패키징함
+        @param batch_id: 실행할 일괄 작업 고유 식별자임
+        """
         with SessionLocal() as db:
             batch = db.get(BatchEntity, batch_id)
             items = json.loads(batch.items_json)
@@ -150,6 +176,7 @@ class BatchService:
                 batch.status, batch.error = 'failed', str(exc)
                 db.commit()
 
+    # submission 파일 목록 to 일괄(배치) 작업 zip 데이터를 파일에 기록함
     @staticmethod
     def _write_submission_files_to_batch_zip(archive: ZipFile, job: dict, index: int) -> bool:
         """Write one completed job as numbered files under grouped submission folders."""
@@ -181,6 +208,7 @@ class BatchService:
                 wrote_any = True
         return wrote_any
 
+    # recover interrupted 작업을 수행함
     @staticmethod
     def recover_interrupted():
         """서버 재시작으로 중단된 일괄 작업을 실패 상태로 기록함"""

@@ -21,6 +21,7 @@ class DomainCatalog:
     _domain_map: dict[str, dict[str, Any]] = {}
     _alias_map: dict[str, dict[str, Any]] = {}
 
+    # load 작업을 수행함
     @classmethod
     def _load(cls) -> None:
         """도메인 카탈로그 파일을 최초 1회 메모리에 적재함"""
@@ -38,6 +39,7 @@ class DomainCatalog:
                 norm = re.sub(r"[\s_\-\.\(\)]+", "", alias.lower())
                 cls._alias_map[norm] = item
 
+    # list domains 작업을 수행함
     @classmethod
     def list_domains(cls, category: str | None = None) -> list[dict[str, Any]]:
         """전체 또는 특정 분류의 도메인 목록을 반환함"""
@@ -46,6 +48,7 @@ class DomainCatalog:
             return [d for d in cls._domains if d.get("category") == category]
         return list(cls._domains)
 
+    # categories 정보를 조회하여 반환함
     @classmethod
     def get_categories(cls) -> list[str]:
         """카탈로그에 정의된 도메인 분류 목록을 반환함"""
@@ -57,12 +60,14 @@ class DomainCatalog:
                 cats.append(c)
         return cats
 
+    # domain 정보를 조회하여 반환함
     @classmethod
     def get_domain(cls, domain_id: str) -> dict[str, Any] | None:
         """도메인 식별자로 표준 도메인을 조회함"""
         cls._load()
         return cls._domain_map.get(domain_id)
 
+    # infer domain by name 작업을 수행함
     @classmethod
     def infer_domain_by_name(cls, column_name: str) -> dict[str, Any]:
         """Smart matcher that maps an arbitrary column name to the closest standard domain."""
@@ -99,6 +104,7 @@ class DomainCatalog:
             "sample": f"{column_name}_샘플"
         }
 
+    # templates 정보를 조회하여 반환함
     @classmethod
     def get_templates(cls) -> list[dict[str, Any]]:
         """Predefined standard schemas for 1-click creation."""

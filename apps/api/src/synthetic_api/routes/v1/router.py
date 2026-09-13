@@ -1,11 +1,12 @@
-"""
-파일명: router.py
-경로: apps/api/src/synthetic_api/routes/v1/router.py
-목적: 버전 1 API 라우터를 기능별 라우터로 조합함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: router.py
+# 경로: apps/api/src/synthetic_api/routes/v1/router.py
+# 목적: API v1 라우터 등록 및 하위 라우트 집계를 담당함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from fastapi import APIRouter
 from .datasets import router as datasets_router
 from .synthesis import router as synthesis_router

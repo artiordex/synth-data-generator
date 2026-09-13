@@ -1,11 +1,12 @@
-"""
-파일명: system.py
-경로: apps/api/src/synthetic_api/routes/v1/system.py
-목적: 시스템 문서와 라이브러리 관리 API를 제공함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: system.py
+# 경로: apps/api/src/synthetic_api/routes/v1/system.py
+# 목적: 시스템 문서와 라이브러리 관리 API를 제공함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 import datetime
 import json
 import re
@@ -142,6 +143,7 @@ DOCUMENT_PATH_ALIASES = {
     "packages/synthetic_engine/README.md": "packages/synthetic_engine/합성엔진안내.md",
 }
 
+# 패키지 의존성 목록을 분석하여 라이브러리 마크다운 문서를 동기화 생성함
 def sync_and_generate_libraries_markdown() -> str:
     """package.json, package-lock.json, pyproject.toml을 분석하여 라이브러리목록.md를 자동 갱신합니다."""
     root = settings.ROOT_DIR.resolve()
@@ -236,6 +238,7 @@ def sync_and_generate_libraries_markdown() -> str:
 
     return final_content
 
+# 프로젝트 내 모든 기술 문서 및 가이드 마크다운 파일을 수집함
 def scan_all_markdown_docs():
     docs = []
     root = settings.ROOT_DIR.resolve()
@@ -265,13 +268,13 @@ def scan_all_markdown_docs():
 
             # Categorization
             if rel_posix.startswith("docs/"):
-                category = "📁 docs/ 기술 가이드 및 산출물"
+                category = "[기술 가이드] docs/ 기술 가이드 및 산출물"
             elif rel_posix in ["개발이력.md", "라이브러리목록.md", "프로젝트안내.md", "저장소작업지침.md"]:
-                category = "⭐ 핵심 시스템 문서"
+                category = "[핵심 문서] 핵심 시스템 문서"
             elif "apps/" in rel_posix or "packages/" in rel_posix:
-                category = "📦 패키지 및 모듈"
+                category = "[패키지] 패키지 및 모듈"
             else:
-                category = "📄 기타 문서"
+                category = "[기타 문서] 기타 문서"
 
             stat = p.stat()
             mtime = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
@@ -293,6 +296,7 @@ def scan_all_markdown_docs():
         except Exception:
             continue
 
+# 문서 목록의 정렬 순서를 결정하는 키 값을 반환함
     def sort_key(d):
         priority = {
             "개발이력.md": 1,
@@ -302,21 +306,23 @@ def scan_all_markdown_docs():
         }
         # Put core docs first, then docs/ folder, then packages, then other
         cat_priority = {
-            "⭐ 핵심 시스템 문서": 1,
-            "📁 docs/ 기술 가이드 및 산출물": 2,
-            "📦 패키지 및 모듈": 3,
-            "📄 기타 문서": 4
+            "[핵심 문서] 핵심 시스템 문서": 1,
+            "[기술 가이드] docs/ 기술 가이드 및 산출물": 2,
+            "[패키지] 패키지 및 모듈": 3,
+            "[기타 문서] 기타 문서": 4
         }
         return (priority.get(d["id"], 99), cat_priority.get(d["category"], 99), d["path"])
 
     docs.sort(key=sort_key)
     return docs
 
+# 사용 가능한 시스템 문서 및 매뉴얼 목록을 카테고리별로 조회함
 @router.get("/docs", summary="저장소 내 전체 마크다운(.md) 문서 목록 조회", description="프로젝트 저장소 내에 작성된 모든 기술 문서, 매뉴얼, 개발이력 마크다운(.md) 파일 목록을 스캔하여 반환합니다.")
 async def list_docs():
     """모든 프로젝트 마크다운 문서 목록을 조회합니다."""
     return {"docs": scan_all_markdown_docs()}
 
+# 특정 문서 ID에 해당하는 마크다운 본문 내용을 조회함
 @router.get("/doc", summary="단일 마크다운 문서 내용 조회", description="지정한 상대 경로의 마크다운(.md) 문서 원본 텍스트 및 메타데이터를 조회합니다.")
 async def get_doc(path: str = Query(..., description="조회할 마크다운 파일 상대 경로")):
     """지정한 마크다운 문서의 내용과 메타데이터를 안전하게 조회합니다."""
@@ -363,6 +369,7 @@ async def get_doc(path: str = Query(..., description="조회할 마크다운 파
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문서 읽기 오류: {str(e)}")
 
+# 시스템 변경 이력 문서를 조회함
 @router.get("/changelog", summary="시스템 개발이력 조회", description="개발이력.md 파일의 버전별 업데이트 및 변경 기록을 조회합니다.")
 async def get_changelog():
     p = settings.ROOT_DIR / "개발이력.md"
@@ -372,11 +379,13 @@ async def get_changelog():
         content = "# 시스템 개발 이력\n\n- 개발이력.md 파일이 존재하지 않습니다."
     return {"content": content}
 
+# 시스템에 설치된 외부 라이브러리 및 오픈소스 목록을 조회함
 @router.get("/libraries", summary="사내 데이터 생성기 전체 의존성 라이브러리 명세 조회", description="Python 백엔드와 TypeScript 프론트엔드에 설치된 모든 오픈소스 라이브러리의 버전, 라이선스, 역할 설명을 조회합니다.")
 async def get_libraries():
     content = sync_and_generate_libraries_markdown()
     return {"content": content}
 
+# 최신 설치 패키지 정보를 라이브러리 문서로 동기화 갱신함
 @router.post("/sync-libraries", summary="라이브러리목록.md 동기화 갱신", description="pyproject.toml 및 package-lock.json 파일을 파싱하여 라이브러리목록.md를 최신 상태로 재동기화합니다.")
 async def sync_libraries():
     content = sync_and_generate_libraries_markdown()

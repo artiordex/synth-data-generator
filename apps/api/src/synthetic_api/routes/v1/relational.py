@@ -1,11 +1,12 @@
-"""
-파일명: relational.py
-경로: apps/api/src/synthetic_api/routes/v1/relational.py
-목적: 관계형 데이터 분석·합성 API를 제공함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: relational.py
+# 경로: apps/api/src/synthetic_api/routes/v1/relational.py
+# 목적: 관계형 데이터베이스 테이블 간 합성 데이터 생성 API 엔드포인트를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 
 import uuid
@@ -39,6 +40,7 @@ class RelationalRequest(BaseModel):
     seed: int = 42
 
 
+# 관계형 데이터베이스 테이블 파일들을 메모리에 로드함
 def _load_tables(file_names: list[str]) -> dict[str, pd.DataFrame]:
     tables: dict[str, pd.DataFrame] = {}
     for file_name in file_names:
@@ -53,6 +55,7 @@ def _load_tables(file_names: list[str]) -> dict[str, pd.DataFrame]:
     return tables
 
 
+# 테이블 간 외래키 관계 및 계층 구조를 자동 추론함
 def _infer(tables: dict[str, pd.DataFrame]) -> tuple[dict[str, str], list[TableRelationship]]:
     primary: dict[str, str] = {}
     for table, frame in tables.items():
@@ -81,6 +84,7 @@ def _infer(tables: dict[str, pd.DataFrame]) -> tuple[dict[str, str], list[TableR
     return primary, relationships
 
 
+# 다중 테이블 데이터셋의 관계 구조 및 참조 무결성을 프로파일링함
 @router.post("/profile", summary="관계형 테이블 간 기본키(PK) 및 외래키(FK) 관계 자동 분석", description="여러 개의 테이블 파일들을 검사하여 기본키(PK)와 외래키(FK) 참조 관계를 자동으로 추론하고 통계를 산출합니다.")
 def profile_relational(req: RelationalRequest):
     try:
@@ -96,6 +100,7 @@ def profile_relational(req: RelationalRequest):
     }
 
 
+# 외래키 제약조건을 준수하며 다중 관계형 테이블 합성 데이터를 생성함
 @router.post("/generate", summary="관계형 멀티테이블 합성 데이터 생성", description="HMA 또는 TurboRelationalSampler 모델을 이용해 테이블 간 참조 무결성을 유지하며 합성 데이터를 생성합니다.")
 def generate_relational(req: RelationalRequest):
     try:

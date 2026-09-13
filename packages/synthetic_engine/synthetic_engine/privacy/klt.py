@@ -1,17 +1,19 @@
-"""
-파일명: klt.py
-경로: packages/synthetic_engine/synthetic_engine/privacy/klt.py
-목적: k-익명성·l-다양성·t-근접성 지표를 계산함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: klt.py
+# 경로: packages/synthetic_engine/synthetic_engine/privacy/klt.py
+# 목적: K-익명성, L-다양성, T-근접성 프라이버시 보호 모델을 평가함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 
 from typing import Any
 import pandas as pd
 
 
+# klt 품질 및 지표를 평가함
 def evaluate_klt(
     frame: pd.DataFrame,
     quasi_identifiers: list[str],

@@ -8,6 +8,7 @@ from pathlib import Path
 LEADING_SEQUENCE_RE = re.compile(r"^\s*(?P<number>\d+)\.\s*(?P<name>.+?)\s*$")
 
 
+# 분할 leading sequence 작업을 수행함
 def split_leading_sequence(stem: str) -> tuple[str | None, str]:
     match = LEADING_SEQUENCE_RE.match(stem)
     if not match:
@@ -15,6 +16,7 @@ def split_leading_sequence(stem: str) -> tuple[str | None, str]:
     return f"{match.group('number')}.", match.group("name").strip()
 
 
+# infer 데이터셋 group 작업을 수행함
 def infer_dataset_group(dataset_name: str | None) -> str | None:
     """Infer the trailing folder group from names like '데이터명_세종'."""
     text = (dataset_name or "").strip()
@@ -26,11 +28,13 @@ def infer_dataset_group(dataset_name: str | None) -> str | None:
     return safe_path_part(group, "그룹")
 
 
+# submission folder name 작업을 수행함
 def submission_folder_name(kind: str, dataset_name: str | None = None) -> str:
     group = infer_dataset_group(dataset_name)
     return f"{kind}_{group}" if group else kind
 
 
+# numbered submission filename 작업을 수행함
 def numbered_submission_filename(filename: str, index: int) -> str:
     """Replace any leading sequence with the batch sequence: '01. name.ext'."""
     path = Path(filename)
@@ -38,11 +42,13 @@ def numbered_submission_filename(filename: str, index: int) -> str:
     return f"{index:02d}. {safe_path_part(clean_stem, '데이터')}{path.suffix}"
 
 
+# review document filename 작업을 수행함
 def review_document_filename(title: str, dataset_name: str, sequence: str | None = None, suffix: str = ".hwpx") -> str:
     prefix = f"{sequence} " if sequence else ""
     return f"{prefix}{title}({safe_path_part(dataset_name, '데이터')}){suffix}"
 
 
+# synthetic data filename 작업을 수행함
 def synthetic_data_filename(dataset_name: str, sequence: str | None = None, suffix: str = ".xlsx") -> str:
     clean_name = safe_path_part(dataset_name, "데이터")
     if sequence:
@@ -50,12 +56,14 @@ def synthetic_data_filename(dataset_name: str, sequence: str | None = None, suff
     return f"합성데이터_{clean_name}{suffix}"
 
 
+# safe 파일 경로 part 작업을 수행함
 def safe_path_part(value: str | None, default: str) -> str:
     text = (value or "").strip() or default
     text = re.sub(r'[\\/:*?"<>|]+', "_", text)
     text = re.sub(r"\s+", " ", text).strip(" .")
     return text[:80] or default
 
+# submission package dirs 객체 또는 요소를 생성함
 def make_submission_package_dirs(base_output_dir: Path, job_id: str, original_filename: str) -> dict[str, Path]:
     _, parsed_dataset_name = split_leading_sequence(Path(original_filename).stem)
     dataset_name = safe_path_part(parsed_dataset_name, "데이터")
@@ -72,6 +80,7 @@ def make_submission_package_dirs(base_output_dir: Path, job_id: str, original_fi
 
     return dirs
 
+# package zip 데이터를 신규 생성함
 def create_package_zip(package_dir: Path, zip_output_path: Path) -> Path:
     zip_output_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_output_path, "w", zipfile.ZIP_DEFLATED) as zipf:

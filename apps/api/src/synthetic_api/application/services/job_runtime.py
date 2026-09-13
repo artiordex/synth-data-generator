@@ -26,16 +26,19 @@ ACTIVE_TASKS: dict[str, Thread] = {}
 CANCEL_FLAGS: dict[str, bool] = {}
 
 
+# terminal 여부 및 유효성을 판별함
 def is_terminal(status: str | None) -> bool:
     """작업 상태가 종료 상태인지 확인함"""
     return status in TERMINAL_JOB_STATUSES
 
 
+# cancelable 항목을 레지스트리에 등록함
 def register_cancelable(job_id: str) -> None:
     """작업을 취소 가능한 상태로 등록함"""
     CANCEL_FLAGS[job_id] = False
 
 
+# 요청 cancel 작업을 수행함
 def request_cancel(job_id: str) -> bool:
     """작업에 취소 신호를 설정함"""
     if job_id not in CANCEL_FLAGS:
@@ -44,11 +47,13 @@ def request_cancel(job_id: str) -> bool:
     return True
 
 
+# cancel requested 작업을 수행함
 def cancel_requested(job_id: str) -> bool:
     """작업에 취소 요청이 등록되었는지 확인함"""
     return CANCEL_FLAGS.get(job_id, False)
 
 
+# runtime 합성 작업 데이터를 초기화 및 정리함
 def clear_runtime_job(job_id: str) -> None:
     """작업의 메모리 런타임 상태를 정리함"""
     ACTIVE_TASKS.pop(job_id, None)
@@ -59,6 +64,7 @@ class JobProgressUpdater:
     """작업 진행률과 메시지를 저장하는 호출 가능 객체임"""
     """Update a persisted synthesis job and honor cooperative cancellation."""
 
+    # JobProgressUpdater 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(
         self,
         job_id: str,
@@ -70,6 +76,7 @@ class JobProgressUpdater:
         self.repo = repo
         self.is_canceled = is_canceled
 
+    # JobProgressUpdater 인스턴스를 호출하여 작업을 실행함
     def __call__(self, pct: int, message: str) -> None:
         """진행률과 메시지를 작업 저장소에 갱신함"""
         if self.is_canceled(self.job_id):

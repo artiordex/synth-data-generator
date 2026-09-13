@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: engine.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/rule_based/engine.py
+# 목적: 규칙 기반 합성 데이터 생성 엔진 메인 루프를 실행함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 import random
 from datetime import datetime, timedelta
@@ -7,6 +15,7 @@ import pandas as pd
 from ...common.types import ColumnPlan
 
 class RuleEngine:
+    # weighted choice 작업을 수행함
     @staticmethod
     def weighted_choice(values: list[Any], weights: list[float] | None = None) -> Any:
         if not values:
@@ -22,6 +31,7 @@ class RuleEngine:
                 return value
         return values[-1]
 
+    # apply 변환 규칙 컬럼 작업을 수행함
     @classmethod
     def apply_rule_column(cls, row_count: int, spec: dict[str, Any]) -> list[Any]:
         rule_type = spec.get("type")
@@ -69,6 +79,7 @@ class RuleEngine:
 
         raise ValueError(f"Unsupported rule type: {rule_type}")
 
+    # apply 규칙 목록 작업을 수행함
     @classmethod
     def apply_rules(cls, df: pd.DataFrame, plan: ColumnPlan) -> pd.DataFrame:
         output = df.copy()

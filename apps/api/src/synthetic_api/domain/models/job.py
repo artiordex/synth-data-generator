@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: job.py
+# 경로: apps/api/src/synthetic_api/domain/models/job.py
+# 목적: 비동기 합성데이터 생성 및 변환 작업 도메인 모델임
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 from typing import Optional, Dict, Any, List, Literal
 from pydantic import BaseModel, Field
 from datetime import datetime

@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: models.py
+# 경로: apps/api/src/synthetic_api/infrastructure/db/models.py
+# 목적: SQLAlchemy 기반 데이터베이스 엔티티 ORM 모델을 정의함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime
 
 from datetime import datetime

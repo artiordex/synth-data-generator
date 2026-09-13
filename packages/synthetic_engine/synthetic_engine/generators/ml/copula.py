@@ -17,10 +17,12 @@ from ..registry import register_synthesizer
 @register_synthesizer("gaussian_copula")
 class GaussianCopulaGenerator(BaseSynthesizer):
     """컬럼 분포와 상관관계를 보존하는 Gaussian Copula 생성기임"""
+    # GaussianCopulaGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self):
         self.synthesizer = None
         self.plan = None
 
+    # fit 작업을 수행함
     def fit(self, training: pd.DataFrame, plan: ColumnPlan, **kwargs: Any) -> None:
         from sdv.metadata import SingleTableMetadata
         from sdv.single_table import GaussianCopulaSynthesizer
@@ -42,6 +44,7 @@ class GaussianCopulaGenerator(BaseSynthesizer):
         self.synthesizer = GaussianCopulaSynthesizer(metadata)
         self.synthesizer.fit(training)
 
+    # sample 작업을 수행함
     def sample(self, num_rows: int, conditions: dict[str, Any] | None = None) -> pd.DataFrame:
         if self.synthesizer is None:
             raise RuntimeError("Model is not fitted.")

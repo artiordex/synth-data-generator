@@ -1,11 +1,12 @@
-"""
-파일명: history.py
-경로: apps/api/src/synthetic_api/routes/v1/history.py
-목적: 통합 작업 이력 조회·삭제 API를 제공함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: history.py
+# 경로: apps/api/src/synthetic_api/routes/v1/history.py
+# 목적: 합성 작업 히스토리 및 감사 로그 조회 API 엔드포인트를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import json
 
 from fastapi import APIRouter, HTTPException
@@ -32,6 +33,7 @@ class DeleteSelectedHistoryRequest(BaseModel):
     items: List[DeleteHistoryItem]
 
 
+# 선택된 특정 합성 및 변환 작업 이력 항목을 삭제함
 @router.post("/delete-selected", summary="선택한 작업 이력 항목 삭제", description="체크박스로 선택한 특정 합성 작업, 배치, 가명화, 더미, 변환 이력 항목들을 데이터베이스 및 이력 파일에서 삭제합니다.")
 def delete_selected_history(req: DeleteSelectedHistoryRequest):
     """Delete selectively chosen history items."""
@@ -88,6 +90,7 @@ def delete_selected_history(req: DeleteSelectedHistoryRequest):
             deleted_counts["batches"] = deleted_batches
         db.commit()
 
+# 이력 JSON 파일에서 지정된 식별자 항목을 필터링하여 갱신함
     def _filter_json_file(file_path: Path, target_set: set) -> int:
         if not file_path.exists() or not target_set:
             return 0
@@ -123,6 +126,7 @@ def delete_selected_history(req: DeleteSelectedHistoryRequest):
     return {"status": "success", "deleted": deleted_counts}
 
 
+# 전체 작업 이력 목록을 초기화하고 삭제함
 @router.delete("", summary="전체 작업 이력 초기화", description="진행 중인 작업이 없는 상태에서 모든 합성/가명화/더미/변환 이력 인덱스를 초기화합니다(생성된 원본 파일은 보존).")
 def clear_all_history():
     """Clear history indexes while preserving generated files and templates."""

@@ -16,6 +16,7 @@ import duckdb
 import pandas as pd
 
 
+# 프로파일 데이터셋 with duckdb 작업을 수행함
 def profile_dataset_with_duckdb(
     data: Union[pd.DataFrame, str, Path],
     max_categories: int = 10,

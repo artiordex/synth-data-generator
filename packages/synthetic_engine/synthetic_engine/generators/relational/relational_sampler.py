@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: relational_sampler.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/relational/relational_sampler.py
+# 목적: 외래키 제약조건을 준수하는 다중 테이블 샘플러를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 import math
 import random
@@ -10,12 +18,14 @@ from ...common.types import TableRelationship
 class TurboRelationalSampler:
     """High-speed relational sampler ensuring 100% referential integrity across parent-child tables."""
 
+    # TurboRelationalSampler 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, seed: int = 42):
         self.seed = seed
         self.tables: dict[str, pd.DataFrame] = {}
         self.relationships: list[TableRelationship] = []
         self.primary_keys: dict[str, str] = {}
 
+    # fit 작업을 수행함
     def fit(
         self,
         tables: dict[str, pd.DataFrame],
@@ -31,6 +41,7 @@ class TurboRelationalSampler:
             if rel.parent_table not in self.primary_keys:
                 self.primary_keys[rel.parent_table] = rel.parent_key
 
+    # sample single 표(테이블) 작업을 수행함
     def _sample_single_table(self, df: pd.DataFrame, num_rows: int, exclude_cols: set[str]) -> pd.DataFrame:
         """Sample attributes of a table using empirical bootstrapping with subtle continuous noise."""
         if len(df) == 0:
@@ -50,6 +61,7 @@ class TurboRelationalSampler:
                     sampled[col] = (sampled[col] + noise).round(2)
         return sampled
 
+    # sample 작업을 수행함
     def sample(self, num_rows_or_scale: int | float = 1.0) -> dict[str, pd.DataFrame]:
         rng = np.random.default_rng(self.seed)
         generated: dict[str, pd.DataFrame] = {}

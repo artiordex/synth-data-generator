@@ -15,6 +15,7 @@ SECTOR_SIZE = 512
 MINI_SECTOR_SIZE = 64
 MINI_STREAM_CUTOFF = 4096
 
+# cfbf 구조를 생성 및 조립함
 def build_cfbf(streams_dict: dict[tuple[str, ...], bytes]) -> bytes:
     dir_entries = []
     root_children: dict[str, Any] = {}
@@ -29,6 +30,7 @@ def build_cfbf(streams_dict: dict[tuple[str, ...], bytes]) -> bytes:
                     curr[part] = {"type": 1, "children": {}, "name": part}
                 curr = curr[part]["children"]
 
+    # node 항목을 목록에 추가함
     def add_node(name: str, node_type: int, children: dict[str, Any] | None, data: bytes) -> int:
         idx = len(dir_entries)
         entry = {
@@ -150,6 +152,7 @@ def build_cfbf(streams_dict: dict[tuple[str, ...], bytes]) -> bytes:
     out.extend(fat_bytes)
     return bytes(out)
 
+# records 데이터를 분석하여 파싱함
 def parse_records(decomp: bytes) -> list[dict[str, Any]]:
     pos = 0
     records = []
@@ -169,6 +172,7 @@ def parse_records(decomp: bytes) -> list[dict[str, Any]]:
         records.append({"tag_id": tag_id, "level": level, "size": size, "payload": payload})
     return records
 
+# serialize records 작업을 수행함
 def serialize_records(records: list[dict[str, Any]]) -> bytes:
     out = bytearray()
     for r in records:
@@ -186,6 +190,7 @@ def serialize_records(records: list[dict[str, Any]]) -> bytes:
         out.extend(payload)
     return bytes(out)
 
+# replace 텍스트 목록 in records 작업을 수행함
 def replace_texts_in_records(records: list[dict[str, Any]], replacements: list[tuple[str, str]]) -> list[dict[str, Any]]:
     for i, r in enumerate(records):
         if r["tag_id"] == 66:
@@ -209,6 +214,7 @@ def replace_texts_in_records(records: list[dict[str, Any]], replacements: list[t
                     break
     return records
 
+# filled 한글(HWP) 데이터를 생성하여 반환함
 def generate_filled_hwp(template_path: Path, output_path: Path, replacements: list[tuple[str, str]]) -> Path:
     if not template_path.exists():
         raise FileNotFoundError(f"Template file not found: {template_path}")
@@ -248,6 +254,7 @@ def generate_filled_hwp(template_path: Path, output_path: Path, replacements: li
     output_path.write_bytes(hwp_bytes)
     return output_path
 
+# template search dirs 정보를 조회하여 반환함
 def get_template_search_dirs(user_specified_dir: Path | None = None) -> list[Path]:
     dirs = []
     if user_specified_dir:
@@ -278,6 +285,7 @@ def get_template_search_dirs(user_specified_dir: Path | None = None) -> list[Pat
                 res.append(d)
     return res
 
+# template 파일 대상을 탐색하여 반환함
 def find_template_file(search_dirs: list[Path], exact_name: str, keywords: list[str]) -> Path | None:
     # 1. Try exact name match
     for d in search_dirs:
@@ -294,6 +302,7 @@ def find_template_file(search_dirs: list[Path], exact_name: str, keywords: list[
             continue
     return None
 
+# review documents 구조를 생성 및 조립함
 def build_review_documents(
     dataset_name: str,
     orig_filename: str,

@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import os
-import sys
+import logging
+import soupsieve
 import re
-import shutil
 import subprocess
 import tempfile
 import zipfile
@@ -12,7 +11,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, Tag, NavigableString
 import docx
 from docx.shared import Inches, Pt, RGBColor, Mm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -22,32 +21,13 @@ from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
 
 
-def _find_pyhwp_bin(tool_name: str) -> List[str]:
-    """Find absolute path to pyhwp tool or run as python module."""
-    py_dir = Path(sys.executable).parent
-    bin_path = py_dir / f"{tool_name}.exe"
-    if bin_path.exists():
-        return [str(bin_path)]
-    bin_path_noext = py_dir / tool_name
-    if bin_path_noext.exists():
-        return [str(bin_path_noext)]
-    which_path = shutil.which(tool_name)
-    if which_path:
-        return [which_path]
-    if tool_name == "hwp5html":
-        return [sys.executable, "-m", "hwp5.hwp5html"]
-    elif tool_name == "hwp5txt":
-        return [sys.executable, "-m", "hwp5.hwp5txt"]
-    return [tool_name]
+from synthetic_engine.common.bin_finder import find_pyhwp_bin
 
-
-# ==============================================================================
-# Helper Styling & OOXML Functions
-# ==============================================================================
-
+# css 규칙 목록 데이터를 분석하여 파싱함
 def parse_css_rules(css_text: str) -> Dict[str, Dict[str, str]]:
     """Parse CSS string into a dictionary mapping selectors to property dicts."""
     styles: Dict[str, Dict[str, str]] = {}
+    css_text = re.sub(r'/\*.*?\*/', '', css_text, flags=re.DOTALL)
     for block in re.finditer(r'([^{]+)\{([^}]+)\}', css_text):
         selectors = [s.strip() for s in block.group(1).split(',')]
         body = block.group(2).strip()
@@ -63,6 +43,49 @@ def parse_css_rules(css_text: str) -> Dict[str, Dict[str, str]]:
     return styles
 
 
+# resolve 스타일 서식 작업을 수행함
+def _resolve_style(element: Tag, global_css: Dict[str, Dict[str, str]], *, cache: Optional[Dict[int, Dict[str, str]]] = None) -> Dict[str, str]:
+    inherited = {'font-family', 'font-size', 'font-weight', 'font-style', 'color', 'text-align', 'line-height'}
+    result: Dict[str, str] = {}
+    lineage = [element, *element.parents]
+    for node in reversed(lineage):
+        if not isinstance(node, Tag):
+            continue
+        if cache is not None and id(node) in cache:
+            result = cache[id(node)].copy()
+            continue
+        result = {k: v for k, v in result.items() if k in inherited}
+        matches = []
+        for order, (selector, values) in enumerate(global_css.items()):
+            if '::' in selector or selector.lstrip().startswith('@'):
+                continue
+            try:
+                if re.fullmatch(r'(?:[\w*-]+)?(?:[.#][\w-]+)*', selector):
+                    tag = re.match(r'^[\w*-]+', selector)
+                    classes = re.findall(r'\.([\w-]+)', selector)
+                    ids = re.findall(r'#([\w-]+)', selector)
+                    matched = ((not tag or tag.group() in ('*', node.name))
+                               and all(c in node.get('class', []) for c in classes)
+                               and all(value == node.get('id') for value in ids))
+                else:
+                    matched = soupsieve.match(selector, node)
+                if matched:
+                    specificity = (selector.count('#'), len(re.findall(r'[.\[:]', selector)), len(re.findall(r'(?:^|[ >+~])\w+', selector)))
+                    matches.append((specificity, order, values))
+            except (soupsieve.SelectorSyntaxError, NotImplementedError) as exc:
+                logging.warning('Unsupported CSS selector %s: %s', selector, exc)
+        for _, _, values in sorted(matches, key=lambda item: item[:2]):
+            result.update(values)
+        for declaration in node.get('style', '').split(';'):
+            if ':' in declaration:
+                key, value = declaration.split(':', 1)
+                result[key.strip().lower()] = value.strip()
+        if cache is not None:
+            cache[id(node)] = result.copy()
+    return result
+
+
+# length to mm 데이터를 분석하여 파싱함
 def parse_length_to_mm(val_str: Optional[str]) -> Optional[float]:
     """Convert CSS length string (mm, cm, in, pt, px) to millimeters."""
     if not val_str:
@@ -86,6 +109,7 @@ def parse_length_to_mm(val_str: Optional[str]) -> Optional[float]:
     return num
 
 
+# length to pt 데이터를 분석하여 파싱함
 def parse_length_to_pt(val_str: Optional[str]) -> Optional[float]:
     """Convert CSS length string to points (pt)."""
     mm = parse_length_to_mm(val_str)
@@ -94,6 +118,7 @@ def parse_length_to_pt(val_str: Optional[str]) -> Optional[float]:
     return mm * 72.0 / 25.4
 
 
+# hex to rgb 작업을 수행함
 def hex_to_rgb(hex_str: Optional[str]) -> Optional[RGBColor]:
     """Convert hex color string (#RRGGBB or #RGB) to docx RGBColor."""
     if not hex_str:
@@ -109,6 +134,7 @@ def hex_to_rgb(hex_str: Optional[str]) -> Optional[RGBColor]:
     return None
 
 
+# 셀 background 속성 값을 설정 및 갱신함
 def set_cell_background(cell: Any, fill_hex: str) -> None:
     """Apply background shading color to a Word table cell."""
     fill_clean = fill_hex.strip().lstrip('#').upper()
@@ -119,6 +145,7 @@ def set_cell_background(cell: Any, fill_hex: str) -> None:
         cell._tc.get_or_add_tcPr().append(parse_xml(shading_xml))
 
 
+# 셀 margins 속성 값을 설정 및 갱신함
 def set_cell_margins(cell: Any, top: int = 100, bottom: int = 100, left: int = 140, right: int = 140) -> None:
     """Set internal cell margins (padding) in dxa units."""
     tcMar_xml = f'''
@@ -132,6 +159,7 @@ def set_cell_margins(cell: Any, top: int = 100, bottom: int = 100, left: int = 1
     cell._tc.get_or_add_tcPr().append(parse_xml(tcMar_xml))
 
 
+# 표(테이블) borders 속성 값을 설정 및 갱신함
 def set_table_borders(table: Any, color: str = "CBD5E1", sz: str = "4", val: str = "single") -> None:
     """Set clean borders for entire table."""
     tblPr = table._tbl.tblPr
@@ -148,12 +176,14 @@ def set_table_borders(table: Any, color: str = "CBD5E1", sz: str = "4", val: str
     tblPr.append(parse_xml(borders_xml))
 
 
+# 행 cant 분할 속성 값을 설정 및 갱신함
 def set_row_cant_split(row: Any) -> None:
     """Prevent table row from splitting across page breaks."""
     trPr = row._tr.get_or_add_trPr()
     trPr.append(parse_xml(f'<w:cantSplit {nsdecls("w")}/>'))
 
 
+# 행 as header 속성 값을 설정 및 갱신함
 def set_row_as_header(row: Any) -> None:
     """Set table row to repeat on every page header."""
     trPr = row._tr.get_or_add_trPr()
@@ -167,6 +197,7 @@ def set_row_as_header(row: Any) -> None:
 class HwpHtmlToDocxBuilder:
     """Constructs a high-fidelity Word (.docx) document from hwp5html output."""
 
+    # HwpHtmlToDocxBuilder 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, html_path: Path, css_path: Optional[Path], media_dir: Optional[Path]):
         self.html_path = html_path
         self.css_path = css_path
@@ -181,6 +212,7 @@ class HwpHtmlToDocxBuilder:
         self.doc = docx.Document()
         self._configure_default_styles()
 
+    # configure default 스타일 목록 작업을 수행함
     def _configure_default_styles(self) -> None:
         """Set Korean standard default styles in document."""
         normal_style = self.doc.styles['Normal']
@@ -191,28 +223,14 @@ class HwpHtmlToDocxBuilder:
         normal_style.paragraph_format.space_after = Pt(2)
         normal_style.paragraph_format.space_before = Pt(0)
 
+    # classes props 정보를 조회하여 반환함
     def _get_classes_props(self, el: Tag) -> Dict[str, str]:
-        """Aggregate CSS properties for element classes."""
-        props: Dict[str, str] = {}
-        classes = el.get('class', [])
-        if isinstance(classes, str):
-            classes = classes.split()
+        if getattr(self, '_style_rule_count', None) != len(self.css_rules):
+            self._style_cache = {}
+            self._style_rule_count = len(self.css_rules)
+        return _resolve_style(el, self.css_rules, cache=self._style_cache)
 
-        for c in classes:
-            sel = f".{c}"
-            if sel in self.css_rules:
-                props.update(self.css_rules[sel])
-
-        # Inline style override
-        inline_style = el.get('style', '')
-        if inline_style:
-            for rule in inline_style.split(';'):
-                if ':' in rule:
-                    k, v = rule.split(':', 1)
-                    props[k.strip().lower()] = v.strip()
-
-        return props
-
+    # build 작업을 수행함
     def build(self, output_docx_path: Path) -> Path:
         """Parse XHTML DOM and build Word Document."""
         raw_html = self.html_path.read_text(encoding='utf-8', errors='ignore')
@@ -221,6 +239,11 @@ class HwpHtmlToDocxBuilder:
         clean_html = re.sub(r'<!DOCTYPE[^>]*>', '', clean_html)
 
         soup = BeautifulSoup(clean_html, 'html.parser')
+        for style_tag in soup.find_all('style'):
+            for selector, values in parse_css_rules(style_tag.get_text()).items():
+                self.css_rules.setdefault(selector, {}).update(values)
+        self._style_cache = {}
+        self._style_rule_count = len(self.css_rules)
 
         # 1. Detect Page Size & Orientation from Section
         section = self.doc.sections[0]
@@ -264,6 +287,7 @@ class HwpHtmlToDocxBuilder:
         self.doc.save(str(output_docx_path.resolve()))
         return output_docx_path
 
+    # container 데이터를 처리함
     def _process_container(self, container: Tag) -> None:
         """Process children elements of container recursively."""
         for child in container.children:
@@ -302,6 +326,7 @@ class HwpHtmlToDocxBuilder:
                 elif child.find('img'):
                     self._render_image(child.find('img'))
 
+    # heading 데이터를 타깃 포맷으로 렌더링함
     def _render_heading(self, el: Tag) -> None:
         """Render heading element."""
         text = el.get_text(strip=True)
@@ -327,6 +352,7 @@ class HwpHtmlToDocxBuilder:
             run.font.size = Pt(11.5)
             run.font.color.rgb = RGBColor(0x33, 0x41, 0x55)
 
+    # 문단 데이터를 타깃 포맷으로 렌더링함
     def _render_paragraph(self, el: Tag, target_cell: Optional[Any] = None) -> None:
         """Render a single paragraph preserving runs, fonts, colors, bold and alignment."""
         text = el.get_text().strip()
@@ -362,50 +388,9 @@ class HwpHtmlToDocxBuilder:
         if is_bullet:
             p.paragraph_format.left_indent = Pt(6)
 
-        # Parse text runs inside paragraph
-        spans = el.find_all(['span', 'b', 'strong', 'i', 'em', 'u', 'img'])
-        if spans:
-            for s in spans:
-                if s.name == 'img':
-                    self._render_inline_image(s, p)
-                    continue
+        self._append_docx_runs(el, p)
 
-                s_text = s.get_text().replace('\r', '').replace('\n', ' ')
-                if not s_text:
-                    continue
-
-                s_props = self._get_classes_props(s)
-                run = p.add_run(s_text)
-                run.font.name = '맑은 고딕'
-
-                # Font Size
-                fs = s_props.get('font-size') or props.get('font-size')
-                if fs:
-                    pt = parse_length_to_pt(fs)
-                    if pt:
-                        run.font.size = Pt(min(max(pt, 7.5), 24))
-                else:
-                    run.font.size = Pt(9.5 if target_cell else 10)
-
-                # Font Color
-                color_hex = s_props.get('color') or props.get('color')
-                if color_hex and color_hex.startswith('#'):
-                    rgb = hex_to_rgb(color_hex)
-                    if rgb:
-                        run.font.color.rgb = rgb
-
-                # Font Weight / Style
-                if s.name in ('b', 'strong') or s_props.get('font-weight') in ('bold', '700', '800', '900'):
-                    run.bold = True
-                if s.name in ('i', 'em') or s_props.get('font-style') == 'italic':
-                    run.italic = True
-                if s.name == 'u' or 'underline' in s_props.get('text-decoration', ''):
-                    run.underline = True
-        else:
-            run = p.add_run(text.replace('\r', '').replace('\n', ' '))
-            run.font.name = '맑은 고딕'
-            run.font.size = Pt(9.5 if target_cell else 10)
-
+    # list 데이터를 타깃 포맷으로 렌더링함
     def _render_list(self, el: Tag) -> None:
         """Render unordered or ordered list."""
         for li in el.find_all('li', recursive=False):
@@ -418,6 +403,7 @@ class HwpHtmlToDocxBuilder:
             run.font.name = '맑은 고딕'
             run.font.size = Pt(10)
 
+    # 이미지 데이터를 타깃 포맷으로 렌더링함
     def _render_image(self, el: Tag) -> None:
         """Render standalone image."""
         src = el.get('src', '')
@@ -432,6 +418,7 @@ class HwpHtmlToDocxBuilder:
             except Exception:
                 pass
 
+    # inline 이미지 데이터를 타깃 포맷으로 렌더링함
     def _render_inline_image(self, el: Tag, paragraph: Any) -> None:
         """Render inline image inside a paragraph or cell."""
         src = el.get('src', '')
@@ -444,6 +431,7 @@ class HwpHtmlToDocxBuilder:
             except Exception:
                 pass
 
+    # resolve media 파일 경로 작업을 수행함
     def _resolve_media_path(self, src: str) -> Optional[Path]:
         """Resolve image src path relative to html or media_dir."""
         src_clean = src.replace('\\', '/')
@@ -456,9 +444,11 @@ class HwpHtmlToDocxBuilder:
             return cand2
         return None
 
-    def _render_table(self, table_el: Tag) -> None:
+    # 표(테이블) 데이터를 타깃 포맷으로 렌더링함
+    def _render_table(self, table_el: Tag, *, target_cell: Optional[Any] = None) -> None:
         """Render a table preserving grid widths, colSpan, rowSpan, shading, and padding."""
-        trs = table_el.find_all('tr', recursive=False)
+        from .hwp_high_fidelity_hwpx_converter import _table_rows, _html_table_grid, _extract_col_widths_hwpunit
+        trs = _table_rows(table_el)
         if not trs:
             # Check if inside tbody
             tbody = table_el.find('tbody')
@@ -496,12 +486,11 @@ class HwpHtmlToDocxBuilder:
                 })
             raw_rows_data.append(row_data)
 
-        # Calculate max columns
-        max_cols = 0
-        for r in raw_rows_data:
-            tot = sum(c['colspan'] for c in r)
-            if tot > max_cols:
-                max_cols = tot
+        grid_rows, max_cols = _html_table_grid(table_el)
+        for items, grid_row in zip(raw_rows_data, grid_rows):
+            for item, grid_cell in zip(items, grid_row):
+                item['col'] = grid_cell['col']
+        raw_rows_data.extend([] for _ in range(len(grid_rows) - len(raw_rows_data)))
 
         if max_cols == 0:
             return
@@ -509,12 +498,11 @@ class HwpHtmlToDocxBuilder:
         # Estimate column widths in mm
         col_widths = [0.0] * max_cols
         for r in raw_rows_data:
-            col_idx = 0
             for c in r:
+                col_idx = c['col']
                 if c['colspan'] == 1 and c['width_mm'] and c['width_mm'] > 0:
                     if col_widths[col_idx] == 0:
                         col_widths[col_idx] = c['width_mm']
-                col_idx += c['colspan']
 
         # Fill default width for unmeasured columns
         available_width_mm = 250.0 if self.doc.sections[0].orientation == WD_ORIENT.LANDSCAPE else 170.0
@@ -527,14 +515,21 @@ class HwpHtmlToDocxBuilder:
                 col_widths[uc] = fill_w
 
         # 2. Create docx Table
+        if target_cell is not None and target_cell.width:
+            available_width_mm = target_cell.width.mm
+        if table_el.find('col'):
+            col_widths = [w / 1000 for w in _extract_col_widths_hwpunit(table_el, int(available_width_mm * 1000))]
+        else:
+            col_widths = [w * available_width_mm / sum(col_widths) for w in col_widths]
         num_rows = len(raw_rows_data)
-        tbl = self.doc.add_table(rows=num_rows, cols=max_cols)
+        tbl = (target_cell if target_cell is not None else self.doc).add_table(rows=num_rows, cols=max_cols)
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
         tbl.autofit = False
         set_table_borders(tbl, color="CBD5E1", sz="4", val="single")
 
         # Set column widths on table grid
         for c_idx, w_mm in enumerate(col_widths):
+            tbl.columns[c_idx].width = Mm(w_mm)
             for r_idx in range(num_rows):
                 tbl.cell(r_idx, c_idx).width = Mm(w_mm)
 
@@ -550,6 +545,7 @@ class HwpHtmlToDocxBuilder:
         for r_idx, r_items in enumerate(raw_rows_data):
             c_idx = 0
             for item in r_items:
+                c_idx = item['col']
                 # Find next unoccupied column in this row
                 while c_idx < max_cols and grid_occupied[r_idx][c_idx]:
                     c_idx += 1
@@ -573,7 +569,11 @@ class HwpHtmlToDocxBuilder:
                 # Merge cells if span > 1
                 origin_cell = tbl.cell(start_r, start_c)
                 if end_r > start_r or end_c > start_c:
-                    origin_cell = origin_cell.merge(tbl.cell(end_r, end_c))
+                    try:
+                        origin_cell = origin_cell.merge(tbl.cell(end_r, end_c))
+                        origin_cell.text = ''
+                    except Exception as exc:
+                        logging.warning('DOCX merge failed at row %s col %s: %s', start_r, start_c, exc)
 
                 # Apply cell styling
                 set_cell_margins(origin_cell, top=100, bottom=100, left=140, right=140)
@@ -582,7 +582,7 @@ class HwpHtmlToDocxBuilder:
                 # Background shading
                 bg_hex = item['bg_color']
                 if not bg_hex and (r_idx == 0 or item['is_th']):
-                    bg_hex = "#EDF2F7"  # Default soft header shading
+                    bg_hex = "#EDF2F6"  # Default soft header shading
 
                 if bg_hex and bg_hex.startswith('#'):
                     set_cell_background(origin_cell, bg_hex)
@@ -594,6 +594,17 @@ class HwpHtmlToDocxBuilder:
 
                 # Populate paragraphs inside cell
                 cell_p_elements = cell_tag.find_all(['p', 'div', 'ul', 'ol'], recursive=False)
+                if cell_tag.find('table'):
+                    paragraph = origin_cell.paragraphs[0]
+                    for child in cell_tag.children:
+                        if isinstance(child, Tag) and child.name == 'table':
+                            self._render_table(child, target_cell=origin_cell)
+                            paragraph = origin_cell.add_paragraph()
+                        elif isinstance(child, Tag):
+                            self._fill_existing_paragraph(child, paragraph, is_header=item['is_th'])
+                        elif isinstance(child, NavigableString):
+                            paragraph.add_run(str(child))
+                    continue
                 if cell_p_elements:
                     for p_i, p_el in enumerate(cell_p_elements):
                         if p_i == 0:
@@ -610,19 +621,16 @@ class HwpHtmlToDocxBuilder:
                     p0.paragraph_format.line_spacing = 1.15
                     if r_idx == 0 or item['is_th']:
                         p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = p0.add_run(direct_text)
-                    run.font.name = '맑은 고딕'
-                    run.font.size = Pt(9.5)
-                    if r_idx == 0 or item['is_th']:
-                        run.bold = True
+                    self._fill_existing_paragraph(cell_tag, p0, is_header=(r_idx == 0 or item['is_th']))
 
                 c_idx = end_c + 1
 
         # Add spacing after table
-        space_p = self.doc.add_paragraph()
+        space_p = (target_cell if target_cell is not None else self.doc).add_paragraph()
         space_p.paragraph_format.space_before = Pt(4)
         space_p.paragraph_format.space_after = Pt(4)
 
+    # fill existing 문단 작업을 수행함
     def _fill_existing_paragraph(self, el: Tag, p: Any, is_header: bool = False) -> None:
         """Fill an existing cell paragraph with text runs and styling."""
         props = self._get_classes_props(el)
@@ -640,49 +648,40 @@ class HwpHtmlToDocxBuilder:
         p.paragraph_format.space_after = Pt(1.5)
         p.paragraph_format.line_spacing = 1.15
 
-        spans = el.find_all(['span', 'b', 'strong', 'i', 'em', 'u', 'img'])
-        if spans:
-            for s in spans:
-                if s.name == 'img':
-                    self._render_inline_image(s, p)
-                    continue
+        self._append_docx_runs(el, p, is_header=is_header)
 
-                s_text = s.get_text().replace('\r', '').replace('\n', ' ')
-                if not s_text:
+    # 워드(DOCX) runs 요소를 뒤에 덧붙임
+    def _append_docx_runs(self, element: Tag, paragraph: Any, *, is_header: bool = False) -> None:
+        # Walk leaves once: find_all() duplicates nested spans and drops adjacent plain text.
+        stack = list(reversed(list(element.children)))
+        while stack:
+            child = stack.pop()
+            if isinstance(child, NavigableString):
+                text = str(child)
+                if not text:
                     continue
-                s_props = self._get_classes_props(s)
-                run = p.add_run(s_text)
-                run.font.name = '맑은 고딕'
-
-                # Font size
-                fs = s_props.get('font-size') or props.get('font-size')
-                if fs:
-                    pt = parse_length_to_pt(fs)
-                    if pt:
-                        run.font.size = Pt(min(max(pt, 7.5), 18))
+                parent = child.parent if isinstance(child.parent, Tag) else element
+                props = self._get_classes_props(parent)
+                run = paragraph.add_run(text)
+                run.font.name = props.get('font-family', '맑은 고딕').split(',')[0].strip(' "\'')
+                run._element.get_or_add_rPr().get_or_add_rFonts().set(qn('w:eastAsia'), run.font.name)
+                size = parse_length_to_pt(props.get('font-size'))
+                run.font.size = Pt(size if size and size > 0 else 9.5)
+                color = hex_to_rgb(props.get('color'))
+                if color is not None:
+                    run.font.color.rgb = color
+                ancestors = [parent, *parent.parents]
+                names = {node.name for node in ancestors if isinstance(node, Tag)}
+                run.bold = is_header or bool(names & {'b', 'strong'}) or props.get('font-weight') in ('bold', '700', '800', '900')
+                run.italic = bool(names & {'i', 'em'}) or props.get('font-style') == 'italic'
+                run.underline = 'u' in names or 'underline' in props.get('text-decoration', '')
+            elif isinstance(child, Tag):
+                if child.name == 'br':
+                    paragraph.add_run('\n')
+                elif child.name == 'img':
+                    self._render_inline_image(child, paragraph)
                 else:
-                    run.font.size = Pt(9.5)
-
-                # Color
-                color_hex = s_props.get('color') or props.get('color')
-                if color_hex and color_hex.startswith('#'):
-                    rgb = hex_to_rgb(color_hex)
-                    if rgb:
-                        run.font.color.rgb = rgb
-
-                # Weight
-                if is_header or s.name in ('b', 'strong') or s_props.get('font-weight') in ('bold', '700', '800', '900'):
-                    run.bold = True
-                if s.name in ('i', 'em') or s_props.get('font-style') == 'italic':
-                    run.italic = True
-                if s.name == 'u' or 'underline' in s_props.get('text-decoration', ''):
-                    run.underline = True
-        else:
-            run = p.add_run(el.get_text().replace('\r', '').replace('\n', ' '))
-            run.font.name = '맑은 고딕'
-            run.font.size = Pt(9.5)
-            if is_header:
-                run.bold = True
+                    stack.extend(reversed(list(child.children)))
 
 
 # ==============================================================================
@@ -699,10 +698,11 @@ def convert_hwp_to_high_fidelity_docx(input_path: Path, output_path: Path) -> Pa
         out_dir = Path(tmpdir) / "html_out"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        cmd = _find_pyhwp_bin("hwp5html") + ["--output", str(out_dir), str(input_path)]
+        cmd = find_pyhwp_bin("hwp5html") + ["--output", str(out_dir), str(input_path)]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         except Exception as exc:
+            logging.warning('HWP HTML extraction failed: %s', exc)
             res = None
 
         xhtml_file = out_dir / "index.xhtml"
@@ -722,8 +722,11 @@ def convert_hwp_to_high_fidelity_docx(input_path: Path, output_path: Path) -> Pa
 
         # Fallback via text
         try:
-            res_txt = subprocess.run(_find_pyhwp_bin("hwp5txt") + [str(input_path)], capture_output=True, timeout=30)
+            res_txt = subprocess.run(find_pyhwp_bin("hwp5txt") + [str(input_path)], capture_output=True, timeout=30)
             txt = res_txt.stdout.decode("utf-8", errors="ignore")
+            if res_txt.returncode != 0 or not txt.strip():
+                raise RuntimeError('HWP text extraction failed; refusing to export an empty document.')
+            logging.warning('HWP HTML unavailable; exporting text-only DOCX for %s', input_path.name)
             doc = docx.Document()
             for p in txt.split("\n\n"):
                 if p.strip():
@@ -734,6 +737,7 @@ def convert_hwp_to_high_fidelity_docx(input_path: Path, output_path: Path) -> Pa
             raise RuntimeError(f"HWP 워드 변환 실패: {str(exc)}")
 
 
+# 한글 표준(HWPX) to high 충실도 워드(DOCX) 데이터를 대상 포맷으로 변환함
 def convert_hwpx_to_high_fidelity_docx(input_path: Path, output_path: Path) -> Path:
     """Convert modern OWPML HWPX file to high-fidelity Word (.docx)."""
     input_path = Path(input_path).resolve()
@@ -856,6 +860,7 @@ def convert_hwpx_to_high_fidelity_docx(input_path: Path, output_path: Path) -> P
     return output_path
 
 
+# any 한글(HWP) to 워드(DOCX) 데이터를 대상 포맷으로 변환함
 def convert_any_hwp_to_docx(input_path: Path, output_path: Path) -> Path:
     """Auto-detect format (HWP binary vs HWPX package) and convert to DOCX with maximum fidelity."""
     input_path = Path(input_path).resolve()

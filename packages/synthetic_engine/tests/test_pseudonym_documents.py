@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_pseudonym_documents.py
+# 경로: packages/synthetic_engine/tests/test_pseudonym_documents.py
+# 목적: 문서 가명화 치환 및 포맷 보존 기능을 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 
 import tempfile
@@ -15,6 +23,7 @@ from synthetic_engine import (
 from synthetic_engine.privacy.masker import SmartMasker
 
 
+# smart masker full 텍스트 기능의 정상 동작 및 제약조건을 테스트함
 def test_smart_masker_full_text():
     sample_text = (
         "작성자 홍길동(주민번호 900101-1234567, 전화번호 010-1234-5678, 이메일 hong@test.com)은 "
@@ -28,6 +37,7 @@ def test_smart_masker_full_text():
     assert "서울특별시 강남구 ********" in masked
 
 
+# 마크다운 document pseudonymization and export 기능의 정상 동작 및 제약조건을 테스트함
 def test_markdown_document_pseudonymization_and_export():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
@@ -65,6 +75,7 @@ def test_markdown_document_pseudonymization_and_export():
             assert exported.stat().st_size > 0
 
 
+# document dataframe export formats 기능의 정상 동작 및 제약조건을 테스트함
 def test_document_dataframe_export_formats():
     df = pd.DataFrame({
         "성명": ["홍길동", "김철수"],
@@ -82,6 +93,7 @@ def test_document_dataframe_export_formats():
             assert exported.stat().st_size > 0
 
 
+# in place 워드(DOCX) replacement 기능의 정상 동작 및 제약조건을 테스트함
 def test_in_place_docx_replacement():
     import docx
     with tempfile.TemporaryDirectory() as tmpdir:

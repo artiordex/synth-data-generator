@@ -17,6 +17,7 @@ from scipy import stats
 import statsmodels.api as sm
 
 
+# statistical 충실도 품질 및 지표를 평가함
 def evaluate_statistical_fidelity(
     real_df: pd.DataFrame,
     synthetic_df: pd.DataFrame,

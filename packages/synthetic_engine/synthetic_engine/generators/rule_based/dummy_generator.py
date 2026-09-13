@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: dummy_generator.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/rule_based/dummy_generator.py
+# 목적: 비즈니스 규칙 및 템플릿 기반 더미 데이터를 생성함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 import random
 from typing import Any
@@ -7,11 +15,13 @@ import pandas as pd
 from faker import Faker
 from ...common.catalog import DomainCatalog
 from ...privacy.faker import ContextAwareFaker
+from ...preprocessing.transformer import apply_constraints_after_generation, infer_temporal_constraints
 from .engine import RuleEngine
 
 class DummyDataGenerator:
     """High-speed dummy data generator from schema definitions without requiring raw data."""
 
+    # DummyDataGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, seed: int = 42):
         self.seed = seed
         self.fake = Faker("ko_KR")
@@ -19,6 +29,7 @@ class DummyDataGenerator:
         random.seed(seed)
         np.random.seed(seed)
 
+    # generate 작업을 수행함
     def generate(self, columns: list[dict[str, Any]], num_rows: int = 1000,
                  scenario: str = "normal") -> pd.DataFrame:
         """Generate a DataFrame based on column definitions and standard domain rules."""
@@ -83,8 +94,12 @@ class DummyDataGenerator:
                 seen[key] = occurrence + 1
                 unique_values.append(value if occurrence == 0 else f"{value}-{occurrence + 1}")
             frame[name] = unique_values
+        temporal_constraints = infer_temporal_constraints(frame)
+        if temporal_constraints and scenario in {"normal", "boundary"}:
+            frame = apply_constraints_after_generation(frame, temporal_constraints)
         return self._apply_scenario(frame, resolved_columns, scenario)
 
+    # apply scenario 작업을 수행함
     @staticmethod
     def _apply_scenario(frame: pd.DataFrame, columns: list[dict[str, Any]], scenario: str) -> pd.DataFrame:
         """Add deterministic boundary or intentionally invalid rows for test fixtures."""
@@ -115,6 +130,7 @@ class DummyDataGenerator:
                     output.loc[:count - 1, name] = None
         return output
 
+    # sql insert 형식으로 변환하여 반환함
     @staticmethod
     def to_sql_insert(df: pd.DataFrame, table_name: str = "dummy_table", limit: int = 10000) -> str:
         """Generate SQL INSERT statements for seeding databases."""

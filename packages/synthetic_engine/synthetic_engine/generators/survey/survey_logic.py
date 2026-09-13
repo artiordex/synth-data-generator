@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: survey_logic.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/survey/survey_logic.py
+# 목적: 설문 응답 분기 규칙 및 건너뛰기 논리 제약조건을 검증함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -31,6 +39,7 @@ class OrdinalLikertEncoder:
     원-핫 인코딩 시 발생하는 서열성(Rank/Order) 상실을 방지하고 문항 간 순위 상관관계를 보존합니다.
     """
 
+    # 감지 likert 컬럼 목록 작업을 수행함
     @staticmethod
     def detect_likert_columns(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
         """
@@ -71,6 +80,7 @@ class OrdinalLikertEncoder:
 
         return likert_maps
 
+    # encode 작업을 수행함
     @staticmethod
     def encode(df: pd.DataFrame, likert_maps: Dict[str, Dict[str, Any]]) -> Tuple[pd.DataFrame, Dict[str, pd.Series]]:
         """
@@ -91,6 +101,7 @@ class OrdinalLikertEncoder:
 
         return encoded_df, unanswered_masks
 
+    # decode 작업을 수행함
     @staticmethod
     def decode(df: pd.DataFrame, likert_maps: Dict[str, Dict[str, Any]], unanswered_masks: Optional[Dict[str, pd.Series]] = None) -> pd.DataFrame:
         """
@@ -121,6 +132,7 @@ class SurveyLogicEngine:
     설문 조건부 분기(Skip-Logic) 규칙 자동 탐지, 사후 보정 및 논리 무결성 검증 엔진.
     """
 
+    # auto 감지 skip 규칙 목록 작업을 수행함
     @staticmethod
     def auto_detect_skip_rules(df: pd.DataFrame, min_confidence: float = 0.98) -> List[Dict[str, Any]]:
         """
@@ -198,6 +210,7 @@ class SurveyLogicEngine:
 
         return detected_rules
 
+    # apply skip 규칙 목록 작업을 수행함
     @staticmethod
     def apply_skip_rules(df: pd.DataFrame, rules: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """
@@ -236,6 +249,7 @@ class SurveyLogicEngine:
         }
         return rectified_df, report
 
+    # 설문조사 logic 유효성 및 제약조건을 검증함
     @staticmethod
     def validate_survey_logic(df: pd.DataFrame, rules: List[Dict[str, Any]]) -> Dict[str, Any]:
         """

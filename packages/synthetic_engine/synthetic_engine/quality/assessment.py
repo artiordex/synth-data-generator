@@ -15,10 +15,18 @@ import pandas as pd
 from ..common.types import ColumnPlan
 from ..profiling.analyzer import scan_pii_columns
 from ..validation.anonymeter import evaluate_anonymeter
-from .jsd import categorical_jsd, numerical_jsd, binned_keys
+from .jsd import (
+    binned_keys,
+    categorical_jsd,
+    categorical_tvd,
+    numerical_jsd,
+    wasserstein_distance,
+    wasserstein_similarity,
+)
 from .correlation import CorrelationEvaluator
 from ..privacy.guardrails import PrivacyGuardrails
 
+# 진행 상태 by 임계값 작업을 수행함
 def status_by_threshold(value: float | None, pass_max: float, review_max: float, lower_is_better: bool = True) -> str:
     """평가값을 기준값과 비교해 상태 코드를 반환함"""
     if value is None or not math.isfinite(value): return "REVIEW"
@@ -30,10 +38,71 @@ def status_by_threshold(value: float | None, pass_max: float, review_max: float,
     if value >= review_max: return "REVIEW"
     return "FAIL"
 
+# 진행 상태 label 작업을 수행함
 def status_label(status: str) -> str:
     """평가 상태 코드의 표시 문구를 반환함"""
     return {"PASS": "통과", "REVIEW": "검토 필요", "FAIL": "실패"}.get(status, status)
 
+# finite mean 작업을 수행함
+def finite_mean(values: list[float]) -> float:
+    """유한한 값만 평균으로 집계함"""
+    finite_values = [float(value) for value in values if math.isfinite(float(value))]
+    return float(np.mean(finite_values)) if finite_values else math.nan
+
+# distribution 품질 지표 지표 및 값을 계산함
+def compute_distribution_metrics(
+    original: pd.DataFrame,
+    synthetic: pd.DataFrame,
+    plan: ColumnPlan,
+    qbins: int = 20,
+) -> dict[str, Any]:
+    """JSD, Wasserstein, TVD 분포 지표를 컬럼별·평균 단위로 계산함"""
+    jsd_by_column: dict[str, float] = {}
+    wasserstein_by_column: dict[str, float] = {}
+    wasserstein_similarity_by_column: dict[str, float] = {}
+    tvd_by_column: dict[str, float] = {}
+
+    for column in plan.categorical:
+        if column in original.columns and column in synthetic.columns:
+            jsd_by_column[column] = categorical_jsd(original[column], synthetic[column])
+            tvd_by_column[column] = categorical_tvd(original[column], synthetic[column])
+
+    for column in plan.numerical:
+        if column in original.columns and column in synthetic.columns:
+            jsd_by_column[column] = numerical_jsd(original[column], synthetic[column], qbins)
+            wasserstein_by_column[column] = wasserstein_distance(original[column], synthetic[column])
+            wasserstein_similarity_by_column[column] = wasserstein_similarity(original[column], synthetic[column])
+
+    return {
+        "jsd_by_column": jsd_by_column,
+        "jsd_mean": finite_mean(list(jsd_by_column.values())),
+        "wasserstein_by_column": wasserstein_by_column,
+        "wasserstein_mean": finite_mean(list(wasserstein_by_column.values())),
+        "wasserstein_similarity_by_column": wasserstein_similarity_by_column,
+        "wasserstein_similarity_mean": finite_mean(list(wasserstein_similarity_by_column.values())),
+        "tvd_by_column": tvd_by_column,
+        "tvd_mean": finite_mean(list(tvd_by_column.values())),
+    }
+
+# composite 품질 score 지표 및 값을 계산함
+def compute_composite_quality_score(
+    jsd_mean: float,
+    wasserstein_similarity_mean: float,
+    correlation_score: float,
+) -> float | None:
+    """JSD 40%, Wasserstein 30%, 2D 상관관계 30% 가중 유용성 점수를 계산함"""
+    components = [
+        (0.4, max(0.0, min(1.0, 1.0 - jsd_mean)) if math.isfinite(jsd_mean) else math.nan),
+        (0.3, wasserstein_similarity_mean if math.isfinite(wasserstein_similarity_mean) else math.nan),
+        (0.3, correlation_score if math.isfinite(correlation_score) else math.nan),
+    ]
+    measured = [(weight, max(0.0, min(1.0, value))) for weight, value in components if math.isfinite(value)]
+    if not measured:
+        return None
+    total_weight = sum(weight for weight, _ in measured)
+    return sum(weight * value for weight, value in measured) / total_weight
+
+# auto assessment 구조를 생성 및 조립함
 def build_auto_assessment(
     original_eval: pd.DataFrame,
     synthetic_eval: pd.DataFrame,
@@ -45,6 +114,9 @@ def build_auto_assessment(
     correlation_report: dict[str, Any] | None = None,
     guardrail_report: dict[str, Any] | None = None,
     quality_threshold: float = 0.8,
+    wasserstein_similarity_mean: float | None = None,
+    tvd_mean: float | None = None,
+    composite_quality_score: float | None = None,
 ) -> dict[str, Any]:
     """품질 평가 결과를 자동 심의 판정 구조로 변환함"""
     anon_metrics = anonymeter_report or {}
@@ -61,7 +133,8 @@ def build_auto_assessment(
     gr_metrics = guardrail_report or {}
     mem_risk = gr_metrics.get('memorization_risk_rate')
     dcr_ok = not plan.numerical or (mem_risk is not None and math.isfinite(mem_risk) and mem_risk <= .05)
-    distribution_quality = max(0.0, min(1.0, 1.0 - jsd_mean)) if math.isfinite(jsd_mean) else None
+    jsd_quality = max(0.0, min(1.0, 1.0 - jsd_mean)) if math.isfinite(jsd_mean) else None
+    distribution_quality = composite_quality_score if composite_quality_score is not None else jsd_quality
     quality_threshold = max(0.0, min(1.0, float(quality_threshold)))
     distribution_ok = distribution_quality is not None and distribution_quality >= quality_threshold
 
@@ -141,11 +214,16 @@ def build_auto_assessment(
             "anonymeter_inference": inf_risk,
             "memorization_risk": mem_risk,
             "jsd_mean": jsd_mean,
+            "jsd_quality": jsd_quality,
+            "wasserstein_similarity_mean": wasserstein_similarity_mean,
+            "tvd_mean": tvd_mean,
             "correlation_score": corr_score,
+            "composite_quality_score": composite_quality_score,
         },
         "note": "자동 점검 결과이며 미측정·오류가 있으면 통과로 판정하지 않습니다. " + anon_metrics.get('reason', ''),
     }
 
+# 컬럼 distributions 지표 및 값을 계산함
 def compute_column_distributions(
     original: pd.DataFrame,
     synthetic: pd.DataFrame,
@@ -215,12 +293,16 @@ def compute_column_distributions(
                               "original_pct": orig_pct, "synthetic_pct": syn_pct,
                               "diff_pct": round(syn_pct - orig_pct, 2)})
         col_jsd = numerical_jsd(orig_full, synth_full, bins=n_bins)
+        col_wasserstein = wasserstein_distance(orig_full, synth_full)
+        col_wasserstein_similarity = wasserstein_similarity(orig_full, synth_full)
         similarity = max(0.0, min(100.0, round((1.0 - col_jsd) * 100, 1))) if math.isfinite(col_jsd) else 90.0
 
         distributions.append({
             "name": col,
             "type": "numerical",
             "jsd": round(float(col_jsd), 4) if math.isfinite(col_jsd) else 0.05,
+            "wasserstein_distance": round(float(col_wasserstein), 6) if math.isfinite(col_wasserstein) else None,
+            "wasserstein_similarity": round(float(col_wasserstein_similarity), 6) if math.isfinite(col_wasserstein_similarity) else None,
             "similarity_pct": similarity,
             "stats": {
                 "original": {
@@ -278,12 +360,14 @@ def compute_column_distributions(
             })
 
         col_jsd = categorical_jsd(orig_s, synth_s)
+        col_tvd = categorical_tvd(orig_s, synth_s)
         similarity = max(0.0, min(100.0, round((1.0 - col_jsd) * 100, 1))) if math.isfinite(col_jsd) else 90.0
 
         distributions.append({
             "name": col,
             "type": "categorical",
             "jsd": round(float(col_jsd), 4) if math.isfinite(col_jsd) else 0.05,
+            "tvd": round(float(col_tvd), 6) if math.isfinite(col_tvd) else None,
             "similarity_pct": similarity,
             "stats": {
                 "original": {
@@ -304,6 +388,7 @@ def compute_column_distributions(
 
     return distributions
 
+# evaluate 작업을 수행함
 def evaluate(
     original: pd.DataFrame,
     synthetic: pd.DataFrame,
@@ -323,16 +408,9 @@ def evaluate(
     synthetic_keys = binned_keys(synthetic_eval, plan.categorical, plan.numerical, qbins, reference)
     single_out_rate = float(synthetic_keys.isin(original_keys).mean()) if len(synthetic_keys) else 0.0
 
-    jsd_by_column = {}
-    for column in plan.categorical:
-        if column in original_eval.columns and column in synthetic_eval.columns:
-            jsd_by_column[column] = categorical_jsd(original_eval[column], synthetic_eval[column])
-
-    for column in plan.numerical:
-        if column in original_eval.columns and column in synthetic_eval.columns:
-            jsd_by_column[column] = numerical_jsd(original_eval[column], synthetic_eval[column], qbins)
-
-    jsd_mean = float(np.mean(list(jsd_by_column.values()))) if jsd_by_column else math.nan
+    distribution_metrics = compute_distribution_metrics(original_eval, synthetic_eval, plan, qbins)
+    jsd_by_column = distribution_metrics["jsd_by_column"]
+    jsd_mean = distribution_metrics["jsd_mean"]
     pii_rescan_candidates = scan_pii_columns(synthetic)
 
     anonymeter_metrics = {}
@@ -341,6 +419,11 @@ def evaluate(
 
     # 2D Correlation analysis
     correlation_metrics = CorrelationEvaluator.evaluate_correlations(original_eval, synthetic_eval, plan)
+    composite_quality_score = compute_composite_quality_score(
+        jsd_mean,
+        distribution_metrics["wasserstein_similarity_mean"],
+        float(correlation_metrics.get("overall_correlation_score", math.nan)),
+    )
 
     # DCR (Distance to Closest Record) memorization check
     dcr_metrics = PrivacyGuardrails.evaluate_dcr(original_eval, synthetic_eval, plan)
@@ -352,6 +435,9 @@ def evaluate(
         original_eval, synthetic_eval, plan, jsd_mean, single_out_rate,
         pii_rescan_candidates, anonymeter_metrics, correlation_metrics, dcr_metrics,
         quality_threshold=quality_threshold,
+        wasserstein_similarity_mean=distribution_metrics["wasserstein_similarity_mean"],
+        tvd_mean=distribution_metrics["tvd_mean"],
+        composite_quality_score=composite_quality_score,
     )
 
     return {
@@ -364,6 +450,13 @@ def evaluate(
         "utility": {
             "jsd_mean": jsd_mean,
             "jsd_by_column": jsd_by_column,
+            "wasserstein_mean": distribution_metrics["wasserstein_mean"],
+            "wasserstein_by_column": distribution_metrics["wasserstein_by_column"],
+            "wasserstein_similarity_mean": distribution_metrics["wasserstein_similarity_mean"],
+            "wasserstein_similarity_by_column": distribution_metrics["wasserstein_similarity_by_column"],
+            "tvd_mean": distribution_metrics["tvd_mean"],
+            "tvd_by_column": distribution_metrics["tvd_by_column"],
+            "composite_quality_score": composite_quality_score,
             "correlation": correlation_metrics,
             "column_distributions": column_distributions,
         },

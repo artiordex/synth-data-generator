@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from typing import Any, Optional, Dict, List
 import pandas as pd
+from .domain_whitelist import exclusions, normalize
 
 
 class SmartMasker:
@@ -44,6 +45,7 @@ class SmartMasker:
         "pnu": re.compile(r"^(?P<adm>\d{10})(?P<type>\d{1})(?P<bon>\d{4})(?P<bu>\d{4})$"),
     }
 
+    # 마스킹 ssn 작업을 수행함
     @classmethod
     def mask_ssn(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -75,6 +77,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 phone 작업을 수행함
     @classmethod
     def mask_phone(cls, text: str, mask_char: str = "*", mask_position: str = "mid") -> str:
         """
@@ -110,6 +113,7 @@ class SmartMasker:
 
     COMPOUND_SURNAMES = ("남궁", "황보", "제갈", "선우", "독고", "사공", "동방", "서문", "소봉")
 
+    # 마스킹 name 작업을 수행함
     @classmethod
     def mask_name(cls, text: str, mask_char: str = "*", mask_style: str = "mid") -> str:
         """
@@ -150,6 +154,10 @@ class SmartMasker:
         if postfix_m and postfix_m.group(0).strip():
             postfix = postfix_m.group(0)
             inner = inner[:postfix_m.start()].strip()
+
+        from ..profiling.kiwi_pii_detector import is_organization
+        if is_organization(inner) or normalize(inner) in exclusions():
+            return text
 
         # 4. Spaced Korean name e.g. "홍 길 동" or "김 철수"
         spaced_hangul_m = re.match(r"^([가-힣])\s+([가-힣])(?:\s+([가-힣]))?$", inner)
@@ -219,6 +227,7 @@ class SmartMasker:
 
         return f"{prefix}{cls.mask_generic(inner, mask_char=mask_char)}{postfix}"
 
+    # 마스킹 email 작업을 수행함
     @classmethod
     def mask_email(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -243,6 +252,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 address 작업을 수행함
     @classmethod
     def mask_address(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -277,6 +287,7 @@ class SmartMasker:
 
         return f"{parts[0]} {mask_char * 3}"
 
+    # 마스킹 account 작업을 수행함
     @classmethod
     def mask_account(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -300,6 +311,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 credit card 작업을 수행함
     @classmethod
     def mask_credit_card(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -324,6 +336,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 business no 작업을 수행함
     @classmethod
     def mask_business_no(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -344,6 +357,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 corporate no 작업을 수행함
     @classmethod
     def mask_corporate_no(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -363,6 +377,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 car plate 작업을 수행함
     @classmethod
     def mask_car_plate(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -379,6 +394,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 driver license 작업을 수행함
     @classmethod
     def mask_driver_license(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -396,6 +412,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 passport 작업을 수행함
     @classmethod
     def mask_passport(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -411,6 +428,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 ip address 작업을 수행함
     @classmethod
     def mask_ip_address(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -427,6 +445,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 date 작업을 수행함
     @classmethod
     def mask_date(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -442,6 +461,7 @@ class SmartMasker:
 
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 mac address 작업을 수행함
     @classmethod
     def mask_mac_address(cls, text: str, mask_char: str = "*") -> str:
         """MAC 주소: OUI 제조사 3바이트 보존, 디바이스 고유 3바이트 마스킹 (예: 00:1A:2B:3C:4D:5E -> 00:1A:2B:**:**:**)"""
@@ -453,6 +473,7 @@ class SmartMasker:
             return f"{b1}{sep}{b2}{sep}{b3}{sep}{mask_char*2}{sep}{mask_char*2}{sep}{mask_char*2}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 uuid 작업을 수행함
     @classmethod
     def mask_uuid(cls, text: str, mask_char: str = "*") -> str:
         """UUID / GUID: 첫 번째 8자리 그룹 보존, 나머지 마스킹 (예: 123e4567-e89b-12d3-a456-426614174000 -> 123e4567-****-****-****-************)"""
@@ -463,6 +484,7 @@ class SmartMasker:
             return f"{g1}-{mask_char*4}-{mask_char*4}-{mask_char*4}-{mask_char*12}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 tracking no 작업을 수행함
     @classmethod
     def mask_tracking_no(cls, text: str, mask_char: str = "*") -> str:
         """택배 송장/운송장 번호: 앞 권역코드 및 끝 4자리 보존, 중간 마스킹 (예: 6521-1234-5678 -> 6521-****-5678)"""
@@ -476,6 +498,7 @@ class SmartMasker:
             return f"{digits[:4]}-{mask_char * 4}-{digits[-4:]}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 order no 작업을 수행함
     @classmethod
     def mask_order_no(cls, text: str, mask_char: str = "*") -> str:
         """주문번호: 주문일자(8자리) 보존, 일련번호 마스킹 (예: 20260908-0001234 -> 20260908-*******)"""
@@ -489,6 +512,7 @@ class SmartMasker:
             return f"{clean[:8]}-{mask_char * (len(clean) - 8)}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 health insurance 작업을 수행함
     @classmethod
     def mask_health_insurance(cls, text: str, mask_char: str = "*") -> str:
         """건강보험증 번호: 자격구분(1) 및 앞 5자리 보존, 나머지 마스킹 (예: 1-123456789-0 -> 1-12345****-*)"""
@@ -503,6 +527,7 @@ class SmartMasker:
             return f"{digits[:6]}{mask_char * (len(digits)-6)}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 military no 작업을 수행함
     @classmethod
     def mask_military_no(cls, text: str, mask_char: str = "*") -> str:
         """군번: 입대연도(2) 보존, 일련번호 마스킹 (예: 23-71012345 -> 23-71******)"""
@@ -514,6 +539,7 @@ class SmartMasker:
             return f"{yy}-{serial[:2]}{mask_char * (len(serial)-2)}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 pnu 작업을 수행함
     @classmethod
     def mask_pnu(cls, text: str, mask_char: str = "*") -> str:
         """토지/필지 고유번호(PNU 19자리): 행정구역 10자리(시군구/읍면동/리) 보존, 필지번 8자리 마스킹 (예: 1168010100101230001 -> 1168010100********)"""
@@ -522,6 +548,7 @@ class SmartMasker:
             return f"{clean[:10]}{clean[10]}{mask_char * 8}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 patient id 작업을 수행함
     @classmethod
     def mask_patient_id(cls, text: str, mask_char: str = "*") -> str:
         """환자등록번호 / 병원차트번호: 기관접두사/연도 보존, 일련번호 마스킹 (예: PT-2024-001234 -> PT-2024-******)"""
@@ -533,6 +560,7 @@ class SmartMasker:
             return f"{clean[:3]}{mask_char * (len(clean)-3)}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 student id 작업을 수행함
     @classmethod
     def mask_student_id(cls, text: str, mask_char: str = "*") -> str:
         """학번: 입학년도/학과코드(4~6자리) 보존, 개인일련번호 마스킹 (예: 2023123456 -> 202312****)"""
@@ -544,6 +572,7 @@ class SmartMasker:
             return f"{digits[:4]}{mask_char * (len(digits)-4)}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 employee id 작업을 수행함
     @classmethod
     def mask_employee_id(cls, text: str, mask_char: str = "*") -> str:
         """사번: 접두사/입사연도 보존, 개인일련번호 마스킹 (예: EMP-2023-0145 -> EMP-2023-****, E2024001 -> E2024***)"""
@@ -555,6 +584,7 @@ class SmartMasker:
             return f"{clean[:4]}{mask_char * (len(clean)-4)}"
         return cls.mask_generic(clean, mask_char=mask_char)
 
+    # 마스킹 generic 작업을 수행함
     @classmethod
     def mask_generic(cls, text: str, mask_char: str = "*") -> str:
         """
@@ -575,8 +605,25 @@ class SmartMasker:
         else:
             return f"{clean[:3]}{mask_char * (length - 6)}{clean[-3:]}"
 
+    # 마스킹 full 텍스트 작업을 수행함
     @classmethod
-    def mask_full_text(cls, text: str, mask_char: str = "*") -> str:
+    def mask_full_text(cls, text: str, mask_char: str = "*", *, ignored=()) -> str:
+        if not isinstance(text, str) or not text.strip():
+            return text
+        excluded = exclusions(ignored)
+        if not excluded:
+            return cls._mask_full_text(text, mask_char)
+        pattern = re.compile(r'(?<!\w)(?:' + '|'.join(re.escape(word) for word in sorted(excluded, key=len, reverse=True)) + r')(?!\w)', re.IGNORECASE)
+        parts, offset = [], 0
+        for match in pattern.finditer(text):
+            parts.extend((cls._mask_full_text(text[offset:match.start()], mask_char), match.group()))
+            offset = match.end()
+        parts.append(cls._mask_full_text(text[offset:], mask_char))
+        return ''.join(parts)
+
+    # 마스킹 full 텍스트 작업을 수행함
+    @classmethod
+    def _mask_full_text(cls, text: str, mask_char: str = "*") -> str:
         """
         Scan and smart-mask all inline PII patterns within narrative paragraphs, sentences, or mixed document cells.
         """
@@ -664,13 +711,12 @@ class SmartMasker:
             return s
         res = re.sub(r"\b\d{11}\b", _mask_health_ins, res)
 
-        # 9. Names with prefixes: 예) 환자명: 홍길동, 연구책임자 김민수, 성명: 남궁민수
-        def _mask_named_person(m):
-            """이름 문자열을 정밀 마스킹함"""
-            prefix = m.group(1)
-            name = m.group(2)
-            return f"{prefix}{cls.mask_name(name, mask_char=mask_char)}"
-        res = re.sub(r"(환자명\s*[:：]\s*|환자\s*[:：]\s*|성명\s*[:：]\s*|성명\s*\(한글/영문\)\s*[:：]\s*|예금주\s*[:：]\s*|예금주\s*|주문자\s*[:：]?\s*|담당자\s*[:：]\s*|수신자\s*[:：]\s*|보호자\s*[:：]\s*|연구원\s*[:：]?\s*|연구책임자\s*[:：]?\s*|책임자\s*[:：]?\s*|작성자\s*[:：]\s*|수검자\s*[:：]\s*|피험자\s*[:：]\s*|의뢰인\s*[:：]\s*|대표자\s*[:：]\s*|대표이사\s*[:：]?\s*)([가-힣]{2,4})", _mask_named_person, res)
+        # Share exact contextual spans; never replace every occurrence of a name.
+        from ..profiling.kiwi_pii_detector import detect_korean_named_entities
+        people = [entity for entity in detect_korean_named_entities(res) if entity['type'] == 'PERSON_NAME']
+        for entity in reversed(people):
+            start, end = entity['start'], entity['end']
+            res = res[:start] + cls.mask_name(res[start:end], mask_char=mask_char) + res[end:]
 
         # 10. Korean Addresses: 서울시 송파구 올림픽로 300 102동 405호 -> 서울시 송파구 ********** 102동 405호
         def _mask_address(m):
@@ -683,6 +729,7 @@ class SmartMasker:
 
         return res
 
+    # 마스킹 value 작업을 수행함
     @classmethod
     def mask_value(cls, value: Any, pii_type: Optional[str] = None, mask_char: str = "*") -> Any:
         """
@@ -694,6 +741,8 @@ class SmartMasker:
         text = str(value).strip()
         if not text:
             return text
+        if normalize(text) in exclusions():
+            return value
 
         # 1. If explicit PII type given
         pt = (pii_type or "").lower().strip()
@@ -704,6 +753,9 @@ class SmartMasker:
         if pt in ("phone_number", "phone", "mobile", "tel", "hp"):
             return cls.mask_phone(text, mask_char)
         if pt in ("name", "korean_name", "user_name"):
+            from ..profiling.kiwi_pii_detector import is_organization
+            if is_organization(text):
+                return value
             return cls.mask_name(text, mask_char)
         if pt in ("email", "mail"):
             return cls.mask_email(text, mask_char)
@@ -791,9 +843,11 @@ class SmartMasker:
         if full_masked != text:
             return full_masked
 
-        # Default smart generic masking if explicitly requested or very long
-        return cls.mask_generic(text, mask_char)
+        # Unknown values are not automatically PII. An explicit generic type
+        # still permits the existing user-selected masking operation.
+        return cls.mask_generic(text, mask_char) if pt else value
 
+    # 마스킹 series 작업을 수행함
     @classmethod
     def mask_series(cls, series: pd.Series, pii_type: Optional[str] = None, mask_char: str = "*") -> pd.Series:
         """Apply smart masking across an entire pandas Series."""

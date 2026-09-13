@@ -10,7 +10,9 @@
 from __future__ import annotations
 import numpy as np
 import pandas as pd
+from scipy.stats import wasserstein_distance as scipy_wasserstein_distance
 
+# jsd 작업을 수행함
 def jsd(p: np.ndarray, q: np.ndarray, eps: float = 1e-12) -> float:
     """두 확률분포의 Jensen-Shannon 발산을 계산함"""
     p = np.asarray(p, dtype=float) + eps
@@ -20,6 +22,7 @@ def jsd(p: np.ndarray, q: np.ndarray, eps: float = 1e-12) -> float:
     m = 0.5 * (p + q)
     return float(0.5 * np.sum(p * np.log(p / m)) + 0.5 * np.sum(q * np.log(q / m)))
 
+# categorical jsd 작업을 수행함
 def categorical_jsd(original: pd.Series, synthetic: pd.Series) -> float:
     """범주형 컬럼의 분포 유사도를 계산함"""
     original_counts = original.astype("string").value_counts(normalize=True, dropna=False)
@@ -30,6 +33,40 @@ def categorical_jsd(original: pd.Series, synthetic: pd.Series) -> float:
         synthetic_counts.reindex(index, fill_value=0).values,
     )
 
+
+# wasserstein distance 작업을 수행함
+def wasserstein_distance(original: pd.Series, synthetic: pd.Series) -> float:
+    """수치형 두 표본의 1차 Wasserstein 거리를 계산함."""
+    original_values = pd.to_numeric(original, errors="coerce").dropna().to_numpy(dtype=float)
+    synthetic_values = pd.to_numeric(synthetic, errors="coerce").dropna().to_numpy(dtype=float)
+    if not len(original_values) or not len(synthetic_values):
+        return float("nan")
+    return float(scipy_wasserstein_distance(original_values, synthetic_values))
+
+
+# wasserstein similarity 작업을 수행함
+def wasserstein_similarity(original: pd.Series, synthetic: pd.Series) -> float:
+    """Wasserstein 거리를 ``1 / (1 + distance)`` 유사도로 변환함."""
+    distance = wasserstein_distance(original, synthetic)
+    return 1.0 / (1.0 + distance) if np.isfinite(distance) else float("nan")
+
+
+# categorical tvd 작업을 수행함
+def categorical_tvd(original: pd.Series, synthetic: pd.Series) -> float:
+    """범주형 두 표본의 Total Variation Distance를 계산함."""
+    original_counts = original.astype("string").value_counts(normalize=True, dropna=False)
+    synthetic_counts = synthetic.astype("string").value_counts(normalize=True, dropna=False)
+    index = original_counts.index.union(synthetic_counts.index)
+    probabilities = original_counts.reindex(index, fill_value=0.0).to_numpy(dtype=float)
+    synthetic_probabilities = synthetic_counts.reindex(index, fill_value=0.0).to_numpy(dtype=float)
+    return float(0.5 * np.abs(probabilities - synthetic_probabilities).sum())
+
+
+calculate_wasserstein_distance = wasserstein_distance
+calculate_tvd = categorical_tvd
+total_variation_distance = categorical_tvd
+
+# numerical jsd 작업을 수행함
 def numerical_jsd(original: pd.Series, synthetic: pd.Series, bins: int = 20) -> float:
     """수치형 컬럼을 구간화해 분포 유사도를 계산함"""
     if not len(original) or not len(synthetic):
@@ -49,6 +86,7 @@ def numerical_jsd(original: pd.Series, synthetic: pd.Series, bins: int = 20) -> 
     return jsd(np.append(original_hist, original_numeric.isna().sum()),
                np.append(synthetic_hist, synthetic_numeric.isna().sum()))
 
+# binned keys 작업을 수행함
 def binned_keys(df: pd.DataFrame, categorical: list[str], numerical: list[str], bins: int, reference: pd.DataFrame | None = None) -> pd.Series:
     """컬럼 값을 비교 가능한 범주·수치 구간 키로 변환함"""
     reference = df if reference is None else reference

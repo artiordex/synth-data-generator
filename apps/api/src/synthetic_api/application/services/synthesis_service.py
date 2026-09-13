@@ -39,6 +39,7 @@ from synthetic_engine import (
 class SynthesisService:
     """단일 합성 작업의 생명주기와 파이프라인 실행을 관리함"""
 
+    # 합성 작업 데이터를 신규 생성함
     @staticmethod
     def create_job(req: SynthesisRequest) -> JobStatus:
         """합성 요청을 영속 작업으로 생성함"""
@@ -74,6 +75,7 @@ class SynthesisService:
             
         return job
 
+    # start pipeline async 작업을 수행함
     @staticmethod
     def start_pipeline_async(job_id: str, req: SynthesisRequest):
         """합성 파이프라인을 백그라운드에서 시작함"""
@@ -82,6 +84,7 @@ class SynthesisService:
         ACTIVE_TASKS[job_id] = t
         t.start()
 
+    # cancel 합성 작업 작업을 수행함
     @staticmethod
     def cancel_job(job_id: str) -> bool:
         """실행 중인 합성 작업에 취소를 요청함"""
@@ -99,6 +102,7 @@ class SynthesisService:
             return True
         return False
 
+    # pipeline 작업을 실행함
     @staticmethod
     def _run_pipeline(job_id: str, req: SynthesisRequest):
         """합성 파이프라인을 실행하고 작업 결과를 저장함"""

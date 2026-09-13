@@ -1,11 +1,12 @@
-"""
-파일명: datasets.py
-경로: apps/api/src/synthetic_api/routes/v1/datasets.py
-목적: 데이터 업로드·프로파일링·가명화 API를 제공함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: datasets.py
+# 경로: apps/api/src/synthetic_api/routes/v1/datasets.py
+# 목적: 데이터셋 메타데이터 등록 및 조회 API 엔드포인트를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from pathlib import Path
 import uuid
 from typing import Dict, Any, Optional
@@ -33,6 +34,7 @@ class PseudonymizeRequest(BaseModel):
     l_threshold: int = Field(default=2, ge=2, le=100)
     t_threshold: float = Field(default=0.2, gt=0, le=1)
 
+# 단일 원본 데이터 파일을 업로드하고 서버 저장소에 저장함
 @router.post("/upload", summary="단일 원본 데이터 파일 업로드", description="CSV, XLSX, TSV, Parquet, JSON 등 원본 데이터 파일을 서버에 안전하게 업로드합니다.")
 async def upload_dataset(file: UploadFile = File(...)):
     try:
@@ -41,6 +43,7 @@ async def upload_dataset(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 업로드된 데이터셋의 컬럼 유형, 결측치 및 개인정보(PII) 포함 여부를 프로파일링함
 @router.get("/profile", summary="데이터셋 프로파일링 및 PII 자동 탐지", description="업로드된 데이터셋의 컬럼 유형, 결측치, 통계량 및 개인정보(PII) 포함 여부를 정밀 분석합니다.")
 async def profile_dataset(file_name: str, pseudonym: bool = False):
     try:
@@ -54,6 +57,7 @@ async def profile_dataset(file_name: str, pseudonym: bool = False):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 복수(1~20개) 데이터셋 파일을 일괄 업로드하고 각각의 프로파일을 분석함
 @router.post("/upload-batch", summary="복수 데이터셋 일괄 업로드 및 프로파일링", description="최대 20개의 데이터셋 파일을 한 번에 업로드하고 각각의 프로파일 정보를 일괄 분석합니다.")
 def upload_batch(files: list[UploadFile] = File(...)):
     if not 1 <= len(files) <= 20:
@@ -75,6 +79,7 @@ def upload_batch(files: list[UploadFile] = File(...)):
             file.file.close()
     return {'files': results}
 
+# 정형 데이터 컬럼별 가명화 기법을 적용하고 지정 포맷으로 내보냄
 @router.post("/pseudonymize", summary="정형 데이터 가명화 처리 및 다중 포맷 내보내기", description="컬럼별 가명처리 기법(Faker, 마스킹, 해시, 삭제, 토큰화)을 적용하고 프라이버시 평가 지표를 산출하여 원하는 포맷으로 내보냅니다.")
 def pseudonymize_dataset(req: PseudonymizeRequest):
     src_path = confined_file(settings.UPLOAD_DIR / req.file_name, settings.UPLOAD_DIR)
@@ -213,6 +218,7 @@ def pseudonymize_dataset(req: PseudonymizeRequest):
         "pseudonymized_preview": pseudo_df.head(15).fillna("").to_dict(orient="records")
     }
 
+# 최근 수행된 데이터셋 가명화 처리 이력 목록을 조회함
 @router.get("/pseudonymize/history", summary="가명화 처리 이력 조회", description="최근 수행된 가명화 작업 목록과 파일 다운로드 정보를 조회합니다.")
 async def get_pseudonym_history():
     pseudo_dir = settings.OUTPUT_DIR / "pseudonymized"

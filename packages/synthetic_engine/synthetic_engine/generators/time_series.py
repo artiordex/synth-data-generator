@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: time_series.py
+# 경로: packages/synthetic_engine/synthetic_engine/generators/time_series.py
+# 목적: 시계열 데이터 추세 및 계절성 반영 합성 생성을 수행함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 """Entity-aware panel/time-series bootstrap preserving order and observation gaps."""
 from __future__ import annotations
 
@@ -6,9 +15,11 @@ import pandas as pd
 
 
 class PanelTimeSeriesSynthesizer:
+    # PanelTimeSeriesSynthesizer 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, seed: int = 42):
         self.seed = seed
 
+    # sample 작업을 수행함
     def sample(self, frame: pd.DataFrame, *, entity_column: str, time_column: str,
                target_entities: int | None = None) -> pd.DataFrame:
         if entity_column not in frame or time_column not in frame:

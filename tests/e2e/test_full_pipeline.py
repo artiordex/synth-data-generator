@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_full_pipeline.py
+# 경로: tests/e2e/test_full_pipeline.py
+# 목적: 데이터 합성 및 변환 전체 파이프라인 통합 테스트를 수행함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import os
 import shutil
 import tempfile
@@ -8,6 +17,7 @@ from synthetic_engine import (
     SynthesisConfig
 )
 
+# full pipeline e2e 기능의 정상 동작 및 제약조건을 테스트함
 def test_full_pipeline_e2e():
     temp_dir = Path(tempfile.mkdtemp())
     try:
@@ -38,6 +48,7 @@ def test_full_pipeline_e2e():
         pipeline = SyntheticPipeline(config=config)
         
         progress_records = []
+        # on progress 작업을 수행함
         def on_progress(pct, msg):
             progress_records.append((pct, msg))
             

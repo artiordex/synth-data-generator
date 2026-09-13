@@ -15,6 +15,7 @@ import pandas as pd
 
 class DifferentialPrivacyManager:
     """차분 프라이버시 적용을 위한 노이즈 처리를 제공함"""
+    # apply laplace 노이즈 작업을 수행함
     @staticmethod
     def apply_laplace_noise(
         df: pd.DataFrame,

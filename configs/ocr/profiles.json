@@ -1,0 +1,105 @@
+{
+  "STANDARD": {
+    "target_dpi": 300,
+    "upscale": 1.0,
+    "denoise": "none",
+    "clahe": false,
+    "deskew": "standard",
+    "threshold": "OTSU",
+    "morphology": "minimal",
+    "psm": 3,
+    "language": "kor+eng"
+  },
+  "LOW_RESOLUTION": {
+    "target_dpi": 300,
+    "upscale": 2.0,
+    "interpolation": "LANCZOS4",
+    "threshold": "OTSU",
+    "morphology": "minimal",
+    "psm": 6,
+    "language": "kor+eng"
+  },
+  "LOW_CONTRAST": {
+    "target_dpi": 300,
+    "upscale": 1.0,
+    "denoise": "none",
+    "clahe": true,
+    "threshold": "ADAPTIVE_GAUSSIAN",
+    "morphology": "minimal",
+    "psm": 6,
+    "language": "kor+eng"
+  },
+  "NOISY_SCAN": {
+    "target_dpi": 300,
+    "upscale": 1.0,
+    "denoise": "strong",
+    "clahe": true,
+    "threshold": "OTSU",
+    "morphology": "open",
+    "psm": 6,
+    "language": "kor+eng"
+  },
+  "BLURRED_SCAN": {
+    "target_dpi": 300,
+    "upscale": 1.5,
+    "denoise": "light",
+    "clahe": true,
+    "threshold": "OTSU",
+    "morphology": "minimal",
+    "psm": 6,
+    "language": "kor+eng"
+  },
+  "SKEWED_DOCUMENT": {
+    "target_dpi": 300,
+    "upscale": 1.0,
+    "denoise": "none",
+    "clahe": false,
+    "deskew": "aggressive",
+    "threshold": "OTSU",
+    "morphology": "minimal",
+    "psm": 3,
+    "language": "kor+eng"
+  },
+  "TABLE_DOCUMENT": {
+    "target_dpi": 300,
+    "upscale": 1.0,
+    "denoise": "none",
+    "clahe": false,
+    "threshold": "ADAPTIVE_GAUSSIAN",
+    "morphology": "close",
+    "psm": 6,
+    "language": "kor+eng"
+  },
+  "SMALL_TEXT": {
+    "target_dpi": 300,
+    "upscale": 2.0,
+    "interpolation": "LANCZOS4",
+    "denoise": "none",
+    "clahe": true,
+    "threshold": "OTSU",
+    "morphology": "minimal",
+    "psm": 6,
+    "language": "kor+eng"
+  },
+  "SPARSE_TEXT": {
+    "target_dpi": 300,
+    "upscale": 1.0,
+    "denoise": "none",
+    "clahe": false,
+    "threshold": "OTSU",
+    "morphology": "minimal",
+    "psm": 11,
+    "language": "kor+eng"
+  },
+  "HIGH_ACCURACY": {
+    "target_dpi": 300,
+    "upscale": 1.5,
+    "interpolation": "LANCZOS4",
+    "denoise": "light",
+    "clahe": true,
+    "threshold": "ADAPTIVE_GAUSSIAN",
+    "morphology": "minimal",
+    "psm": 6,
+    "language": "kor+eng"
+  }
+}

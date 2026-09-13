@@ -13,15 +13,18 @@ from .base import BaseSynthesizer
 
 _SYNTHESIZER_REGISTRY: dict[str, Type[BaseSynthesizer]] = {}
 
+# synthesizer 항목을 레지스트리에 등록함
 def register_synthesizer(name: str) -> Callable[[Type[BaseSynthesizer]], Type[BaseSynthesizer]]:
     """생성기 클래스를 전역 레지스트리에 등록하는 데코레이터를 반환함"""
     """Decorator to register a synthesizer class in the global registry."""
+    # decorator 작업을 수행함
     def decorator(cls: Type[BaseSynthesizer]) -> Type[BaseSynthesizer]:
         normalized_name = name.strip().lower()
         _SYNTHESIZER_REGISTRY[normalized_name] = cls
         return cls
     return decorator
 
+# synthesizer 정보를 조회하여 반환함
 def get_synthesizer(name: str, **kwargs: Any) -> BaseSynthesizer:
     """이름에 해당하는 합성 생성기 인스턴스를 반환함"""
     """Factory function to retrieve and instantiate a registered synthesizer."""
@@ -32,6 +35,7 @@ def get_synthesizer(name: str, **kwargs: Any) -> BaseSynthesizer:
     cls = _SYNTHESIZER_REGISTRY[normalized_name]
     return cls(**kwargs)
 
+# list synthesizers 작업을 수행함
 def list_synthesizers() -> list[str]:
     """등록된 합성 생성기 이름 목록을 반환함"""
     """Return a list of all registered synthesizer names."""

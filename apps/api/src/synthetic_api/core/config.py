@@ -1,7 +1,17 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: config.py
+# 경로: apps/api/src/synthetic_api/core/config.py
+# 목적: Pydantic Settings 기반 환경 변수 및 애플리케이션 전역 설정을 관리함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# project root 대상을 탐색하여 반환함
 def find_project_root() -> Path:
     if os.environ.get('ROOT_DIR'):
         return Path(os.environ['ROOT_DIR']).resolve()

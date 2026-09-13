@@ -20,6 +20,7 @@ DEFAULT_PROMPT = (
 )
 
 
+# env bool 작업을 수행함
 def env_bool(name: str, default: bool = False) -> bool:
     value = os.environ.get(name)
     if value is None:
@@ -27,6 +28,7 @@ def env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+# env int 작업을 수행함
 def env_int(name: str, default: int) -> int:
     try:
         return int(os.environ.get(name, default))
@@ -34,11 +36,13 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
+# 캐시 파일 경로 작업을 수행함
 def cache_path() -> Path:
     configured = os.environ.get("OPENAI_COLUMN_DESCRIPTION_CACHE_PATH", "storage/local/column_description_cache.json")
     return Path(configured)
 
 
+# read 캐시 작업을 수행함
 def read_cache(path: Path) -> dict[str, Any]:
     try:
         if path.exists():
@@ -48,6 +52,7 @@ def read_cache(path: Path) -> dict[str, Any]:
     return {}
 
 
+# 캐시 데이터를 파일에 기록함
 def write_cache(path: Path, cache: dict[str, Any]) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,6 +61,7 @@ def write_cache(path: Path, cache: dict[str, Any]) -> None:
         return
 
 
+# 응답 데이터를 정제 및 정리함
 def clean_response(text: Any) -> str:
     value = re.sub(r"[\r\n\t]+", " ", str(text)).strip().strip("\"'`")
     value = re.sub(r"\s+", " ", value)
@@ -65,11 +71,13 @@ def clean_response(text: Any) -> str:
     return value
 
 
+# 캐시 key 작업을 수행함
 def cache_key(payload: dict[str, Any]) -> str:
     data = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return sha256(data.encode("utf-8")).hexdigest()
 
 
+# 응답 텍스트 요소를 추출하여 반환함
 def extract_response_text(data: dict[str, Any]) -> str:
     if data.get("output_text"):
         return clean_response(data["output_text"])
@@ -81,6 +89,7 @@ def extract_response_text(data: dict[str, Any]) -> str:
     return clean_response(" ".join(chunks))
 
 
+# openai enabled 작업을 수행함
 def openai_enabled() -> bool:
     return (
         env_bool("OPENAI_COLUMN_DESCRIPTION_ENABLED", False)
@@ -89,6 +98,7 @@ def openai_enabled() -> bool:
     )
 
 
+# polish 컬럼 description 작업을 수행함
 def polish_column_description(
     *,
     column_name: str,

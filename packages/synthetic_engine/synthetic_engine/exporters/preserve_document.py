@@ -1,6 +1,7 @@
 """Direct editing and fail-closed layout verification for selected text targets."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -13,8 +14,10 @@ import pymupdf as fitz
 from lxml import etree
 
 from ..privacy.document_replacements import validate_replacements
+from ..privacy.text_format_rules import RULE_VERSION
 
 
+# native hancom 작업을 수행함
 def native_hancom(source, pdf, output=None, replacements=None):
     if os.name != 'nt':
         raise ValueError('한글 원본 서식 검증에는 Windows 한글 렌더링 작업자가 필요합니다.')
@@ -33,6 +36,7 @@ def native_hancom(source, pdf, output=None, replacements=None):
         spec.unlink(missing_ok=True)
 
 
+# 페이지 목록 데이터를 타깃 포맷으로 렌더링함
 def render_pages(pdf, directory, prefix):
     with fitz.open(pdf) as document:
         if document.page_count > 100:
@@ -42,40 +46,53 @@ def render_pages(pdf, directory, prefix):
         return document.page_count
 
 
+# targets 위치를 탐색하여 반환함
 def locate_targets(document, items):
+    if not items:
+        return {number: [] for number in range(len(document))}
     located, counts = {}, {item['original']: 0 for item in items}
     for number, page in enumerate(document):
-        if page.rotation:
-            raise ValueError('회전된 페이지는 현재 정밀 치환 검증을 지원하지 않습니다.')
         hits = []
         for block in page.get_text('rawdict')['blocks']:
             for line in block.get('lines', []):
-                if tuple(line['dir']) != (1.0, 0.0):
-                    raise ValueError('회전된 텍스트가 포함되어 있습니다.')
                 chars = [(char, span) for span in line['spans'] for char in span['chars']]
                 text = ''.join(char['c'] for char, _ in chars)
                 for item in items:
                     old = item['original']
                     start = 0
                     while (start := text.find(old, start)) >= 0:
+                        if tuple(line['dir']) != (1.0, 0.0):
+                            raise ValueError(f'검색어 {old!r}의 텍스트 자체가 회전되어 정밀 치환을 지원하지 않습니다.')
                         selected = chars[start:start + len(old)]
                         rect = fitz.Rect(selected[0][0]['bbox'])
                         for char, _ in selected[1:]: rect |= fitz.Rect(char['bbox'])
                         style = selected[0][1]
-                        if any(span['font'] != style['font'] or span['size'] != style['size'] for _, span in selected):
-                            raise ValueError('여러 글꼴에 걸친 개인정보는 자동 치환할 수 없습니다.')
-                        hits.append({'rect': rect, 'origin': selected[0][0]['origin'], 'style': style, 'item': item})
+                        runs = []
+                        for offset, (char, span) in enumerate(selected):
+                            key = (span['font'], span['size'], span['color'])
+                            if not runs or runs[-1]['key'] != key:
+                                runs.append({'key': key, 'rect': fitz.Rect(char['bbox']),
+                                             'origin': char['origin'], 'style': span, 'item': item,
+                                             'replacement': '', 'first_run': not runs})
+                            runs[-1]['rect'] |= fitz.Rect(char['bbox'])
+                            runs[-1]['replacement'] += item['replacement'][offset]
+                        hits.extend(runs)
                         counts[old] += 1
                         start += len(old)
+        for hit in hits:
+            # PyMuPDF editing uses unrotated coordinates; pixmaps use page rotation.
+            hit['display_rect'] = hit['rect'] * page.rotation_matrix
         located[number] = hits
-    if any(count == 0 for count in counts.values()):
-        raise ValueError('지정한 개인정보의 좌표를 찾지 못했습니다. 줄바꿈·스캔·이미지 여부를 확인하세요.')
+    missing = [term for term, count in counts.items() if count == 0]
+    if missing:
+        raise ValueError(f'좌표를 찾지 못한 검색어: {missing!r}. 줄바꿈·스캔·이미지 여부를 확인하세요.')
     return located
 
 
 _FALLBACK_KOREAN_BUFFER = None
 
 
+# korean 폴백 buffer 정보를 조회하여 반환함
 def get_korean_fallback_buffer():
     global _FALLBACK_KOREAN_BUFFER
     if _FALLBACK_KOREAN_BUFFER is None:
@@ -88,6 +105,7 @@ def get_korean_fallback_buffer():
     return _FALLBACK_KOREAN_BUFFER
 
 
+# replace PDF 문서 작업을 수행함
 def replace_pdf(source, output, items):
     with fitz.open(source) as document:
         if document.is_encrypted or document.embfile_count() or document.get_sigflags() > 0:
@@ -126,7 +144,7 @@ def replace_pdf(source, output, items):
                         alias = font_name
                     fonts[font_name] = (font, alias, buffer)
                 font, alias, buffer = fonts[font_name]
-                new = hit['item']['replacement']
+                new = hit['replacement']
 
                 # 글리프 지원 검사 및 대체 글꼴 자동 전환
                 use_font = font
@@ -175,46 +193,54 @@ def replace_pdf(source, output, items):
                         registered.add(falias)
                 for hit in hits:
                     color = hit['style']['color']
-                    page.insert_text(hit['origin'], hit['item']['replacement'], fontname=hit['font'],
+                    page.insert_text(hit['origin'], hit['replacement'], fontname=hit['font'],
                                      fontsize=hit['fontsize'], color=tuple(((color >> shift) & 255) / 255 for shift in (16, 8, 0)))
         document.save(output, garbage=4, deflate=True, clean=True)
 
 
+# replace 한글 표준(HWPX) 작업을 수행함
 def replace_hwpx(source, output, items):
-    ns = 'http://www.hancom.co.kr/hwpml/2011/paragraph'
-    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    from .hwpx_text_edit import edit_section, remove_preview_references
+    import tempfile
+    source, output = Path(source), Path(output)
+    if source.resolve() == output.resolve():
+        raise ValueError('원본과 결과 파일 경로는 달라야 합니다.')
     counts = {item['original']: 0 for item in items}
-    with zipfile.ZipFile(source) as zin, zipfile.ZipFile(output, 'w') as zout:
-        if any('signature' in name.lower() for name in zin.namelist()):
-            raise ValueError('전자서명 문서는 자동 편집하지 않습니다.')
-        for entry in zin.infolist():
-            data = zin.read(entry.filename)
-            if entry.filename.startswith('Contents/') and entry.filename.endswith('.xml'):
-                root = etree.fromstring(data, parser)
-                for paragraph in root.iter(f'{{{ns}}}p'):
-                    nodes = [node for node in paragraph.iter(f'{{{ns}}}t')
-                             if next((p for p in node.iterancestors() if p.tag == f'{{{ns}}}p'), None) is paragraph]
-                    original = ''.join(node.text or '' for node in nodes)
-                    changed = original
-                    for item in items:
-                        counts[item['original']] += original.count(item['original'])
-                        changed = changed.replace(item['original'], item['replacement'])
-                    if original != changed:
-                        offset = 0
-                        for node in nodes:
-                            length = len(node.text or '')
-                            node.text = changed[offset:offset + length]
-                            offset += length
-                data = etree.tostring(root, encoding='utf-8', xml_declaration=True)
-            # Stale cached previews can retain original personal data. Native saving
-            # regenerates them after the edit; they must not be shipped untouched.
-            if entry.filename.startswith('Preview/'):
-                continue
-            zout.writestr(entry, data)
-    if any(count == 0 for count in counts.values()):
-        raise ValueError('한글 텍스트 런에서 지정한 개인정보를 찾지 못했습니다.')
+    staged = None
+    try:
+        with zipfile.ZipFile(source) as zin:
+            if len(zin.namelist()) != len(set(zin.namelist())):
+                raise ValueError('HWPX 패키지에 중복된 파일 항목이 있습니다.')
+            if any('signature' in name.lower() for name in zin.namelist()):
+                raise ValueError('전자서명 문서는 자동 편집하지 않습니다.')
+            with tempfile.NamedTemporaryFile(dir=output.parent, suffix='.hwpx', delete=False) as temp:
+                staged = Path(temp.name)
+            with zipfile.ZipFile(staged, 'w') as zout:
+                zout.comment = zin.comment
+                for entry in zin.infolist():
+                    data = zin.read(entry.filename)
+                    if entry.filename.startswith('Contents/') and entry.filename.endswith('.xml'):
+                        data = edit_section(data, items, counts)
+                    if entry.filename == 'META-INF/container.xml' or entry.filename.endswith(('.hpf', '.rels')):
+                        data = remove_preview_references(data)
+                    # Cached previews may contain the original PII.
+                    if entry.filename.startswith('Preview/'):
+                        continue
+                    zout.writestr(entry, data)
+            missing = [term for term, count in counts.items() if count == 0]
+            if missing:
+                raise ValueError(f'한글 텍스트 런에서 찾지 못한 검색어: {missing!r}')
+            if 'Contents/content.hpf' in zin.namelist():
+                from hwpx.document import HwpxDocument
+                # Validate package references before publishing the staged result.
+                HwpxDocument.open(staged)
+        staged.replace(output)
+    finally:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
 
 
+# PDF 문서 pair 정합성 및 무결성을 검증함
 def verify_pdf_pair(original_pdf, processed_pdf, items):
     with fitz.open(original_pdf) as before, fitz.open(processed_pdf) as after:
         if len(before) != len(after): raise ValueError('페이지 수가 변경되었습니다.')
@@ -222,16 +248,17 @@ def verify_pdf_pair(original_pdf, processed_pdf, items):
         total_changed = 0
         for index in range(len(before)):
             a, b = before[index], after[index]
-            if a.rect != b.rect: raise ValueError('페이지 크기가 변경되었습니다.')
+            if a.rect != b.rect or a.rotation != b.rotation: raise ValueError('페이지 크기 또는 회전이 변경되었습니다.')
             raw_a, raw_b = a.get_pixmap(alpha=False), b.get_pixmap(alpha=False)
             pixels_a = np.frombuffer(raw_a.samples, dtype=np.uint8).reshape(raw_a.height, raw_a.width, raw_a.n)
             pixels_b = np.frombuffer(raw_b.samples, dtype=np.uint8).reshape(raw_b.height, raw_b.width, raw_b.n)
             diff = np.any(pixels_a != pixels_b, axis=2)
             for hit in locations[index]:
-                rect = hit['rect'] + (-1, -1, 1, 1)
+                rect = hit['display_rect'] + (-1, -1, 1, 1)
                 diff[max(0, int(rect.y0)):min(raw_a.height, int(rect.y1 + 1)),
                      max(0, int(rect.x0)):min(raw_a.width, int(rect.x1 + 1))] = False
             if diff.any(): raise ValueError('개인정보 영역 밖의 시각적 차이가 발생했습니다. 결과를 제공하지 않습니다.')
+            # untouched chars 작업을 수행함
             def untouched_chars(page):
                 chars = Counter()
                 boxes = [hit['rect'] for hit in locations[index]]
@@ -239,7 +266,13 @@ def verify_pdf_pair(original_pdf, processed_pdf, items):
                     for line in block.get('lines', []):
                         for span in line['spans']:
                             for char in span['chars']:
-                                if not any(fitz.Rect(char['bbox']).intersects(box) for box in boxes):
+                                # Extraction may infer spaces after text streams are split.
+                                # Sub-point rounding at adjacent glyph edges is not overlap.
+                                if char.get('synthetic', False):
+                                    continue
+                                if not any((fitz.Rect(char['bbox']) & box).width > 0.01
+                                           and (fitz.Rect(char['bbox']) & box).height > 0.01
+                                           for box in boxes):
                                     chars[(char['c'], *[round(v, 2) for v in char['origin']])] += 1
                 return chars
             if untouched_chars(a) != untouched_chars(b):
@@ -247,10 +280,11 @@ def verify_pdf_pair(original_pdf, processed_pdf, items):
             text = b.get_text()
             if any(item['original'] in text for item in items):
                 raise ValueError('처리된 페이지에 원본 개인정보가 남아 있습니다.')
-            total_changed += len(locations[index])
+            total_changed += sum(hit['first_run'] for hit in locations[index])
         for item in items:
-            if sum(page.get_text().count(item['replacement']) for page in after) < sum(
-                    1 for hits in locations.values() for hit in hits if hit['item'] == item):
+            # A styled run boundary may be extracted as a line break or space.
+            if sum(re.sub(r'\s+', '', page.get_text()).count(re.sub(r'\s+', '', item['replacement'])) for page in after) < sum(
+                    1 for hits in locations.values() for hit in hits if hit['item'] == item and hit['first_run']):
                 raise ValueError('대체 텍스트가 누락되었거나 글꼴 인코딩이 손상되었습니다.')
         for xref in range(1, after.xref_length()):
             content = after.xref_object(xref).encode('utf-8') + (after.xref_stream(xref) if after.xref_is_stream(xref) else b'')
@@ -260,11 +294,15 @@ def verify_pdf_pair(original_pdf, processed_pdf, items):
                 if any(encoded in content or encoded.hex().encode() in content.lower() for encoded in encodings):
                     raise ValueError('PDF 내부 객체에 원본 개인정보가 남아 있습니다.')
         return {'page_count': len(after), 'changed_regions': total_changed,
+                'text_rule_version': RULE_VERSION,
                 'layout': 'PASS', 'selected_text_residual': 'PASS',
+                'similarity_percent': 100.0 if not items else None,
                 'scope': '선택한 텍스트와 검사 가능한 객체 기준. 이미지·OCR·미탐지 개인정보는 별도 검토가 필요합니다.'}
 
 
+# native residual 정합성 및 무결성을 검증함
 def verify_native_residual(output, items):
+    # check 작업을 수행함
     def check(data):
         for item in items:
             if any(item['original'].encode(encoding) in data for encoding in ('utf-8', 'utf-16-le', 'utf-16-be')):
@@ -290,21 +328,34 @@ def verify_native_residual(output, items):
                         pass
 
 
+# document 데이터를 처리함
 def process_document(source, directory, items):
     validate_replacements(items)
     output = directory / ('processed' + source.suffix.lower())
     original_pdf, processed_pdf = directory / 'original.pdf', directory / 'processed.pdf'
-    if source.suffix.lower() == '.pdf':
+    if not items:
+        # A document without selected PII must remain byte-for-byte native.
+        import shutil
+        shutil.copyfile(source, output)
+        shutil.copyfile(original_pdf, processed_pdf)
+    elif source.suffix.lower() == '.pdf':
         replace_pdf(source, output, items)
     elif source.suffix.lower() == '.hwpx':
         edited = directory / 'edited.hwpx'
         replace_hwpx(source, edited, items)
-        native_hancom(edited, processed_pdf, output=output)
+        native_hancom(edited, processed_pdf)
+        import shutil
+        shutil.copyfile(edited, output)
     elif source.suffix.lower() == '.hwp':
         native_hancom(source, processed_pdf, output=output, replacements=items)
     else:
         raise ValueError('원본 편집은 PDF, HWP, HWPX에서 지원합니다.')
-    report = verify_pdf_pair(original_pdf, processed_pdf, items)
+    if not items and source.suffix.lower() != '.pdf':
+        report = {'page_count': 0, 'changed_regions': 0, 'layout': 'PASS',
+                  'selected_text_residual': 'PASS', 'similarity_percent': 100.0,
+                  'scope': '개인정보 후보 없음. 원본 네이티브 파일을 변경 없이 복제했습니다.'}
+    else:
+        report = verify_pdf_pair(original_pdf, processed_pdf, items)
     if source.suffix.lower() != '.pdf':
         verify_native_residual(output, items)
         from ..profiling.pseudonym_input import read_pseudonym_input

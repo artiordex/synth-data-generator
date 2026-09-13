@@ -1,11 +1,12 @@
-"""
-파일명: notebook_presets.py
-경로: packages/synthetic_engine/synthetic_engine/profiling/notebook_presets.py
-목적: 기존 분석 노트북의 데이터별 합성 설정 프리셋을 제공함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: notebook_presets.py
+# 경로: packages/synthetic_engine/synthetic_engine/profiling/notebook_presets.py
+# 목적: 데이터 분석 및 프로파일링용 주피터 노트북 프리셋을 관리함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from .analyzer import infer_columns, scan_pii_columns
 
 PRESETS = [
@@ -24,6 +25,7 @@ PRESETS = [
 ]
 
 
+# notebook 설정값 작업을 수행함
 def notebook_settings(frame):
     """데이터 컬럼 구조에 맞는 노트북 기반 합성 설정을 반환함"""
     matches = [p for p in PRESETS if set(p[1] + p[2]).issubset(frame.columns)]

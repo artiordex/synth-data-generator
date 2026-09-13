@@ -1,11 +1,12 @@
-"""
-파일명: survey.py
-경로: apps/api/src/synthetic_api/routes/v1/survey.py
-목적: 설문 모듈 분석·합성·다운로드 API를 제공함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: survey.py
+# 경로: apps/api/src/synthetic_api/routes/v1/survey.py
+# 목적: 설문조사 데이터 합성 및 상관관계 보존 API 엔드포인트를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
@@ -56,6 +57,7 @@ class SurveyGenerateRequest(BaseModel):
     project_purpose: str = "다중 모듈 설문 합성데이터 증강 및 분석"
 
 
+# 설문조사 응답 테이블 데이터를 메모리에 로드함
 def _load_survey_tables(file_names: List[str]) -> Dict[str, pd.DataFrame]:
     tables: Dict[str, pd.DataFrame] = {}
     for fn in file_names:
@@ -72,6 +74,7 @@ def _load_survey_tables(file_names: List[str]) -> Dict[str, pd.DataFrame]:
     return tables
 
 
+# 설문 문항 모듈 및 분기 논리 구조를 분석함
 @router.post("/inspect", summary="설문조사 다중 모듈 구조 및 공통키 분석", description="여러 설문 모듈 파일의 응답자 식별자(ID), 리커트 척도, 공통 문항 구조 및 결합 적합도를 검사합니다.")
 def inspect_survey_modules(req: SurveyInspectRequest):
     """
@@ -105,6 +108,7 @@ def inspect_survey_modules(req: SurveyInspectRequest):
         raise HTTPException(status_code=500, detail=f"설문 모듈 분석 오류: {exc}")
 
 
+# 백그라운드 워커에서 설문조사 데이터 결합 합성을 실행함
 def _run_survey_synthesis_task(job_id: str, req: SurveyGenerateRequest):
     try:
         SURVEY_JOBS[job_id]["status"] = "processing"
@@ -115,6 +119,7 @@ def _run_survey_synthesis_task(job_id: str, req: SurveyGenerateRequest):
         inspect_res = SurveyFusionEngine.inspect_modules(tables)
         fused_raw, module_metas = SurveyFusionEngine.fuse_tables(tables, inspect_res.common_keys)
 
+# 설문 합성 진행률 업데이트 콜백을 처리함
         def progress_cb(pct: int, msg: str):
             SURVEY_JOBS[job_id]["progress"] = pct
             SURVEY_JOBS[job_id]["message"] = msg
@@ -232,6 +237,7 @@ def _run_survey_synthesis_task(job_id: str, req: SurveyGenerateRequest):
         SURVEY_JOBS[job_id]["error"] = str(exc)
 
 
+# 설문 데이터 합성 요청을 접수하고 비동기 생성 작업을 등록함
 @router.post("/generate", summary="복합 설문 모듈 통합 합성 데이터 생성", description="설문 응답 간 논리적 분기 규칙 및 리커트 척도 순서성을 보존하며 멀티 모듈 설문 합성데이터 및 심의 패키지를 생성합니다.")
 def generate_survey_synthesis(req: SurveyGenerateRequest):
     job_id = f"survey-{uuid.uuid4().hex[:8]}"
@@ -258,6 +264,7 @@ def generate_survey_synthesis(req: SurveyGenerateRequest):
     }
 
 
+# 비동기 설문 합성 작업의 현재 진행 상태와 로그를 조회함
 @router.get("/status/{job_id}", summary="설문 합성 작업 진행 상태 조회", description="비동기 실행 중인 설문 합성 작업의 단계별 진행률, 상태 메시지 및 완료 여부를 조회합니다.")
 def get_survey_job_status(job_id: str):
     job = SURVEY_JOBS.get(job_id)
@@ -266,6 +273,7 @@ def get_survey_job_status(job_id: str):
     return job
 
 
+# 설문 합성 결과 일체를 압축 패키지로 다운로드함
 @router.get("/download/{job_id}", summary="설문 합성 결과물 전체 ZIP 패키지 다운로드", description="합성된 설문 모듈별 데이터와 종합 심의 평가 리포트가 압축된 ZIP 파일을 다운로드합니다.")
 def download_survey_package(job_id: str):
     job = SURVEY_JOBS.get(job_id)
@@ -281,6 +289,7 @@ def download_survey_package(job_id: str):
     )
 
 
+# 설문 합성 결과 패키지 내 개별 파일을 다운로드함
 @router.get("/file/{job_id}/{filename}", summary="설문 합성 개별 산출물 파일 다운로드", description="특정 설문 합성 작업 결과물 폴더 내의 개별 CSV 또는 리포트 파일을 다운로드합니다.")
 def download_survey_single_file(job_id: str, filename: str):
     job = SURVEY_JOBS.get(job_id)

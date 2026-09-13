@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_pseudonym_api.py
+# 경로: apps/api/tests/test_pseudonym_api.py
+# 목적: 개인식별정보(PII) 탐지 및 가명화 처리 API를 검증함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 import pytest
 import io
 from fastapi.testclient import TestClient
@@ -7,6 +16,7 @@ from synthetic_api.core.config import settings
 client = TestClient(app)
 
 
+# isolated storage 작업을 수행함
 @pytest.fixture(autouse=True)
 def isolated_storage(tmp_path, monkeypatch):
     uploads, outputs = tmp_path / 'uploads', tmp_path / 'outputs'
@@ -15,6 +25,7 @@ def isolated_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, 'UPLOAD_DIR', uploads)
     monkeypatch.setattr(settings, 'OUTPUT_DIR', outputs)
 
+# 가명화 처리 flow 기능의 정상 동작 및 제약조건을 테스트함
 def test_pseudonymize_flow():
     # 1. Upload sample CSV with PII
     csv_data = (
@@ -65,6 +76,7 @@ def test_pseudonymize_flow():
     exported = download.content.decode('utf-8-sig')
     assert '***' in exported and '홍길동' not in exported
 
+# 가명화 처리 엑셀(XLSX) format 기능의 정상 동작 및 제약조건을 테스트함
 def test_pseudonymize_xlsx_format():
     csv_data = "name,amount\n홍길동,1000\n"
     files = {"file": ("test_xlsx_sample.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}

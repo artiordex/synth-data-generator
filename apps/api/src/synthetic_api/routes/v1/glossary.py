@@ -1,11 +1,12 @@
-"""
-파일명: glossary.py
-경로: apps/api/src/synthetic_api/routes/v1/glossary.py
-목적: 데이터 용어사전 조회 API를 제공함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: glossary.py
+# 경로: apps/api/src/synthetic_api/routes/v1/glossary.py
+# 목적: 도메인 용어 사전 조회 및 관리 API 엔드포인트를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import json
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -18,6 +19,7 @@ GLOSSARY_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "glossa
 
 _glossary_cache: Optional[List[Dict[str, Any]]] = None
 
+# 전체 도메인 표준 용어 사전 데이터를 조회함
 def get_glossary_data() -> List[Dict[str, Any]]:
     global _glossary_cache
     if _glossary_cache is None:
@@ -42,6 +44,7 @@ class GlossaryListResponse(BaseModel):
     categories: List[str]
     category_counts: Dict[str, int]
 
+# 도메인 용어 사전 항목 목록을 페이지네이션 및 필터링하여 조회함
 @router.get("", response_model=GlossaryListResponse, summary="AI 및 데이터 용어사전 목록 검색 및 필터링", description="인공지능, 딥러닝, 프라이버시 보호 및 합성데이터 도메인 전문 용어 379개를 카테고리/초성/키워드로 검색합니다.")
 def list_glossary_terms(
     q: Optional[str] = Query(None, description="검색어 (용어명 또는 설명문 검색)"),
@@ -99,6 +102,7 @@ def list_glossary_terms(
         category_counts=category_counts
     )
 
+# 특정 용어 ID에 대한 상세 정의와 메타데이터를 조회함
 @router.get("/{item_id}", response_model=GlossaryItemResponse, summary="단일 AI/데이터 용어 상세 조회", description="특정 용어의 ID 또는 명칭을 통해 상세 해설 및 카테고리 정보를 조회합니다.")
 def get_glossary_term(item_id: str) -> GlossaryItemResponse:
     terms = get_glossary_data()

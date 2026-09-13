@@ -1,10 +1,19 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_distributions.py
+# 경로: packages/synthetic_engine/tests/test_distributions.py
+# 목적: 통계 분포 기반 합성 데이터 생성 정합성을 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import pytest
 import numpy as np
 import pandas as pd
 from synthetic_engine.common.types import ColumnPlan
 from synthetic_engine.quality.assessment import compute_column_distributions, evaluate
 
+# compute 컬럼 distributions 기능의 정상 동작 및 제약조건을 테스트함
 def test_compute_column_distributions():
     np.random.seed(42)
     n = 200
@@ -57,6 +66,7 @@ def test_compute_column_distributions():
     assert tier_dist["stats"]["original"]["unique"] == 3
     assert tier_dist["stats"]["synthetic"]["unique"] == 3
 
+# evaluate includes distributions 기능의 정상 동작 및 제약조건을 테스트함
 def test_evaluate_includes_distributions():
     np.random.seed(42)
     n = 50

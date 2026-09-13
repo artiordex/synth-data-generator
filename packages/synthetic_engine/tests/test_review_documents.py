@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_review_documents.py
+# 경로: packages/synthetic_engine/tests/test_review_documents.py
+# 목적: 심의 검토용 문서 생성 및 서식 출력을 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import json
 from pathlib import Path
 from zipfile import ZipFile
@@ -18,6 +27,7 @@ from synthetic_engine.exporters.template_binding import TEMPLATE_NAMES
 from synthetic_engine.profiling.analyzer import classify_information_type
 
 
+# synthetic preview uses generated values and count 기능의 정상 동작 및 제약조건을 테스트함
 @pytest.mark.parametrize("count", [0, 3, 5, 1000])
 def test_synthetic_preview_uses_generated_values_and_count(tmp_path, monkeypatch, count):
     monkeypatch.setenv("OPENAI_COLUMN_DESCRIPTION_ENABLED", "false")
@@ -39,6 +49,7 @@ def test_synthetic_preview_uses_generated_values_and_count(tmp_path, monkeypatch
     assert root.findall(".//hp:tbl", ns)[3].get("rowCnt") == str(min(count, 5) + 1)
 
 
+# original example layout and fixed plan 기능의 정상 동작 및 제약조건을 테스트함
 @pytest.mark.parametrize("count,expected", [(11, [6, 5]), (12, [6, 6]), (17, [6, 6, 5])])
 def test_original_example_layout_and_fixed_plan(tmp_path, monkeypatch, count, expected):
     monkeypatch.setenv("OPENAI_COLUMN_DESCRIPTION_ENABLED", "false")
@@ -92,6 +103,7 @@ def test_original_example_layout_and_fixed_plan(tmp_path, monkeypatch, count, ex
     assert len(privacy[0].xpath(".//td[text()='layout']")) == 1
 
 
+# full variable forms 기능의 정상 동작 및 제약조건을 테스트함
 def test_full_variable_forms(tmp_path):
     raw = pd.DataFrame({"email": ["secret@example.com", None], **{f"항목{i}": [i, i + 1] for i in range(27)}})
     syn = raw.drop(columns="email").head(1).copy()
@@ -147,6 +159,7 @@ def test_full_variable_forms(tmp_path):
     assert len(data["columns"]) == 28
 
 
+# failed 평가 지표 is not zero and no automatic approval 기능의 정상 동작 및 제약조건을 테스트함
 def test_failed_metric_is_not_zero_and_no_automatic_approval():
     frame = pd.DataFrame({"value": [1]})
     plan = ColumnPlan([], ["value"], [], {}, {})
@@ -161,6 +174,7 @@ def test_failed_metric_is_not_zero_and_no_automatic_approval():
     assert "100" not in c["assessment"]
 
 
+# 분석 리포트 contains only two measured 결과 목록 기능의 정상 동작 및 제약조건을 테스트함
 @pytest.mark.parametrize("safety,utility,expected", [
     (0, 0.02, ["0.00", "0.02"]),
     (0.001, 0.9, ["<0.01", "0.90"]),
@@ -188,10 +202,12 @@ def test_report_contains_only_two_measured_results(tmp_path, safety, utility, ex
     assert "JSD: 성별" not in "".join(root.itertext())
 
 
+# descriptions are generated once and shared 기능의 정상 동작 및 제약조건을 테스트함
 def test_descriptions_are_generated_once_and_shared(tmp_path, monkeypatch):
     from synthetic_engine.exporters import review_documents
     calls = []
 
+    # polish 작업을 수행함
     def polish(**kwargs):
         calls.append(kwargs["column_name"])
         return "진로정보 수요 응답정보"
@@ -213,12 +229,14 @@ def test_descriptions_are_generated_once_and_shared(tmp_path, monkeypatch):
     assert descriptions[0] == descriptions[1] == ["개인의 성별", "진로정보 수요 응답정보"]
 
 
+# verbose gpt descriptions are rejected 기능의 정상 동작 및 제약조건을 테스트함
 @pytest.mark.parametrize("text", ["가" * 31, "기본 설명은 조사연도이다", "조사연도입니다"])
 def test_verbose_gpt_descriptions_are_rejected(text):
     from synthetic_engine.exporters.openai_text import clean_response
     assert clean_response(text) == ""
 
 
+# information area is limited to quasi identifier or general 기능의 정상 동작 및 제약조건을 테스트함
 def test_information_area_is_limited_to_quasi_identifier_or_general():
     frame = pd.DataFrame({
         "지역": ["세종", "충남"],
@@ -266,6 +284,7 @@ def test_information_area_is_limited_to_quasi_identifier_or_general():
     assert "정보영역 및 항목 설명은 자동 분류 결과 기준" in context["special_notes"]
 
 
+# information area uses values when 컬럼 name is ambiguous 기능의 정상 동작 및 제약조건을 테스트함
 def test_information_area_uses_values_when_column_name_is_ambiguous():
     assert classify_information_type("항목A", pd.Series(["세종", "충남", "전남광주", "세종"])) == "준식별자"
     assert classify_information_type("항목B", pd.Series(["남", "여", "남성", "여성"])) == "준식별자"
@@ -277,6 +296,7 @@ def test_information_area_uses_values_when_column_name_is_ambiguous():
     assert classify_information_type("문항1", pd.Series([1, 2, 1, 2])) == "일반정보"
 
 
+# openai polishing is optional and cached 기능의 정상 동작 및 제약조건을 테스트함
 def test_openai_polishing_is_optional_and_cached(monkeypatch, tmp_path):
     from synthetic_engine.exporters import openai_text
 
@@ -288,15 +308,19 @@ def test_openai_polishing_is_optional_and_cached(monkeypatch, tmp_path):
     calls = []
 
     class Response:
+        # 컨텍스트 매니저 진입 처리를 수행함
         def __enter__(self):
             return self
 
+        # 컨텍스트 매니저 종료 및 리소스 정리를 수행함
         def __exit__(self, *args):
             return False
 
+        # read 작업을 수행함
         def read(self):
             return json.dumps({"output_text": "진로수업 만족도 응답정보"}).encode("utf-8")
 
+    # fake urlopen 작업을 수행함
     def fake_urlopen(req, timeout):
         calls.append((req, timeout))
         return Response()
@@ -316,6 +340,7 @@ def test_openai_polishing_is_optional_and_cached(monkeypatch, tmp_path):
     assert json.loads(calls[0][0].data)["reasoning"] == {"effort": "minimal"}
 
 
+# numbered original 파일 uses review folder naming 기능의 정상 동작 및 제약조건을 테스트함
 def test_numbered_original_file_uses_review_folder_naming(tmp_path):
     frame = pd.DataFrame({"성별": ["남", "여"], "연령대": ["10대", "20대"]})
     plan = ColumnPlan(["성별", "연령대"], [], [], {}, {})
@@ -338,6 +363,7 @@ def test_numbered_original_file_uses_review_folder_naming(tmp_path):
     assert data["document_sequence"] == "1."
 
 
+# submission package uses docs folder and filename conventions 기능의 정상 동작 및 제약조건을 테스트함
 def test_submission_package_uses_docs_folder_and_filename_conventions(tmp_path):
     original_filename = "1. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx"
     dirs = make_submission_package_dirs(tmp_path, "job-test", original_filename)
@@ -350,6 +376,7 @@ def test_submission_package_uses_docs_folder_and_filename_conventions(tmp_path):
     assert numbered_submission_filename("1. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx", 1) == "01. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx"
 
 
+# empty data has no old samples 기능의 정상 동작 및 제약조건을 테스트함
 def test_empty_data_has_no_old_samples(tmp_path):
     frame = pd.DataFrame(columns=["빈 항목"])
     files = build_review_documents(raw=frame, synthetic=frame, plan=ColumnPlan([], [], [], {}, {}),
@@ -357,6 +384,7 @@ def test_empty_data_has_no_old_samples(tmp_path):
     assert len(files) == 3
 
 
+# missing template fails instead of rebuilding 기능의 정상 동작 및 제약조건을 테스트함
 def test_missing_template_fails_instead_of_rebuilding(tmp_path):
     import pytest
     frame = pd.DataFrame({"값": [1]})

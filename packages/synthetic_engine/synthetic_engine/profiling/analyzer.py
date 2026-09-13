@@ -87,6 +87,7 @@ HOUSEHOLD_VALUE_PATTERN = re.compile(r"^(\d+\s*인|\d+\s*명|1인가구|2인가�
 JOB_VALUE_PATTERN = re.compile(r"(관리자|전문가|사무|서비스|판매|농림|어업|기능원|장치|기계|조립|단순노무|군인|학생|주부|무직|자영업|회사원|공무원|교사)")
 
 
+# information type 데이터를 표준 형식으로 정규화함
 def normalize_information_type(value: Any) -> str | None:
     """정보 유형 입력값을 준식별자 또는 일반정보로 정규화함"""
     text = str(value or "").strip()
@@ -101,6 +102,7 @@ def normalize_information_type(value: Any) -> str | None:
     return None
 
 
+# value match ratio 작업을 수행함
 def value_match_ratio(series: pd.Series, pattern: re.Pattern[str] | set[str], sample_size: int = 200) -> float:
     """컬럼 값이 지정 패턴과 일치하는 비율을 계산함"""
     values = series.dropna().astype(str).map(lambda v: re.sub(r"\s+", "", v.strip())).head(sample_size)
@@ -113,6 +115,7 @@ def value_match_ratio(series: pd.Series, pattern: re.Pattern[str] | set[str], sa
     return float(values.map(lambda value: bool(pattern.search(value))).mean())
 
 
+# quasi identifier values 보유 여부를 확인함
 def has_quasi_identifier_values(series: pd.Series) -> bool:
     """컬럼 값에 준식별자 특성이 있는지 확인함"""
     non_null = int(series.notna().sum())
@@ -132,6 +135,7 @@ def has_quasi_identifier_values(series: pd.Series) -> bool:
     return any(value_match_ratio(series, pattern) >= threshold for pattern, threshold in checks)
 
 
+# classify information type 작업을 수행함
 def classify_information_type(column: Any, series: pd.Series | None = None, pii_detected: bool = False) -> str:
     """컬럼명과 값의 특성으로 정보 유형을 분류함"""
     name = str(column or "").strip()
@@ -160,6 +164,7 @@ def classify_information_type(column: Any, series: pd.Series | None = None, pii_
     return "일반정보"
 
 
+# read 표(테이블) 작업을 수행함
 def read_table(path: Path | str, sheet_name: str | int = 0) -> pd.DataFrame:
     """지원 파일 형식을 판별해 데이터프레임으로 읽음"""
     path = Path(path)
@@ -212,6 +217,7 @@ def read_table(path: Path | str, sheet_name: str | int = 0) -> pd.DataFrame:
     raise ValueError(f"Unsupported input file type: {suffix} (지원 형식: CSV, XLSX, XLS, TSV, JSON, PARQUET, PDF, HWP, HWPX, HWPT, DOCX, MD)")
 
 
+# 한글(HWP) 텍스트 pure 요소를 추출하여 반환함
 def _extract_hwp_text_pure(path: Path) -> list[str]:
     """Pure-python fallback to extract text from HWP binary stream using olefile & zlib."""
     lines = []
@@ -258,6 +264,7 @@ def _extract_hwp_text_pure(path: Path) -> list[str]:
     return lines
 
 
+# read document as dataframe 작업을 수행함
 def _read_document_as_dataframe(path: Path) -> pd.DataFrame:
     """Extract structured tabular data or sequential text paragraphs from document files into a DataFrame."""
     suffix = path.suffix.lower()
@@ -391,6 +398,7 @@ def _read_document_as_dataframe(path: Path) -> pd.DataFrame:
     return pd.DataFrame({"문서_내용": ["문서 내용을 파싱할 수 없습니다."]})
 
 
+# infer 컬럼 목록 작업을 수행함
 def infer_columns(df: pd.DataFrame, ignored: list[str]) -> tuple[list[str], list[str]]:
     """데이터프레임 컬럼을 범주형과 수치형으로 추론함"""
     categorical: list[str] = []
@@ -414,6 +422,7 @@ def infer_columns(df: pd.DataFrame, ignored: list[str]) -> tuple[list[str], list
     return categorical, numerical
 
 
+# scan 개인식별정보(PII) 컬럼 목록 작업을 수행함
 def scan_pii_columns(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
     """컬럼명·값·본문 패턴으로 개인정보 후보 컬럼을 탐지함"""
     from synthetic_engine.privacy.masker import SmartMasker
@@ -454,6 +463,7 @@ def scan_pii_columns(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
     return detected
 
 
+# 컬럼 plan 구조를 생성 및 조립함
 def build_column_plan(config: dict[str, Any], df: pd.DataFrame) -> ColumnPlan:
     """설정과 분석 결과를 합쳐 컬럼별 처리 계획을 생성함"""
     columns_config = config.get("columns", {})

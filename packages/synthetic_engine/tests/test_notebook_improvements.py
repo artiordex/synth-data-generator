@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_notebook_improvements.py
+# 경로: packages/synthetic_engine/tests/test_notebook_improvements.py
+# 목적: 프로파일링 노트북 프리셋 개선 사항을 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import json
 from types import SimpleNamespace
 import numpy as np
@@ -12,6 +21,7 @@ from synthetic_engine.quality.assessment import evaluate, build_auto_assessment
 from synthetic_engine.validation.anonymeter import evaluate_anonymeter
 
 
+# known schemas get notebook options but unknown data does not 기능의 정상 동작 및 제약조건을 테스트함
 def test_known_schemas_get_notebook_options_but_unknown_data_does_not():
     for name, cats, nums, epochs, batch, pac, nulls, excluded in PRESETS:
         frame = pd.DataFrame({**{c: ['가', '나'] for c in cats}, **{c: [1., None] for c in nums}})
@@ -25,6 +35,7 @@ def test_known_schemas_get_notebook_options_but_unknown_data_does_not():
     assert notebook_settings(pd.DataFrame({'소득분위': [1, None]}))['options'] == {}
 
 
+# no control or small data is unmeasured not safe 기능의 정상 동작 및 제약조건을 테스트함
 def test_no_control_or_small_data_is_unmeasured_not_safe():
     frame = pd.DataFrame({'x': range(5), 'y': range(5)})
     plan = ColumnPlan([], list(frame), [], {}, {})
@@ -36,6 +47,7 @@ def test_no_control_or_small_data_is_unmeasured_not_safe():
         assert assessment['overall_status'] == 'REVIEW' and assessment['score'] is None
 
 
+# 품질 임계값 controls distribution pass 진행 상태 기능의 정상 동작 및 제약조건을 테스트함
 def test_quality_threshold_controls_distribution_pass_status():
     frame = pd.DataFrame({'x': range(30), 'y': range(30)})
     plan = ColumnPlan([], list(frame), [], {}, {})
@@ -59,10 +71,13 @@ def test_quality_threshold_controls_distribution_pass_status():
     assert strict['issues'][0]['code'] == 'QUALITY_THRESHOLD'
 
 
+# evaluator failure does not become zero risk 기능의 정상 동작 및 제약조건을 테스트함
 def test_evaluator_failure_does_not_become_zero_risk(monkeypatch):
     import anonymeter.evaluators as evaluators
     class Failed:
+        # Failed 인스턴스 멤버 변수 및 초기 설정을 구성함
         def __init__(self, **kwargs): pass
+        # evaluate 작업을 수행함
         def evaluate(self, **kwargs): raise RuntimeError('measurement failed')
     for name in ('SinglingOutEvaluator', 'LinkabilityEvaluator', 'InferenceEvaluator'):
         monkeypatch.setattr(evaluators, name, Failed)
@@ -74,6 +89,7 @@ def test_evaluator_failure_does_not_become_zero_risk(monkeypatch):
     assert not risk['evaluated_with_anonymeter']
 
 
+# chart and 분석 리포트 use same jsd including nulls 기능의 정상 동작 및 제약조건을 테스트함
 def test_chart_and_report_use_same_jsd_including_nulls():
     rng = np.random.default_rng(42)
     raw, syn = pd.DataFrame({'x': rng.normal(size=100)}), pd.DataFrame({'x': rng.normal(.5, 1.2, 100)})
@@ -83,12 +99,16 @@ def test_chart_and_report_use_same_jsd_including_nulls():
     assert len(result['column_distributions'][0]['bins']) == 21
 
 
+# unreliable zero risk is not a pass 기능의 정상 동작 및 제약조건을 테스트함
 def test_unreliable_zero_risk_is_not_a_pass(monkeypatch):
     import warnings
     import anonymeter.evaluators as evaluators
     class Unreliable:
+        # Unreliable 인스턴스 멤버 변수 및 초기 설정을 구성함
         def __init__(self, **kwargs): pass
+        # evaluate 작업을 수행함
         def evaluate(self, **kwargs): pass
+        # risk 작업을 수행함
         def risk(self):
             warnings.warn('Analysis results cannot be trusted.')
             return SimpleNamespace(value=0.0)
@@ -99,6 +119,7 @@ def test_unreliable_zero_risk_is_not_a_pass(monkeypatch):
     assert result['status'] == 'ERROR' and result['singling_out_risk'] is None
 
 
+# balanced keeps common combinations but rejects rare matches 기능의 정상 동작 및 제약조건을 테스트함
 def test_balanced_keeps_common_combinations_but_rejects_rare_matches():
     raw = pd.DataFrame({'c': ['a'] * 10 + ['b'] * 10 + ['rare']})
     generated = pd.DataFrame({'c': ['a', 'b', 'rare']})
@@ -114,12 +135,16 @@ def test_balanced_keeps_common_combinations_but_rejects_rare_matches():
             SynthesisConfig(sample_rows=2, max_sampling_attempts=1, duplicate_policy='strict'), [])
 
 
+# control records are excluded before training and missing scores survive export 기능의 정상 동작 및 제약조건을 테스트함
 def test_control_records_are_excluded_before_training_and_missing_scores_survive_export(tmp_path, monkeypatch):
     captured = {}
     class Generator:
+        # fit 작업을 수행함
         def fit(self, training, plan): captured['training'] = training.copy()
+        # sample 작업을 수행함
         def sample(self, num_rows, **kwargs):
             return pd.DataFrame({'x': range(200, 200 + num_rows), 'y': range(400, 400 + num_rows)})
+    # checked evaluate 작업을 수행함
     def checked_evaluate(original, synthetic, plan, **kwargs):
         control = kwargs['control']
         assert len(original) == 80 and len(control) == 20
@@ -138,6 +163,7 @@ def test_control_records_are_excluded_before_training_and_missing_scores_survive
     assert len(result['hwp_files']) == 3
 
 
+# explicit empty 설정값 override notebook defaults 기능의 정상 동작 및 제약조건을 테스트함
 def test_explicit_empty_settings_override_notebook_defaults(tmp_path, monkeypatch):
     _, cats, nums, *_ = PRESETS[1]
     frame = pd.DataFrame({**{c: ['a', 'b', 'c'] for c in cats}, **{c: [1, None, 3] for c in nums}})
@@ -145,6 +171,7 @@ def test_explicit_empty_settings_override_notebook_defaults(tmp_path, monkeypatc
     frame.to_csv(path, index=False)
     class StopAfterFit(Exception): pass
     class Generator:
+        # fit 작업을 수행함
         def fit(self, training, plan):
             assert '소득분위_적용' not in training
             assert training['소득분위'].isna().sum() == 0
@@ -155,6 +182,7 @@ def test_explicit_empty_settings_override_notebook_defaults(tmp_path, monkeypatc
             job_id='override', original_filename=path.name, preserve_null_columns=[])
 
 
+# auto constraints respect explicit 컬럼 selection 기능의 정상 동작 및 제약조건을 테스트함
 def test_auto_constraints_respect_explicit_column_selection(tmp_path, monkeypatch):
     _, cats, nums, *_ = PRESETS[1]
     frame = pd.DataFrame({**{c: ['a', 'b', 'c'] for c in cats}, **{c: [1, None, 3] for c in nums}})
@@ -162,6 +190,7 @@ def test_auto_constraints_respect_explicit_column_selection(tmp_path, monkeypatc
     frame.to_csv(path, index=False)
     class StopAfterFit(Exception): pass
     class Generator:
+        # fit 작업을 수행함
         def fit(self, training, plan):
             assert list(training) == ['가족수']
             raise StopAfterFit()

@@ -20,14 +20,17 @@ TEMPLATE_NAMES = {
 }
 
 
+# tag 작업을 수행함
 def tag(name):
     return f"{{{HP}}}{name}"
 
 
+# 텍스트 of 작업을 수행함
 def text_of(element):
     return "".join(element.xpath(".//hp:t//text()", namespaces=NS))
 
 
+# 셀 at 작업을 수행함
 def cell_at(table, row, column):
     """Address an anchor cell, rather than a physical index in a merged row."""
     for cell in table.findall("hp:tr/hp:tc", NS):
@@ -37,6 +40,7 @@ def cell_at(table, row, column):
     raise ValueError(f"템플릿 셀을 찾을 수 없습니다: 행 {row}, 열 {column}")
 
 
+# 문단 속성 값을 설정 및 갱신함
 def set_paragraph(paragraph, text):
     """Retain the template paragraph and first text-run styles, clear old content."""
     runs = paragraph.findall("hp:run", NS)
@@ -52,6 +56,7 @@ def set_paragraph(paragraph, text):
         ET.SubElement(node, tag("lineBreak")).tail = line
 
 
+# 셀 속성 값을 설정 및 갱신함
 def set_cell(cell, text):
     sublist = cell.find("hp:subList", NS)
     paragraphs = sublist.findall("hp:p", NS)
@@ -62,10 +67,12 @@ def set_cell(cell, text):
         sublist.remove(p)
 
 
+# put 작업을 수행함
 def put(table, row, column, text):
     set_cell(cell_at(table, row, column), text)
 
 
+# 기하 구조 내용을 수정 및 갱신함
 def update_geometry(table):
     """Reindex anchor rows and reconcile the size of vertically merged cells."""
     rows = table.findall("hp:tr", NS)
@@ -95,6 +102,7 @@ def update_geometry(table):
         parent_p.remove(cache)
 
 
+# replace 행 목록 작업을 수행함
 def replace_rows(table, start, stop, values, prototype_index=None):
     """Replace a rectangular body region using a styled original row per column."""
     rows = table.findall("hp:tr", NS)
@@ -115,6 +123,7 @@ def replace_rows(table, start, stop, values, prototype_index=None):
     update_geometry(table)
 
 
+# output 컬럼 목록 작업을 수행함
 def output_columns(context, synthetic=False):
     cols = context["columns"]
     if not synthetic:
@@ -128,6 +137,7 @@ def output_columns(context, synthetic=False):
     ]
 
 
+# bind privacy 행 목록 작업을 수행함
 def bind_privacy_rows(table, context, columns):
     # Keep the original three header rows, including their 2-column/2-row merges.
     rows = table.findall("hp:tr", NS)
@@ -154,6 +164,7 @@ def bind_privacy_rows(table, context, columns):
     update_geometry(table)
 
 
+# bind privacy 작업을 수행함
 def bind_privacy(root, table, context, columns):
     # Hancom clips a merged dataset cell taller than a page even with TABLE flow.
     # Keep each merged group bounded and repeat the original three header rows.
@@ -174,6 +185,7 @@ def bind_privacy(root, table, context, columns):
             parent.insert(insertion + group, p)
 
 
+# bind examples 작업을 수행함
 def bind_examples(root, table, names, values, balanced=False):
     """Clone the original example table in groups of its existing column count."""
     paragraph = table.getparent().getparent()
@@ -228,6 +240,7 @@ def bind_examples(root, table, names, values, balanced=False):
         update_geometry(current)
 
 
+# 격자 구조 유효성 및 제약조건을 검증함
 def validate_grid(root):
     for table in root.findall(".//hp:tbl", NS):
         rows, cols = int(table.get("rowCnt")), int(table.get("colCnt"))
@@ -245,6 +258,7 @@ def validate_grid(root):
             raise ValueError("템플릿 표에 누락된 셀이 있습니다.")
 
 
+# template 정합성 및 무결성을 검증함
 def verify_template(tables, kind):
     count = {"original_spec": 6, "synthetic_spec": 4, "review_report": 4}[kind]
     if len(tables) != count:
@@ -255,6 +269,7 @@ def verify_template(tables, kind):
             raise ValueError(f"템플릿 기준 셀 불일치: {label}")
 
 
+# bind section 작업을 수행함
 def bind_section(root, context, kind):
     tables = root.findall(".//hp:tbl", NS)
     verify_template(tables, kind)
@@ -327,6 +342,7 @@ def bind_section(root, context, kind):
         bind_privacy(root, tables[5], c, columns)
 
 
+# template 데이터를 파일에 기록함
 def write_template(context, kind, template_dir, output_path):
     source = Path(template_dir) / TEMPLATE_NAMES[kind]
     if not source.exists():
@@ -361,6 +377,7 @@ def write_template(context, kind, template_dir, output_path):
     return {"template": source.name, "sha256": sha256(source_bytes).hexdigest()}
 
 
+# 병합 privacy preview 작업을 수행함
 def merge_privacy_preview(root):
     """Join paginated privacy tables on a copy for continuous HTML layout."""
     preview = deepcopy(root)
@@ -388,9 +405,11 @@ def merge_privacy_preview(root):
     return preview
 
 
+# HTML 웹 문서 preview 작업을 수행함
 def html_preview(root):
     """Content-only preview, including the template's merged table structure."""
     parts = ['<!doctype html><html lang="ko"><meta charset="utf-8"><title>심의자료 내용 확인</title><style>body{font:14px/1.6 sans-serif;max-width:1000px;margin:32px auto}table{border-collapse:collapse;width:100%;margin:12px 0}td{border:1px solid #555;padding:6px;white-space:pre-wrap;overflow-wrap:anywhere}</style><body><p>내용 확인본 · 실제 한글 서식은 HWPX 파일을 확인하세요.</p>']
+    # preview 텍스트 작업을 수행함
     def preview_text(element):
         copy = deepcopy(element)
         for line_break in copy.findall(".//hp:lineBreak", NS):

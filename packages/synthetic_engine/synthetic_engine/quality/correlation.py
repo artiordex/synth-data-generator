@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from ..common.types import ColumnPlan
 
+# fast cramers v 작업을 수행함
 def fast_cramers_v(x_codes: np.ndarray, y_codes: np.ndarray, n_x: int, n_y: int) -> float:
     """범주형 코드 배열에서 Cramér's V를 빠르게 계산함"""
     """Vectorized calculation of Cramér's V from factorized categorical codes using 2D bincount."""
@@ -44,6 +45,7 @@ def fast_cramers_v(x_codes: np.ndarray, y_codes: np.ndarray, n_x: int, n_y: int)
         return 0.0
     return float(np.sqrt(phi2corr / denom))
 
+# cramers v 작업을 수행함
 def cramers_v(x: pd.Series, y: pd.Series) -> float:
     """두 범주형 시리즈의 Cramér's V를 계산함"""
     """Calculate Cramér's V statistic for categorical-categorical association."""
@@ -55,6 +57,7 @@ class CorrelationEvaluator:
     """데이터프레임의 컬럼 상관관계 비교를 제공함"""
     """Evaluates 2D correlation and pairwise association preservation across all variables."""
 
+    # correlations 품질 및 지표를 평가함
     @staticmethod
     def evaluate_correlations(
         original: pd.DataFrame,

@@ -19,6 +19,7 @@ from ..registry import register_synthesizer
 @register_synthesizer("ctgan")
 class CTGANGenerator(BaseSynthesizer):
     """범주형·수치형 혼합 데이터를 위한 CTGAN 생성기임"""
+    # CTGANGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, epochs: int = 30, batch_size: int = 64, pac: int = 1, verbose: bool = False, enable_gpu: bool = False):
         self.epochs = max(1, epochs)
         self.raw_batch = batch_size
@@ -34,6 +35,7 @@ class CTGANGenerator(BaseSynthesizer):
         except Exception:
             pass
 
+    # fit 작업을 수행함
     def fit(self, training: pd.DataFrame, plan: ColumnPlan, **kwargs: Any) -> None:
         from sdv.metadata import SingleTableMetadata
         from sdv.single_table import CTGANSynthesizer
@@ -65,6 +67,7 @@ class CTGANGenerator(BaseSynthesizer):
         )
         self.synthesizer.fit(training)
 
+    # sample 작업을 수행함
     def sample(self, num_rows: int, conditions: dict[str, Any] | None = None) -> pd.DataFrame:
         if self.synthesizer is None:
             raise RuntimeError("Model is not fitted.")

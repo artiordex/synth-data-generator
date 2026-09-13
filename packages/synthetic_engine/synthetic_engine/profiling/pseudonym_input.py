@@ -1,11 +1,12 @@
-"""
-파일명: pseudonym_input.py
-경로: packages/synthetic_engine/synthetic_engine/profiling/pseudonym_input.py
-목적: 표 문서와 정형 파일을 가명화 입력 데이터프레임으로 변환함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: pseudonym_input.py
+# 경로: packages/synthetic_engine/synthetic_engine/profiling/pseudonym_input.py
+# 목적: 사용자 가명화 입력 파라미터 유효성 검증 및 전처리를 수행함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from pathlib import Path
 import re
 import zipfile
@@ -18,6 +19,7 @@ from .analyzer import read_table
 DOCUMENT_EXTENSIONS = {'.pdf', '.hwp', '.hwpx', '.docx', '.md'}
 
 
+# read 가명화 input 작업을 수행함
 def read_pseudonym_input(path: Path) -> pd.DataFrame:
     """가명화 대상 파일을 읽어 데이터프레임으로 반환함"""
     suffix = path.suffix.lower()
@@ -34,6 +36,7 @@ def read_pseudonym_input(path: Path) -> pd.DataFrame:
     elif suffix in {'.docx', '.hwpx'}:
         namespace = ('http://schemas.openxmlformats.org/wordprocessingml/2006/main'
                      if suffix == '.docx' else 'http://www.hancom.co.kr/hwpml/2011/paragraph')
+        # 문단 텍스트 작업을 수행함
         def paragraph_text(node):
             """문서 XML 노드에서 중첩된 텍스트를 추출함"""
             # Nested table paragraphs are visited separately, not duplicated.

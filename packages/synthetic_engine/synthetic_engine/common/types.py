@@ -38,6 +38,7 @@ class SynthesisConfig:
     enable_gpu: bool = False
     duplicate_policy: str = 'balanced'
 
+    # post init 작업을 수행함
     def __post_init__(self):
         """합성 설정값의 범위와 조합을 검증함"""
         if self.duplicate_policy not in {'balanced', 'strict'}:

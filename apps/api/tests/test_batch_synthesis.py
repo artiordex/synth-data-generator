@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_batch_synthesis.py
+# 경로: apps/api/tests/test_batch_synthesis.py
+# 목적: 대용량 일괄 합성데이터 생성 작업 비동기 파이프라인을 검증함
+# 작성자: 개발팀
+# 작성일: 2026-09-09
+# 수정일: 2026-09-13
+# =============================================================================
 import io
 import json
 from pathlib import Path
@@ -19,6 +28,7 @@ from synthetic_api.application.services import batch_service, synthesis_service
 from synthetic_api.application.services.batch_service import BatchService
 
 
+# 일괄(배치) 작업 env 작업을 수행함
 @pytest.fixture
 def batch_env(tmp_path, monkeypatch):
     engine = create_engine(f'sqlite:///{tmp_path / "jobs.db"}', connect_args={'check_same_thread': False})
@@ -38,11 +48,13 @@ def batch_env(tmp_path, monkeypatch):
     engine.dispose()
 
 
+# upload 파일 목록 작업을 수행함
 def upload_files(env, count=20):
     return env.client.post('/api/v1/datasets/upload-batch', files=[
         ('files', ('same.csv', f'x,y\n{i},1\n{i+1},2\n'.encode(), 'text/csv')) for i in range(count)])
 
 
+# uploads twenty same names without overwrite and rejects twenty one 기능의 정상 동작 및 제약조건을 테스트함
 def test_uploads_twenty_same_names_without_overwrite_and_rejects_twenty_one(batch_env):
     response = upload_files(batch_env)
     assert response.status_code == 200
@@ -55,6 +67,7 @@ def test_uploads_twenty_same_names_without_overwrite_and_rejects_twenty_one(batc
     assert len(list(batch_env.uploads.iterdir())) == 20
 
 
+# bad upload does not hide successful 파일 목록 기능의 정상 동작 및 제약조건을 테스트함
 def test_bad_upload_does_not_hide_successful_files(batch_env):
     result = batch_env.client.post('/api/v1/datasets/upload-batch', files=[
         ('files', ('bad.csv', b'', 'text/csv')),
@@ -62,6 +75,7 @@ def test_bad_upload_does_not_hide_successful_files(batch_env):
     assert result[0]['error'] and result[1]['profile']['row_count'] == 1
 
 
+# twenty 작업 목록 continue after failure and package 결과 목록 기능의 정상 동작 및 제약조건을 테스트함
 def test_twenty_jobs_continue_after_failure_and_package_results(batch_env, monkeypatch):
     uploaded = upload_files(batch_env).json()['files']
     requests = [{'file_name': f['filename'], 'original_filename': f'original-{i}.csv',
@@ -72,6 +86,7 @@ def test_twenty_jobs_continue_after_failure_and_package_results(batch_env, monke
     assert batch['total'] == 20 and batch['status'] == 'pending'
     assert len(batch_env.submitted) == 1  # one coordinator, not twenty training threads
     executed = []
+    # run 작업을 수행함
     def run(job_id, request):
         executed.append(request.original_filename)
         if request.original_filename == 'original-5.csv':
@@ -102,6 +117,7 @@ def test_twenty_jobs_continue_after_failure_and_package_results(batch_env, monke
     assert history.json()[0]['package_zip'] == final['package_zip']
 
 
+# 일괄(배치) 작업 package groups submission 파일 목록 with two digit numbering 기능의 정상 동작 및 제약조건을 테스트함
 def test_batch_package_groups_submission_files_with_two_digit_numbering(batch_env, monkeypatch):
     originals = [
         '1. 고등학생 진로수업 경험과 진로정보 인식_세종.xlsx',
@@ -115,6 +131,7 @@ def test_batch_package_groups_submission_files_with_two_digit_numbering(batch_en
 
     batch = batch_env.client.post('/api/v1/batches', json={'requests': requests}).json()
 
+    # run 작업을 수행함
     def run(job_id, request):
         sequence = request.original_filename.split('.', 1)[0]
         dataset_name = request.original_filename.split('. ', 1)[1].rsplit('.', 1)[0]
@@ -160,6 +177,7 @@ def test_batch_package_groups_submission_files_with_two_digit_numbering(batch_en
     assert not any(name.endswith('.zip') for name in names)
 
 
+# canceled waiting 작업 목록 are not run 기능의 정상 동작 및 제약조건을 테스트함
 def test_canceled_waiting_jobs_are_not_run(batch_env, monkeypatch):
     uploaded = upload_files(batch_env, 3).json()['files']
     batch = BatchService.start([SynthesisRequest(file_name=f['filename']) for f in uploaded])
@@ -171,6 +189,7 @@ def test_canceled_waiting_jobs_are_not_run(batch_env, monkeypatch):
     assert not executed and final['canceled'] == 3 and final['status'] == 'canceled'
 
 
+# restart marks unfinished 작업 목록 and limits validate before creation 기능의 정상 동작 및 제약조건을 테스트함
 def test_restart_marks_unfinished_jobs_and_limits_validate_before_creation(batch_env):
     uploaded = upload_files(batch_env, 1).json()['files'][0]
     request = {'file_name': uploaded['filename']}
@@ -183,6 +202,7 @@ def test_restart_marks_unfinished_jobs_and_limits_validate_before_creation(batch
     assert '서버 재시작' in recovered['jobs'][0]['error']
 
 
+# two real pipelines produce independent hangul packages 기능의 정상 동작 및 제약조건을 테스트함
 def test_two_real_pipelines_produce_independent_hangul_packages(batch_env):
     requests = []
     for index in range(2):
@@ -203,6 +223,7 @@ def test_two_real_pipelines_produce_independent_hangul_packages(batch_env):
     assert Path(final['package_zip']).exists()
 
 
+# api upload and 일괄(배치) 작업 apply notebook defaults and respect user overrides 기능의 정상 동작 및 제약조건을 테스트함
 def test_api_upload_and_batch_apply_notebook_defaults_and_respect_user_overrides(batch_env, monkeypatch):
     from synthetic_engine.profiling.notebook_presets import PRESETS
     _, cats, nums, *_ = PRESETS[1]
@@ -215,7 +236,9 @@ def test_api_upload_and_batch_apply_notebook_defaults_and_respect_user_overrides
     assert set(info_types.values()) <= {'준식별자', '일반정보'}
     seen = []
     class Probe:
+        # Probe 인스턴스 멤버 변수 및 초기 설정을 구성함
         def __init__(self, config): seen.append(config)
+        # execute 작업을 수행함
         def execute(self, **kwargs): raise RuntimeError('stop after configuration capture')
     monkeypatch.setattr(synthesis_service, 'SyntheticPipeline', Probe)
     response = batch_env.client.post('/api/v1/batches', json={'requests': [
@@ -227,6 +250,7 @@ def test_api_upload_and_batch_apply_notebook_defaults_and_respect_user_overrides
     assert seen[1].epochs == 2 and seen[1].duplicate_policy == 'strict'
 
 
+# 프로파일 returns unique value preview beyond first five 기능의 정상 동작 및 제약조건을 테스트함
 def test_profile_returns_unique_value_preview_beyond_first_five(batch_env):
     values = [f'응답-{index}' for index in range(8)]
     pd.DataFrame({'응답문항': values}).to_csv(batch_env.uploads / 'survey.csv', index=False)

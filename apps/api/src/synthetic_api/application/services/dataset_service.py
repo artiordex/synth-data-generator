@@ -26,6 +26,7 @@ from synthetic_engine import (
 class DatasetService:
     """업로드 데이터의 저장·검사·프로파일링을 제공함"""
 
+    # upload 파일 데이터를 파일에 저장함
     @staticmethod
     def save_upload_file(file_obj, filename: str, unique: bool = False) -> Dict[str, Any]:
         """업로드 파일을 허용된 저장소에 저장하고 메타데이터를 반환함"""
@@ -56,6 +57,7 @@ class DatasetService:
             'size_bytes': dest_path.stat().st_size
         }
 
+    # inspect 파일 작업을 수행함
     @staticmethod
     def inspect_file(file_name: str, pseudonym: bool = False) -> Dict[str, Any]:
         """저장된 데이터 파일의 구조와 개인정보 후보를 분석함"""

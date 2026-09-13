@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_hwp_high_fidelity_hwpx_converter.py
+# 경로: packages/synthetic_engine/tests/test_hwp_high_fidelity_hwpx_converter.py
+# 목적: HWP에서 HWPX 고충실도 변환 정밀도를 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import base64
 import re
 import zipfile
@@ -10,6 +19,7 @@ from synthetic_engine.exporters.hwp_high_fidelity_hwpx_converter import (
 )
 
 
+# section xml 작업을 수행함
 def _section_xml(path):
     with zipfile.ZipFile(path) as zf:
         section_name = next(
@@ -19,6 +29,7 @@ def _section_xml(path):
         return zf.read(section_name).decode("utf-8")
 
 
+# HTML 웹 문서 표(테이블) 격자 구조 preserves rowspan shift and colspan 기능의 정상 동작 및 제약조건을 테스트함
 def test_html_table_grid_preserves_rowspan_shift_and_colspan(tmp_path):
     output = tmp_path / "table.hwpx"
     html = """
@@ -42,6 +53,7 @@ def test_html_table_grid_preserves_rowspan_shift_and_colspan(tmp_path):
     assert "Merged child row" in doc.text.plain()
 
 
+# HTML 웹 문서 이미지 목록 are embedded for 문단 목록 and 표(테이블) 셀 목록 기능의 정상 동작 및 제약조건을 테스트함
 def test_html_images_are_embedded_for_paragraphs_and_table_cells(tmp_path):
     media = tmp_path / "media"
     media.mkdir()
@@ -69,6 +81,7 @@ def test_html_images_are_embedded_for_paragraphs_and_table_cells(tmp_path):
     assert xml.count("<hp:pic") == 2
 
 
+# 한글 표준(HWPX) input copy preserves package bytes 기능의 정상 동작 및 제약조건을 테스트함
 def test_hwpx_input_copy_preserves_package_bytes(tmp_path):
     source = tmp_path / "source.hwpx"
     target = tmp_path / "copy.hwpx"

@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_deliberation_verification.py
+# 경로: tests/e2e/test_deliberation_verification.py
+# 목적: 심의 검증 프로세스 엔드투엔드 통합 테스트를 수행함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import os
 import shutil
 import tempfile
@@ -10,6 +19,7 @@ from synthetic_engine import (
     SynthesisConfig
 )
 
+# deliberation verification e2e 기능의 정상 동작 및 제약조건을 테스트함
 def test_deliberation_verification_e2e():
     """Verify that a raw dataset from docs/ produces valid synthetic data and 3 HWPX review documents."""
     base_dir = Path(__file__).resolve().parents[2]

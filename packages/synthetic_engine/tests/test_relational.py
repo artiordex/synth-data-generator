@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_relational.py
+# 경로: packages/synthetic_engine/tests/test_relational.py
+# 목적: 관계형 다중 테이블 합성 데이터 생성을 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import pytest
 import numpy as np
 import pandas as pd
@@ -8,6 +16,7 @@ from synthetic_engine import (
     HMARelationalSynthesizer,
 )
 
+# 관계형 데이터 data 작업을 수행함
 @pytest.fixture
 def relational_data():
     np.random.seed(42)
@@ -37,6 +46,7 @@ def relational_data():
 
     return {"users": users, "orders": orders}, [relationship]
 
+# turbo 관계형 데이터 sampler 기능의 정상 동작 및 제약조건을 테스트함
 def test_turbo_relational_sampler(relational_data):
     tables, relationships = relational_data
     sampler = TurboRelationalSampler(seed=42)
@@ -68,6 +78,7 @@ def test_turbo_relational_sampler(relational_data):
     assert gen_users["user_id"].nunique() == len(gen_users)
     assert gen_orders["order_id"].nunique() == len(gen_orders)
 
+# hma 관계형 데이터 synthesizer 기능의 정상 동작 및 제약조건을 테스트함
 def test_hma_relational_synthesizer(relational_data):
     tables, relationships = relational_data
     hma = HMARelationalSynthesizer(verbose=False)

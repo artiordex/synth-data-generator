@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_engine.py
+# 경로: packages/synthetic_engine/tests/test_engine.py
+# 목적: 합성 데이터 생성 엔진 코어 인터페이스를 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import pytest
 import numpy as np
 import pandas as pd
@@ -15,6 +23,7 @@ from synthetic_engine import (
     evaluate
 )
 
+# sample df 작업을 수행함
 @pytest.fixture
 def sample_df():
     return pd.DataFrame({
@@ -25,12 +34,14 @@ def sample_df():
         "구매금액": np.random.uniform(10, 200, size=50).round(1),
     })
 
+# provenance 기능의 정상 동작 및 제약조건을 테스트함
 def test_provenance(sample_df):
     hash_val = calculate_sha256(sample_df)
     assert len(hash_val) == 64
     device = detect_system_device()
     assert "gpu_available" in device
 
+# 프로파일링 and plan 기능의 정상 동작 및 제약조건을 테스트함
 def test_profiling_and_plan(sample_df):
     pii = scan_pii_columns(sample_df)
     assert "성명" in pii
@@ -38,12 +49,14 @@ def test_profiling_and_plan(sample_df):
     assert "연령" in plan.numerical
     assert "성별" in plan.categorical
 
+# dp 노이즈 기능의 정상 동작 및 제약조건을 테스트함
 def test_dp_noise(sample_df):
     perturbed, report = apply_differential_privacy_noise(sample_df, ["구매금액"], epsilon=1.0)
     assert report["enabled"] is True
     assert "구매금액" in report["columns_perturbed"]
     assert len(perturbed) == len(sample_df)
 
+# evaluation 기능의 정상 동작 및 제약조건을 테스트함
 def test_evaluation(sample_df):
     from synthetic_engine import get_synthesizer
     plan = build_column_plan({}, sample_df)
@@ -60,6 +73,7 @@ def test_evaluation(sample_df):
     assert eval_res['assessment']['score'] is None
     assert eval_res['assessment']['overall_status'] == 'REVIEW'
 
+# synthesizer registry and persistence 기능의 정상 동작 및 제약조건을 테스트함
 def test_synthesizer_registry_and_persistence(tmp_path, sample_df):
     from synthetic_engine import get_synthesizer, list_synthesizers, BaseSynthesizer
     available = list_synthesizers()
@@ -81,6 +95,7 @@ def test_synthesizer_registry_and_persistence(tmp_path, sample_df):
     re_sampled = loaded.sample(10)
     assert len(re_sampled) == 10
 
+# privacy guardrails deduplication 기능의 정상 동작 및 제약조건을 테스트함
 def test_privacy_guardrails_deduplication(sample_df):
     from synthetic_engine import PrivacyGuardrails
     # create synthetic with duplicate
@@ -89,6 +104,7 @@ def test_privacy_guardrails_deduplication(sample_df):
     assert report["exact_duplicates_found"] == 10
     assert report["status"] in ["PASS", "REVIEW", "FAIL"]
 
+# correlation evaluator 기능의 정상 동작 및 제약조건을 테스트함
 def test_correlation_evaluator(sample_df):
     from synthetic_engine import CorrelationEvaluator
     plan = build_column_plan({}, sample_df)
@@ -96,6 +112,7 @@ def test_correlation_evaluator(sample_df):
     assert res["overall_correlation_score"] >= 0.99
     assert res["status"] == "PASS"
 
+# cramers v all pairs 기능의 정상 동작 및 제약조건을 테스트함
 def test_cramers_v_all_pairs():
     from synthetic_engine import CorrelationEvaluator, ColumnPlan
     # 6 categorical columns -> 6 * 5 / 2 = 15 pairs
@@ -118,6 +135,7 @@ def test_cramers_v_all_pairs():
     assert res["categorical_pairs_evaluated"] == 15
     assert res["categorical_association_score"] >= 0.99
 
+# extended 개인식별정보(PII) detection and faker 기능의 정상 동작 및 제약조건을 테스트함
 def test_extended_pii_detection_and_faker():
     from synthetic_engine import scan_pii_columns, build_column_plan, build_pii_output
     df = pd.DataFrame({
@@ -148,6 +166,7 @@ def test_extended_pii_detection_and_faker():
     assert synth_df["접속IP"].iloc[0] != "192.168.0.1" or synth_df["접속IP"].nunique() > 1
 
 
+# smart 마스킹 개인식별정보(PII) output preserves original 컬럼 order 기능의 정상 동작 및 제약조건을 테스트함
 def test_smart_mask_pii_output_preserves_original_column_order():
     from synthetic_engine import build_pii_output
 

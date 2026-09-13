@@ -2,15 +2,12 @@
 import json
 import sys
 from pathlib import Path
+from synthetic_engine.common.com_session import win32_com_session
 
 
+# run 작업을 수행함
 def run(spec):
-    import pythoncom
-    import win32com.client
-    pythoncom.CoInitialize()
-    hwp = None
-    try:
-        hwp = win32com.client.DispatchEx('HWPFrame.HwpObject')
+    with win32_com_session('HWPFrame.HwpObject') as hwp:
         hwp.XHwpWindows.Item(0).Visible = False
         if not hwp.Open(str(Path(spec['source']).resolve()), '', ''):
             raise RuntimeError('한글 문서를 열지 못했습니다.')
@@ -31,10 +28,6 @@ def run(spec):
                 raise RuntimeError('한글 원본 형식 저장에 실패했습니다.')
         if not hwp.SaveAs(str(Path(spec['pdf']).resolve()), 'PDF', ''):
             raise RuntimeError('한글 페이지 렌더링에 실패했습니다.')
-    finally:
-        if hwp is not None:
-            hwp.Quit()
-        pythoncom.CoUninitialize()
 
 
 if __name__ == '__main__':

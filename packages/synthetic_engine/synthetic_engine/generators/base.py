@@ -18,16 +18,19 @@ from ..common.types import ColumnPlan
 class BaseSynthesizer(ABC):
     """Abstract base class for all synthetic data generators."""
 
+    # fit 작업을 수행함
     @abstractmethod
     def fit(self, training: pd.DataFrame, plan: ColumnPlan, **kwargs: Any) -> None:
         """Fit generator on training data according to column plan."""
         pass
 
+    # sample 작업을 수행함
     @abstractmethod
     def sample(self, num_rows: int, conditions: dict[str, Any] | None = None) -> pd.DataFrame:
         """Sample synthetic rows from the fitted model."""
         pass
 
+    # save 작업을 수행함
     def save(self, file_path: str | Path) -> None:
         """Serialize synthesizer state and weights to file."""
         target = Path(file_path)
@@ -35,6 +38,7 @@ class BaseSynthesizer(ABC):
         with target.open("wb") as f:
             pickle.dump(self, f)
 
+    # load 작업을 수행함
     @classmethod
     def load(cls, file_path: str | Path) -> BaseSynthesizer:
         """Deserialize synthesizer instance from file."""

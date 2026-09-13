@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_survey_reporting.py
+# 경로: packages/synthetic_engine/tests/test_survey_reporting.py
+# 목적: 설문조사 데이터 합성 리포팅 기능을 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 import math
 
 import pandas as pd
@@ -7,6 +16,7 @@ from synthetic_engine.generators.survey.survey_fusion import SurveyFusionEngine
 from synthetic_engine.generators.survey.survey_logic import SurveyLogicEngine
 
 
+# no applicable 규칙 목록 is unmeasured 기능의 정상 동작 및 제약조건을 테스트함
 def test_no_applicable_rules_is_unmeasured():
     frame = pd.DataFrame({'answer': ['a', 'b']})
     for rules in ([], [{'condition_col': 'answer', 'condition_val': 'absent',
@@ -17,6 +27,7 @@ def test_no_applicable_rules_is_unmeasured():
         assert report['status'] == 'NOT_EVALUATED'
 
 
+# 품질 uses measured jsd and preserves assessment 기능의 정상 동작 및 제약조건을 테스트함
 @pytest.mark.parametrize('jsd, expected', [(0.2, 0.8), (None, None), (math.nan, None)])
 def test_quality_uses_measured_jsd_and_preserves_assessment(monkeypatch, jsd, expected):
     monkeypatch.setattr('synthetic_engine.generators.survey.survey_fusion.evaluate',
@@ -29,6 +40,7 @@ def test_quality_uses_measured_jsd_and_preserves_assessment(monkeypatch, jsd, ex
     assert metrics['logic_integrity']['passed'] is None
 
 
+# missing 품질 지표 never produce pass or approval 기능의 정상 동작 및 제약조건을 테스트함
 def test_missing_metrics_never_produce_pass_or_approval(tmp_path):
     frame = pd.DataFrame({'answer': ['a', 'b']})
     target = tmp_path / 'report.xlsx'
@@ -41,6 +53,7 @@ def test_missing_metrics_never_produce_pass_or_approval(tmp_path):
     assert '담당자 검토 및 승인 필요' in all_text
 
 
+# 변환 규칙 failure and actual 품질 are visible 기능의 정상 동작 및 제약조건을 테스트함
 def test_rule_failure_and_actual_quality_are_visible(tmp_path):
     frame = pd.DataFrame({'answer': ['a', 'b']})
     target = tmp_path / 'report.xlsx'

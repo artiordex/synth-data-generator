@@ -1,11 +1,12 @@
-"""
-파일명: synthesis.py
-경로: apps/api/src/synthetic_api/routes/v1/synthesis.py
-목적: 단일 합성 모델 비교·실행·취소 API를 제공함
-작성자: 개발팀
-작성일: 2026-09-09
-수정일: 2026-09-09
-"""
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: synthesis.py
+# 경로: apps/api/src/synthetic_api/routes/v1/synthesis.py
+# 목적: 정형 데이터 합성 작업 실행 및 파라미터 제어 API 엔드포인트를 제공함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 
 from synthetic_api.domain.models.job import JobStatus, SynthesisRequest
@@ -33,6 +34,7 @@ class CompareModelsRequest(BaseModel):
     sample_rows: int = Field(default=300, ge=50, le=1000)
 
 
+# 다양한 합성 알고리즘 모델 간 성능 및 충실도 지표를 비교함
 @router.post("/compare-models", summary="합성 모델(Statistical, Copula, CTGAN, TVAE) 축소 벤치마크 및 비교", description="Statistical, Gaussian Copula, CTGAN, TVAE 모델을 샘플 데이터로 축소 학습하여 분포 적합도, 상관관계 보존 점수를 측정하고 최적 모델을 추천합니다.")
 def compare_models(req: CompareModelsRequest):
     path = settings.UPLOAD_DIR / Path(req.file_name).name
@@ -72,8 +74,10 @@ def compare_models(req: CompareModelsRequest):
 
 
 
+# start synthesis 작업을 수행함
 @router.post("/start", response_model=JobStatus, summary="합성 데이터 생성 파이프라인 비동기 실행", description="지정한 데이터셋과 설정 파라미터(모델 종류, 행 수, 차분 프라이버시 등)를 바탕으로 데이터 합성 백그라운드 작업을 생성하고 시작합니다.")
 
+# 정형 데이터 합성 파이프라인 작업을 등록하고 비동기 실행을 시작함
 async def start_synthesis(req: SynthesisRequest):
 
     try:
@@ -90,8 +94,10 @@ async def start_synthesis(req: SynthesisRequest):
 
 
 
+# cancel synthesis 작업을 수행함
 @router.post("/cancel/{job_id}", summary="진행 중인 합성 작업 취소", description="실행 중이거나 대기 중인 데이터 합성 작업(Job)을 중단 처리합니다.")
 
+# 진행 중인 정형 데이터 합성 작업을 즉시 취소함
 async def cancel_synthesis(job_id: str):
 
     ok = SynthesisService.cancel_job(job_id)

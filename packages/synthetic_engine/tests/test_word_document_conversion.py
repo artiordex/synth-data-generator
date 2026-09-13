@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: test_word_document_conversion.py
+# 경로: packages/synthetic_engine/tests/test_word_document_conversion.py
+# 목적: 워드(DOCX) 문서 변환 충실도 및 정합성을 테스트함.
+# 작성자: AI Agent
+# 작성일: 2026-09-13
+# 수정일: 2026-09-13
+# =============================================================================
 from __future__ import annotations
 
 import zipfile
@@ -13,6 +21,7 @@ from synthetic_engine.exporters.document_exporter import (
 )
 
 
+# hyperlink 항목을 목록에 추가함
 def _add_hyperlink(paragraph, label: str, url: str) -> None:
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -32,6 +41,7 @@ def _add_hyperlink(paragraph, label: str, url: str) -> None:
     paragraph._p.append(hyperlink)
 
 
+# structured 워드(DOCX) 객체 또는 요소를 생성함
 def _make_structured_docx(path):
     import docx
 
@@ -55,6 +65,7 @@ def _make_structured_docx(path):
     doc.save(path)
 
 
+# word to 마크다운 preserves structure and links 기능의 정상 동작 및 제약조건을 테스트함
 def test_word_to_markdown_preserves_structure_and_links(tmp_path):
     source = tmp_path / "structured.docx"
     _make_structured_docx(source)
@@ -71,6 +82,7 @@ def test_word_to_markdown_preserves_structure_and_links(tmp_path):
     assert "[OpenAI](https://openai.com/docs)" in md
 
 
+# word to HTML 웹 문서 preserves semantic 블록 목록 and links 기능의 정상 동작 및 제약조건을 테스트함
 def test_word_to_html_preserves_semantic_blocks_and_links(tmp_path):
     source = tmp_path / "structured.docx"
     _make_structured_docx(source)
@@ -87,6 +99,7 @@ def test_word_to_html_preserves_semantic_blocks_and_links(tmp_path):
     assert "<li>Nested bullet</li>" in html
 
 
+# export word original to 마크다운 HTML 웹 문서 and 한글 표준(HWPX) 기능의 정상 동작 및 제약조건을 테스트함
 def test_export_word_original_to_markdown_html_and_hwpx(tmp_path):
     source = tmp_path / "structured.docx"
     _make_structured_docx(source)

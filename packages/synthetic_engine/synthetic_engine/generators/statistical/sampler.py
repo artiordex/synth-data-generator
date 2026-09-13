@@ -18,14 +18,17 @@ from ..registry import register_synthesizer
 @register_synthesizer("statistical")
 class StatisticalSampler(BaseSynthesizer):
     """컬럼별 통계 분포를 학습하고 데이터를 샘플링함"""
+    # StatisticalSampler 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self):
         self.training = None
         self.plan = None
 
+    # fit 작업을 수행함
     def fit(self, training: pd.DataFrame, plan: ColumnPlan, **kwargs: Any) -> None:
         self.training = training.copy()
         self.plan = plan
 
+    # sample 작업을 수행함
     def sample(self, num_rows: int, conditions: dict[str, Any] | None = None) -> pd.DataFrame:
         output = pd.DataFrame(index=range(num_rows))
         sub_training = self.training.copy()
