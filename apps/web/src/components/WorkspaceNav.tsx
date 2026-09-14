@@ -4,7 +4,7 @@
  * 목적: 주요 작업 영역 탭과 안내를 표시함
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-09
+ * 수정일: 2026-09-14
  */
 import React from 'react';
 import { ArrowLeftRight, Cpu, Database, HelpCircle, ShieldCheck } from 'lucide-react';
@@ -49,11 +49,11 @@ const navItems = [
   {
     value: 'converter',
     label: '데이터변환',
-    title: '데이터변환 (Data & Doc Converter)',
+    title: '데이터변환 (데이터 · 문서 · 스캔 이미지 OCR)',
     helpTitle: '데이터변환 설명 보기',
     Icon: ArrowLeftRight,
     description:
-      'CSV, Excel, Parquet, JSON, SQL 등 이기종 데이터 포맷 상호 변환 및 HWP, HWPX, Word(DOCX) 사내 문서를 원본 서식 그대로 PDF/HWPX로 고속 변환합니다.',
+      'CSV, Excel, Parquet 등 이기종 데이터 변환, HWP, HWPX, Word(DOCX), PDF 사내 문서 서식 보존 변환 및 PNG, JPG, TIFF 스캔 이미지 고정밀 OCR 문자·표 구조 복원을 통합 지원합니다.',
   },
 ] as const;
 

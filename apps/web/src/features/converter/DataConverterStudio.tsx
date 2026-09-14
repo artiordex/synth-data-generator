@@ -1,10 +1,10 @@
 /**
  * 파일명: DataConverterStudio.tsx
  * 경로: apps/web/src/features/converter/DataConverterStudio.tsx
- * 목적: 데이터·문서 변환 작업 화면을 제공함
+ * 목적: 데이터·문서·스캔 이미지 변환 및 고정밀 OCR 작업 화면을 제공함
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-09
+ * 수정일: 2026-09-14
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -29,6 +29,9 @@ import {
   Minimize2,
   ChevronRight,
   Sliders,
+  Image as ImageIcon,
+  ScanLine,
+  Sparkles,
 } from 'lucide-react';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 import { convertFile, ConvertResponse, getDownloadUrl, verifyDownloadUrl } from '../../services/api';
@@ -42,8 +45,31 @@ interface Props {
   onSelectStep?: (step: number) => void;
 }
 
+export type ConverterCategoryMode = 'all' | 'dataset' | 'document' | 'image';
+export type FileCategory = 'document' | 'dataset' | 'image';
+
 const SUPPORTED_CONVERTER_EXTENSIONS =
   '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.xml,.parquet,.pq,.hwp,.hwpx,.doc,.docx,.pdf,.md,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.heic';
+
+const IMAGE_EXTENSIONS = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'tif',
+  'tiff',
+  'bmp',
+  'webp',
+  'heic',
+]);
+
+const DOCUMENT_EXTENSIONS = new Set([
+  'hwp',
+  'hwpx',
+  'doc',
+  'docx',
+  'pdf',
+  'md',
+]);
 
 const DOCUMENT_REVIEW_HTML_FIRST_FORMATS = new Set([
   'pdf',
@@ -82,7 +108,8 @@ export const DataConverterStudio: React.FC<Props> = ({
   onSelectStep,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileCategory, setFileCategory] = useState<'document' | 'dataset' | null>(null);
+  const [fileCategory, setFileCategory] = useState<FileCategory | null>(null);
+  const [categoryMode, setCategoryMode] = useState<ConverterCategoryMode>('all');
   const [targetFormat, setTargetFormat] = useState<string>('md');
   const [tableName, setTableName] = useState<string>('converted_data');
   const [isConverting, setIsConverting] = useState<boolean>(false);
@@ -93,6 +120,7 @@ export const DataConverterStudio: React.FC<Props> = ({
   const [htmlPreviewTab, setHtmlPreviewTab] = useState<'visual' | 'code'>('visual');
   const [isHtmlFullScreen, setIsHtmlFullScreen] = useState<boolean>(false);
   const [downloadCheckStatus, setDownloadCheckStatus] = useState<'idle' | 'checking' | 'ready' | 'missing' | 'failed'>('idle');
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const hasDocumentPreviewResult = Boolean(
     result?.category === 'document' && (result.markdown_preview || result.html_preview)
   );
@@ -100,6 +128,21 @@ export const DataConverterStudio: React.FC<Props> = ({
   useEffect(() => {
     onStepChange?.(result ? 4 : isConverting ? 3 : selectedFile ? 2 : 1);
   }, [isConverting, onStepChange, result, selectedFile]);
+
+  // 업로드된 이미지 파일의 썸네일 미리보기 URL을 생성 및 정리함
+  useEffect(() => {
+    if (selectedFile) {
+      const ext = selectedFile.name.split('.').pop()?.toLowerCase() || '';
+      if (IMAGE_EXTENSIONS.has(ext)) {
+        const url = URL.createObjectURL(selectedFile);
+        setImagePreviewUrl(url);
+        return () => {
+          URL.revokeObjectURL(url);
+        };
+      }
+    }
+    setImagePreviewUrl(null);
+  }, [selectedFile]);
 
   // 상위 워크스페이스 헤더의 단계 선택에 따라 화면 전환 처리함
   useEffect(() => {
@@ -151,7 +194,7 @@ export const DataConverterStudio: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [isHtmlFullScreen]);
 
-  // 업로드 파일 선택 시 확장자를 분석하여 카테고리(문서/데이터셋) 및 기본 타깃 포맷을 자동 설정함
+  // 업로드 파일 선택 시 확장자를 분석하여 카테고리(이미지/문서/데이터셋) 및 기본 타깃 포맷을 자동 설정함
   const handleSelectFile = (file: File) => {
     setErrorMsg(null);
     setResult(null);
@@ -165,7 +208,10 @@ export const DataConverterStudio: React.FC<Props> = ({
       .replace(/^_|_$/g, '');
     setTableName(cleanName || 'converted_data');
 
-    if (['hwp', 'hwpx', 'doc', 'docx', 'pdf', 'md', 'png', 'jpg', 'jpeg', 'tif', 'tiff', 'bmp', 'webp', 'heic'].includes(ext)) {
+    if (IMAGE_EXTENSIONS.has(ext)) {
+      setFileCategory('image');
+      setTargetFormat('md');
+    } else if (DOCUMENT_EXTENSIONS.has(ext)) {
       setFileCategory('document');
       if (ext === 'md') {
         setTargetFormat('html');
@@ -215,6 +261,7 @@ export const DataConverterStudio: React.FC<Props> = ({
     setHtmlPreviewTab('visual');
     setIsHtmlFullScreen(false);
     setDownloadCheckStatus('idle');
+    setImagePreviewUrl(null);
   };
 
   // 변환된 마크다운 텍스트를 클립보드에 복사하고 알림 상태를 2초간 유지함
@@ -328,6 +375,40 @@ export const DataConverterStudio: React.FC<Props> = ({
     ? chooseDocumentReviewTab(result.source_format, result.target_format, Boolean(result.html_preview))
     : 'markdown';
 
+  const uploaderConfig = (() => {
+    switch (categoryMode) {
+      case 'dataset':
+        return {
+          title: '정형 데이터셋 포맷 상호 변환 업로드',
+          subtitle: 'CSV, Excel(XLSX/XLS), TSV, JSON, XML, Parquet 데이터셋을 드래그하거나 선택하세요.',
+          accept: '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.xml,.parquet,.pq',
+          formatsHint: 'CSV · XLSX · XLS · TSV · JSON · XML · PARQUET/PQ (최대 100MB)',
+        };
+      case 'document':
+        return {
+          title: '사내 전자문서 고충실도 변환 업로드',
+          subtitle: '한글(HWP, HWPX), MS Word(DOCX, DOC), PDF, 마크다운(MD) 문서를 드래그하거나 선택하세요.',
+          accept: '.hwp,.hwpx,.doc,.docx,.pdf,.md,.txt',
+          formatsHint: 'HWP · HWPX · DOCX · DOC · PDF · MD · TXT (최대 100MB)',
+        };
+      case 'image':
+        return {
+          title: '스캔 이미지 & 고정밀 OCR 문서 변환 업로드',
+          subtitle: '스캔본 문서 또는 PNG, JPG, JPEG, TIFF, BMP, WEBP, HEIC 고해상도 이미지를 드래그하거나 선택하세요.',
+          accept: '.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.heic',
+          formatsHint: 'PNG · JPG · JPEG · TIF · TIFF · BMP · WEBP · HEIC (최대 100MB · 하이브리드 OCR)',
+        };
+      case 'all':
+      default:
+        return {
+          title: '변환할 데이터셋 또는 사내 문서·스캔 이미지 파일 업로드',
+          subtitle: 'CSV, Excel, TSV, JSON, XML, Parquet 데이터셋 또는 HWP, HWPX, Word, PDF, 이미지 문서를 드래그하거나 선택하세요.',
+          accept: SUPPORTED_CONVERTER_EXTENSIONS,
+          formatsHint: 'CSV · XLSX · TSV · JSON · XML · PARQUET · HWP · HWPX · DOCX · PDF · PNG · JPG · TIFF · BMP · WEBP (최대 100MB)',
+        };
+    }
+  })();
+
   return (
     <div className="space-y-6">
       {errorMsg && (
@@ -344,16 +425,133 @@ export const DataConverterStudio: React.FC<Props> = ({
 
       {/* Step 1: Upload Zone if no file is selected */}
       {!selectedFile && (
-        <UnifiedFileUploader
-          title="변환할 데이터셋 또는 사내 문서 파일 업로드"
-          subtitle="CSV, Excel, TSV, JSON, XML, Parquet 데이터셋 또는 HWP, HWPX, Word, PDF, 이미지 문서를 드래그하거나 선택하세요."
-          accept={SUPPORTED_CONVERTER_EXTENSIONS}
-          formatsHint="CSV · XLSX · TSV · JSON · XML · PARQUET · HWP · HWPX · DOCX · PDF · PNG · JPG · JPEG · TIFF · BMP · WEBP · HEIC (최대 100MB)"
-          onFilesSelected={([file]) => {
-            if (file) handleSelectFile(file);
-          }}
-          onError={msg => setErrorMsg(msg)}
-        />
+        <div className="space-y-6">
+          {/* Converter Category Mode Selector */}
+          <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 bg-surface-muted rounded-2xl border border-subtle max-w-2xl mx-auto">
+            {[
+              { id: 'all', label: '전체 통합 변환', icon: Layers, desc: '모든 포맷 자동 감지' },
+              { id: 'dataset', label: '정형 데이터셋', icon: Database, desc: 'CSV·Excel·Parquet·SQL' },
+              { id: 'document', label: '사내 전자문서', icon: FileText, desc: 'HWP·HWPX·Word·PDF' },
+              { id: 'image', label: '스캔 이미지 & OCR', icon: ImageIcon, desc: 'PNG·JPG·TIFF·스캔본', badge: '고정밀 OCR' },
+            ].map(tab => {
+              const Icon = tab.icon;
+              const active = categoryMode === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setCategoryMode(tab.id as ConverterCategoryMode)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    active
+                      ? 'bg-accent text-accent-fg shadow-xs scale-[1.02]'
+                      : 'text-fg-muted hover:text-fg hover:bg-surface'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
+                        active ? 'bg-white/20 text-white' : 'bg-accent/10 text-accent'
+                      }`}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <UnifiedFileUploader
+            key={categoryMode}
+            title={uploaderConfig.title}
+            subtitle={uploaderConfig.subtitle}
+            accept={uploaderConfig.accept}
+            formatsHint={uploaderConfig.formatsHint}
+            onFilesSelected={([file]) => {
+              if (file) handleSelectFile(file);
+            }}
+            onError={msg => setErrorMsg(msg)}
+          />
+
+          {/* 3 Pipeline Showcase Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            {/* Card 1: 정형 데이터셋 */}
+            <div
+              onClick={() => setCategoryMode('dataset')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer ${
+                categoryMode === 'dataset'
+                  ? 'border-accent bg-accent-subtle/50 ring-2 ring-accent/20'
+                  : 'border-subtle bg-surface hover:border-accent/50 hover:bg-surface-muted/50'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-fg">정형 데이터셋 변환</h4>
+                  <span className="text-[11px] text-fg-muted">CSV · XLSX · Parquet · JSON · SQL</span>
+                </div>
+              </div>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                DuckDB 인메모리 엔진 기반 초고속 포맷 상호 변환 및 테이블 스키마 자동 추출, SQL DDL/DML 생성
+              </p>
+            </div>
+
+            {/* Card 2: 사내 전자문서 */}
+            <div
+              onClick={() => setCategoryMode('document')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer ${
+                categoryMode === 'document'
+                  ? 'border-accent bg-accent-subtle/50 ring-2 ring-accent/20'
+                  : 'border-subtle bg-surface hover:border-accent/50 hover:bg-surface-muted/50'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-fg">사내 전자문서 고충실도</h4>
+                  <span className="text-[11px] text-fg-muted">HWP · HWPX · DOCX · PDF · MD</span>
+                </div>
+              </div>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                표 으스러짐 방지(Colspan/Rowspan 완벽 복원), MathIR 수식 파싱 및 공공서식 1:1 레이아웃 보존
+              </p>
+            </div>
+
+            {/* Card 3: 스캔 이미지 & OCR */}
+            <div
+              onClick={() => setCategoryMode('image')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                categoryMode === 'image'
+                  ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20'
+                  : 'border-subtle bg-surface hover:border-emerald-500/50 hover:bg-surface-muted/50'
+              }`}
+            >
+              <div className="absolute top-2.5 right-2.5">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  AI OCR 탑재
+                </span>
+              </div>
+              <div className="flex items-center gap-3 mb-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-fg">스캔 이미지 & 고정밀 OCR</h4>
+                  <span className="text-[11px] text-fg-muted">PNG · JPG · TIFF · WEBP · 스캔본</span>
+                </div>
+              </div>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                기울기 자동 보정(Deskew), 표 격자 검출, 수기/인쇄체 분리 인식 및 마크다운·HTML·Word 1:1 복원
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Step 2: File Configuration & Conversion Options */}
@@ -362,8 +560,18 @@ export const DataConverterStudio: React.FC<Props> = ({
           {/* Selected File Card */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-surface-muted border border-subtle">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-accent-subtle text-accent flex items-center justify-center shrink-0">
-                {fileCategory === 'document' ? (
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  fileCategory === 'image'
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    : fileCategory === 'document'
+                    ? 'bg-accent-subtle text-accent'
+                    : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                }`}
+              >
+                {fileCategory === 'image' ? (
+                  <ImageIcon className="w-5 h-5" />
+                ) : fileCategory === 'document' ? (
                   <FileText className="w-5 h-5" />
                 ) : (
                   <Database className="w-5 h-5" />
@@ -376,8 +584,19 @@ export const DataConverterStudio: React.FC<Props> = ({
                 <div className="text-xs text-fg-muted flex items-center gap-2 mt-0.5">
                   <span>{formatFileSize(selectedFile.size)}</span>
                   <span>·</span>
-                  <span className="font-semibold text-accent uppercase">
-                    {fileExt} {fileCategory === 'document' ? '사내 문서' : '정형 데이터'}
+                  <span
+                    className={`font-semibold uppercase ${
+                      fileCategory === 'image'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-accent'
+                    }`}
+                  >
+                    {fileExt}{' '}
+                    {fileCategory === 'image'
+                      ? '스캔/이미지 문서 (고정밀 OCR 엔진 가동)'
+                      : fileCategory === 'document'
+                      ? '사내 문서'
+                      : '정형 데이터'}
                   </span>
                 </div>
               </div>
@@ -393,11 +612,177 @@ export const DataConverterStudio: React.FC<Props> = ({
             </button>
           </div>
 
+          {/* If Image: Visual Thumbnail Preview & OCR Specs Panel */}
+          {fileCategory === 'image' && (
+            <div className="p-4 sm:p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                {imagePreviewUrl && (
+                  <div className="relative group shrink-0">
+                    <img
+                      src={imagePreviewUrl}
+                      alt="Uploaded Scan Preview"
+                      className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-xl border border-emerald-500/30 shadow-xs bg-white"
+                    />
+                    <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <a
+                        href={imagePreviewUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] font-bold text-white bg-black/60 px-2 py-1 rounded-md flex items-center gap-1"
+                      >
+                        <Maximize2 className="w-3 h-3" />
+                        원본 확대
+                      </a>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                      <ScanLine className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      고정밀 로컬 하이브리드 OCR 파이프라인 가동
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                      ONNX 가속
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-muted leading-relaxed">
+                    RapidOCR(고속 ONNX 추론) 및 EasyOCR 하이브리드 앙상블로 한글·영문 문자를 판독하고, OpenCV 모폴로지 표 격자 검출 알고리즘으로 스캔 문서 내의 표와 서식을 1:1 디지털 구조로 복원합니다.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
+                    <span className="px-2.5 py-1 rounded-lg bg-surface border border-subtle text-fg font-medium flex items-center gap-1.5 shadow-2xs">
+                      <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>기울기 자동 보정 (±0.1° Deskew)</span>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-surface border border-subtle text-fg font-medium flex items-center gap-1.5 shadow-2xs">
+                      <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>표 격자(Table Grid) 자동 복원</span>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-surface border border-subtle text-fg font-medium flex items-center gap-1.5 shadow-2xs">
+                      <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>한국어·영어 CJK 최적화</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Target Format Selector */}
           <div className="space-y-3">
             <label className="block text-xs font-bold text-fg uppercase tracking-wider">
               변환 대상 포맷 선택
             </label>
+
+            {/* If Image (OCR Targets) */}
+            {fileCategory === 'image' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Markdown */}
+                <button
+                  type="button"
+                  onClick={() => setTargetFormat('md')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    targetFormat === 'md'
+                      ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30 shadow-sm'
+                      : 'border-subtle hover:border-emerald-500/50 bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm text-fg">마크다운 (.md)</span>
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      추천 · LLM/RAG
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-muted">
+                    OCR 인식 본문 문단 및 검출된 표 격자(|---|)를 마크다운 구조로 완벽 복원하여 LLM/RAG 파이프라인에 즉시 활용
+                  </p>
+                </button>
+
+                {/* HTML Web Document */}
+                <button
+                  type="button"
+                  onClick={() => setTargetFormat('html')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    targetFormat === 'html'
+                      ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30 shadow-sm'
+                      : 'border-subtle hover:border-emerald-500/50 bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm text-fg">HTML 웹 문서 (.html)</span>
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                      반응형 웹 · 브라우저 열람
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-muted">
+                    스캔 이미지의 원본 레이아웃, 글꼴 크기 계층 및 표 스타일을 보존한 반응형 단독 실행형 웹 문서
+                  </p>
+                </button>
+
+                {/* Word Document */}
+                <button
+                  type="button"
+                  onClick={() => setTargetFormat('docx')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    targetFormat === 'docx'
+                      ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30 shadow-sm'
+                      : 'border-subtle hover:border-emerald-500/50 bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm text-fg">Word 문서 (.docx)</span>
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      MS Word 편집
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-muted">
+                    OCR로 추출된 본문 텍스트와 표를 편집 가능한 MS Word(DOCX) 오피스 문서로 생성
+                  </p>
+                </button>
+
+                {/* PDF Document */}
+                <button
+                  type="button"
+                  onClick={() => setTargetFormat('pdf')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    targetFormat === 'pdf'
+                      ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30 shadow-sm'
+                      : 'border-subtle hover:border-emerald-500/50 bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm text-fg">PDF 문서 (.pdf)</span>
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                      인쇄 및 검색 가능
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-muted">
+                    스캔 이미지에 검색 가능한 투명 텍스트 레이어를 합성한 고해상도 Searchable PDF 변환
+                  </p>
+                </button>
+
+                {/* Pure Text TXT */}
+                <button
+                  type="button"
+                  onClick={() => setTargetFormat('txt')}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    targetFormat === 'txt'
+                      ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30 shadow-sm'
+                      : 'border-subtle hover:border-emerald-500/50 bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm text-fg">텍스트 (.txt)</span>
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      순수 텍스트
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-muted">
+                    서식 및 레이아웃을 제외하고 OCR로 판독된 순수 한글/영문 텍스트만 추출
+                  </p>
+                </button>
+              </div>
+            )}
 
             {/* If Document */}
             {fileCategory === 'document' && (
@@ -799,13 +1184,19 @@ export const DataConverterStudio: React.FC<Props> = ({
             <button
               onClick={handleConvert}
               disabled={isConverting}
-              className="ui-button-primary px-8 py-3 text-sm font-bold shadow-md shadow-accent/20 flex items-center gap-2"
+              className={`px-8 py-3 text-sm font-bold shadow-md flex items-center gap-2 rounded-xl transition-all cursor-pointer ${
+                fileCategory === 'image'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
+                  : 'ui-button-primary shadow-accent/20'
+              }`}
             >
               {isConverting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
                   <span>
-                    {targetFormat === 'md'
+                    {fileCategory === 'image'
+                      ? '고정밀 OCR 텍스트 인식 및 표 격자 복원 중...'
+                      : targetFormat === 'md'
                       ? '문서 구조 분석 및 마크다운 변환 중...'
                       : fileCategory === 'document'
                       ? '문서 엔진 구동 및 변환 중...'
@@ -814,20 +1205,36 @@ export const DataConverterStudio: React.FC<Props> = ({
                 </>
               ) : (
                 <>
-                  <span>{targetFormat.toUpperCase()} 형식으로 변환하기</span>
+                  {fileCategory === 'image' && <ScanLine className="w-4 h-4" />}
+                  <span>
+                    {fileCategory === 'image'
+                      ? `스캔 이미지 OCR ${targetFormat.toUpperCase()} 변환 시작`
+                      : `${targetFormat.toUpperCase()} 형식으로 변환하기`}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </div>
-          {isConverting && fileCategory === 'document' && (
-            <div className="rounded-xl border border-accent/20 bg-accent-subtle/40 p-4 text-xs text-fg-muted">
+          {isConverting && (fileCategory === 'document' || fileCategory === 'image') && (
+            <div className={`rounded-xl border p-4 text-xs ${
+              fileCategory === 'image'
+                ? 'border-emerald-500/20 bg-emerald-500/5 text-fg-muted'
+                : 'border-accent/20 bg-accent-subtle/40 text-fg-muted'
+            }`}>
               <div className="flex items-center gap-2 font-bold text-fg">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" />
-                <span>페이지 구조와 OCR 품질 정보를 계산하는 중입니다.</span>
+                <RefreshCw className={`h-3.5 w-3.5 animate-spin ${fileCategory === 'image' ? 'text-emerald-500' : 'text-accent'}`} />
+                <span>
+                  {fileCategory === 'image'
+                    ? '고정밀 로컬 하이브리드 OCR 엔진이 문자 및 표 격자를 인식하고 있습니다.'
+                    : '페이지 구조와 OCR 품질 정보를 계산하는 중입니다.'}
+                </span>
               </div>
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {['업로드 확인', '페이지 분석', '출력 파일 생성'].map((stage, index) => (
+                {(fileCategory === 'image'
+                  ? ['이미지 전처리 (기울기 보정)', '하이브리드 OCR 문자·표 인식', '타깃 문서 구조화 출력']
+                  : ['업로드 확인', '페이지 분석', '출력 파일 생성']
+                ).map((stage, index) => (
                   <div key={stage} className="rounded-lg border border-subtle bg-surface px-3 py-2">
                     <div className="text-2xs font-bold text-fg-muted">단계 {index + 1}</div>
                     <div className="mt-0.5 font-semibold text-fg">{stage}</div>
@@ -910,6 +1317,12 @@ export const DataConverterStudio: React.FC<Props> = ({
                       <CheckCircle2 className="w-3 h-3" />
                     )}
                     {ocrStatusLabel}
+                  </span>
+                )}
+                {['PNG', 'JPG', 'JPEG', 'TIFF', 'TIF', 'BMP', 'WEBP', 'HEIC'].includes(result.source_format.toUpperCase()) && (
+                  <span className="px-2 py-0.5 rounded-full text-2xs font-bold border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <ScanLine className="w-3 h-3" />
+                    스캔 이미지 OCR 복원
                   </span>
                 )}
                 <span className="text-2xs text-fg-muted font-mono shrink-0">
