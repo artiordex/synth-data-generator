@@ -2,10 +2,10 @@
 # =============================================================================
 # 파일명: image_parser.py
 # 경로: packages/synthetic_engine/synthetic_engine/document_conversion/parsers/image_parser.py
-# 목적: 단일/다중 이미지 파일을 문서 IR 트리로 변환 파싱함.
+# 목적: 단일/다중 이미지 파일을 문서 IR 트리로 변환 파싱함
 # 작성자: AI Agent
 # 작성일: 2026-09-13
-# 수정일: 2026-09-13
+# 수정일: 2026-09-14
 # =============================================================================
 """Image parser that turns scanned images into text-first DocumentIR."""
 from __future__ import annotations
@@ -21,6 +21,7 @@ from ..core.ir import (
     ConversionWarning,
     DocumentIR,
     ImageIR,
+    MathIR,
     ParagraphIR,
     SectionIR,
     TableCellIR,
@@ -28,36 +29,81 @@ from ..core.ir import (
     TextRunIR,
 )
 from ..core.enums import BorderStyle
-from ..core.source_ref import SourceRef
+from ..core.source_ref import BoundingBoxIR, SourceRef
 from ..exceptions import DocumentConversionError
 
 
-# 이미지 bytes 작업을 수행함
+# PIL 이미지를 PNG 포맷 바이트 배열로 인코딩함
 def _image_bytes(image: Image.Image, fmt: str) -> bytes:
     buffer = BytesIO()
     image.save(buffer, format="PNG")
     return buffer.getvalue()
 
 
-# bgr array 형식으로 변환하여 반환함
+# PIL 이미지를 BGR 포맷의 NumPy 배열로 변환함
 def _to_bgr_array(image: Image.Image) -> np.ndarray:
     rgb = image.convert("RGB")
     array = np.asarray(rgb)
     return array[:, :, ::-1].copy()
 
 
-# 문단 작업을 수행함
+# 텍스트 문자열로부터 ParagraphIR 객체를 생성함
 def _paragraph(text: str, *, heading: bool = False, ref: SourceRef | None = None) -> ParagraphIR:
     return ParagraphIR([TextRunIR(text, source_ref=ref)], heading_level=1 if heading else None, source_ref=ref)
 
 
-# 셀 텍스트 작업을 수행함
+# OCR 셀 객체에서 공백이 정제된 텍스트 문자열을 추출함
 def _cell_text(cell) -> str:
     text = getattr(cell, "text", "")
     return str(text).strip()
 
 
-# 테두리 map 작업을 수행함
+# 후보 객체의 신뢰도 값을 0~1 범위의 실수로 정규화함
+def _candidate_confidence(item) -> float | None:
+    value = getattr(item, "confidence", None)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    value = float(value)
+    return value if 0 <= value <= 1 else None
+
+
+# 후보 객체의 좌표를 pt 단위의 BoundingBoxIR로 변환함
+def _candidate_bbox(item, page_no: int) -> BoundingBoxIR | None:
+    value = getattr(item, "bbox", None)
+    try:
+        x0, y0, x1, y1 = (float(part) * 0.75 for part in value)
+        return BoundingBoxIR(x0, y0, x1, y1, page_no)
+    except (TypeError, ValueError):
+        return None
+
+
+# OCR 인식 블록이 명시적인 수식 후보인지 여부를 판별함
+def _is_explicit_math_candidate(item) -> bool:
+    kind = str(getattr(item, "block_type", getattr(item, "text_type", ""))).lower()
+    return bool(getattr(item, "is_equation", False) or kind in {"equation", "formula", "math"})
+
+
+# OCR 인식 수식 후보를 MathIR 객체로 변환함
+def _ocr_math(item, page_no: int, ref: SourceRef, source_resource_id: str,
+              *, display_mode: str) -> MathIR:
+    candidate = str(getattr(item, "text", "") or "")
+    return MathIR(
+        source_ref=ref,
+        display_mode=display_mode,
+        fallback_image_resource_id=source_resource_id,
+        confidence=_candidate_confidence(item),
+        needs_review=True,
+        failure_reason=(
+            "OCR marked this region as a math candidate, but its semantic structure "
+            "and LaTeX/MathML representation are unverified."
+        ),
+        ocr_candidates=[candidate] if candidate.strip() else [],
+        bbox=_candidate_bbox(item, page_no),
+        source_syntax="ocr-candidate",
+    )
+
+
+# 셀 테두리 스타일 딕셔너리를 BorderIR 매핑으로 변환함
 def _border_map(styles: dict[str, str]) -> dict[str, BorderIR]:
     if not styles:
         return {}
@@ -68,8 +114,8 @@ def _border_map(styles: dict[str, str]) -> dict[str, BorderIR]:
     return borders
 
 
-# 표(테이블) ir 작업을 수행함
-def _table_ir(ocr_table, page_no: int) -> TableIR:
+# OCR 인식 표 구조를 TableIR 객체로 구성함
+def _table_ir(ocr_table, page_no: int, source_resource_id: str) -> TableIR:
     rows_count = max(0, int(getattr(ocr_table, "rows_count", 0)))
     cols_count = max(0, int(getattr(ocr_table, "cols_count", 0)))
     rows: list[list[TableCellIR]] = [[] for _ in range(rows_count)]
@@ -83,6 +129,10 @@ def _table_ir(ocr_table, page_no: int) -> TableIR:
             col_index=int(getattr(cell, "col", 0)),
         )
         bg = str(getattr(cell, "bg_color_hex", "") or "").lstrip("#") or None
+        if _is_explicit_math_candidate(cell):
+            content = [_ocr_math(cell, page_no, ref, source_resource_id, display_mode="inline")]
+        else:
+            content = [_paragraph(text, ref=ref)] if text else []
         table_cell = TableCellIR(
             row_index=int(getattr(cell, "row", 0)),
             col_index=int(getattr(cell, "col", 0)),
@@ -90,7 +140,7 @@ def _table_ir(ocr_table, page_no: int) -> TableIR:
             col_span=max(1, int(getattr(cell, "colspan", 1))),
             bg_color_hex=bg,
             borders=_border_map(getattr(cell, "border_styles", {}) or {}),
-            content=[_paragraph(text, ref=ref)] if text else [],
+            content=content,
             source_ref=ref,
             cell_confidence=getattr(cell, "confidence", None),
         )
@@ -109,7 +159,7 @@ def _table_ir(ocr_table, page_no: int) -> TableIR:
     )
 
 
-# figure ir 작업을 수행함
+# 그림 및 다이어그램 객체를 ImageIR로 변환함
 def _figure_ir(figure, page_no: int) -> ImageIR:
     fmt = str(getattr(figure, "format", "png") or "png").lower()
     width = int(getattr(figure, "width", 0) or 0)
@@ -129,7 +179,7 @@ def _figure_ir(figure, page_no: int) -> ImageIR:
 class ImageParser:
     """Parse PNG/JPEG/TIFF/BMP/WEBP/HEIC images through local OCR into IR."""
 
-    # parse 작업을 수행함
+    # 이미지 파일을 OCR 기반으로 분석하여 DocumentIR 트리를 생성함
     def parse(self, path: Path) -> DocumentIR:
         source = Path(path)
         try:
@@ -138,6 +188,9 @@ class ImageParser:
             raise DocumentConversionError(f"이미지 파일을 열 수 없습니다: {source.name}") from exc
 
         document = DocumentIR(source_format="image", source_path=str(source))
+        source_format = str(image.format or source.suffix.lstrip(".") or "png").lower()
+        source_mime = "image/jpeg" if source_format in {"jpg", "jpeg"} else f"image/{source_format}"
+        source_resource_id = document.resources.add(source.read_bytes(), source_mime)
         for page_no, frame in enumerate(ImageSequence.Iterator(image), start=1):
             page = frame.convert("RGB")
             width, height = page.size
@@ -162,16 +215,27 @@ class ImageParser:
                 ))
 
             if ocr is not None:
-                for block in getattr(ocr, "text_blocks", []):
+                for block_no, block in enumerate(getattr(ocr, "text_blocks", [])):
                     text = str(getattr(block, "text", "") or "").strip()
-                    if text:
+                    ref = SourceRef("image", page_no=page_no, object_id=f"ocr-block:{block_no}")
+                    if _is_explicit_math_candidate(block):
+                        section.elements.append(_ocr_math(
+                            block, page_no, ref, source_resource_id, display_mode="display"
+                        ))
+                        document.warnings.append(ConversionWarning(
+                            "IMAGE_MATH_REVIEW",
+                            "OCR math candidate retains its source image and coordinates for review.",
+                            source_ref=ref,
+                            feature="math",
+                        ))
+                    elif text:
                         section.elements.append(_paragraph(
                             text,
                             heading=bool(getattr(block, "is_heading", False)),
-                            ref=SourceRef("image", page_no=page_no),
+                            ref=ref,
                         ))
                 for table in getattr(ocr, "tables", []):
-                    section.elements.append(_table_ir(table, page_no))
+                    section.elements.append(_table_ir(table, page_no, source_resource_id))
                 for figure in getattr(ocr, "figures", []):
                     try:
                         section.elements.append(_figure_ir(figure, page_no))

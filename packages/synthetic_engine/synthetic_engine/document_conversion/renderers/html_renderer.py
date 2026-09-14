@@ -5,7 +5,7 @@
 # 목적: IR 트리를 표준 반응형 HTML 페이지로 렌더링함.
 # 작성자: AI Agent
 # 작성일: 2026-09-13
-# 수정일: 2026-09-13
+# 수정일: 2026-09-14
 # =============================================================================
 """Standalone HTML with explicit CSS fallbacks for non-browser document features."""
 import base64
@@ -14,24 +14,43 @@ import re
 from html import escape
 from urllib.parse import urlsplit
 
+from lxml import etree
+
 from ..core.ir import (
-    ConversionWarning, FieldIR, HyperlinkIR, ImageIR, LineBreakIR, ParagraphIR, TableIR, TabIR, TextRunIR,
+    ConversionWarning, FieldIR, HyperlinkIR, ImageIR, LineBreakIR, MathIR,
+    ParagraphIR, TableIR, TabIR, TextRunIR,
 )
 from ..core.capabilities import TargetCapabilities
 
 
-# 색상 작업을 수행함
+MATHML_NAMESPACE = 'http://www.w3.org/1998/Math/MathML'
+MATHML_ELEMENTS = {
+    'math', 'maction', 'menclose', 'merror', 'mfenced', 'mfrac', 'mi', 'mmultiscripts',
+    'mn', 'mo', 'mover', 'mpadded', 'mphantom', 'mprescripts', 'mroot', 'mrow',
+    'ms', 'mspace', 'msqrt', 'mstyle', 'msub', 'msubsup', 'msup', 'mtable', 'mtd',
+    'mtext', 'mtr', 'munder', 'munderover', 'none', 'semantics',
+}
+MATHML_ATTRIBUTES = {
+    'accent', 'accentunder', 'columnalign', 'columnspan', 'denomalign', 'depth',
+    'display', 'displaystyle', 'fence', 'height', 'linethickness', 'lspace',
+    'mathbackground', 'mathcolor', 'mathsize', 'mathvariant', 'maxsize', 'minsize',
+    'movablelimits', 'notation', 'numalign', 'rowalign', 'rowspan', 'rspace',
+    'scriptlevel', 'separator', 'stretchy', 'symmetric', 'voffset', 'width',
+}
+
+
+# 색상 문자열을 정규화된 16진수 HEX 코드로 변환함
 def _color(value):
     value = value.lstrip('#')
     return '#' + value if re.fullmatch(r'[0-9a-fA-F]{6}', value) else '#000000'
 
 
-# 스타일 서식 작업을 수행함
+# CSS 스타일 문자열의 특수문자를 HTML 엔티티로 이스케이프함
 def _style(value):
     return escape(value, quote=True)
 
 
-# unmapped 작업을 수행함
+# 미지원 기능에 대한 변환 경고 진단을 기록함
 def _unmapped(warnings, source, feature):
     warnings.append(ConversionWarning(
         'HTML_UNMAPPED_CONTENT', f'HTML renderer cannot fully map {feature}.',
@@ -39,8 +58,118 @@ def _unmapped(warnings, source, feature):
     ))
 
 
-# inlines 작업을 수행함
-def _inlines(inlines, warnings):
+# 안전한 브라우저 네이티브 MathML 조각 문자열을 추출 검증함
+def _safe_mathml(value):
+    """Return a browser-native MathML fragment after rejecting active markup."""
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)
+    root = etree.fromstring(value.encode('utf-8'), parser=parser)
+    if etree.QName(root).namespace != MATHML_NAMESPACE or etree.QName(root).localname != 'math':
+        raise ValueError('MathML root must be a namespaced math element')
+    for node in root.iter():
+        if not isinstance(node.tag, str):
+            raise ValueError('MathML comments and processing instructions are unsupported')
+        qname = etree.QName(node)
+        if qname.namespace != MATHML_NAMESPACE or qname.localname not in MATHML_ELEMENTS:
+            raise ValueError(f'Unsupported MathML element: {qname.localname}')
+        for name in node.attrib:
+            attribute = etree.QName(name)
+            if attribute.namespace not in {None, MATHML_NAMESPACE}:
+                raise ValueError('Namespaced MathML attributes are unsupported')
+            if attribute.localname not in MATHML_ATTRIBUTES:
+                raise ValueError(f'Unsupported MathML attribute: {attribute.localname}')
+    return etree.tostring(root, encoding='unicode', with_tail=False)
+
+
+# 수식의 대체 이미지 리소스를 base64 인라인 태그로 렌더링함
+def _fallback_image(source, resources):
+    resource_id = source.fallback_image_resource_id
+    if not resource_id or resource_id not in resources:
+        return ''
+    metadata = resources.get_metadata(resource_id)
+    mime_type = next((value for value in metadata.mime_types if value.startswith('image/')), None)
+    if mime_type is None:
+        return ''
+    encoded = base64.b64encode(resources.get(resource_id)).decode('ascii')
+    return (
+        '<img class="document-math__fallback-image" '
+        f'alt="검토용 원본 수식 이미지" src="data:{escape(mime_type, quote=True)};base64,{encoded}">'
+    )
+
+
+# MathIR 수식 객체를 HTML 및 MathML 표현식으로 렌더링함
+def _math(source, warnings, resources):
+    """Render MathIR without hiding recognition or presentation failures."""
+    render_failure = None
+    presentation = ''
+    if source.mathml:
+        try:
+            presentation = '<span class="document-math__mathml">' + _safe_mathml(source.mathml) + '</span>'
+        except (ValueError, etree.XMLSyntaxError) as exc:
+            render_failure = f'MathML rendering failed: {exc}'
+            warnings.append(ConversionWarning(
+                'HTML_MATH_RENDER_FAILED', render_failure,
+                source_ref=source.source_ref, feature='math',
+            ))
+    if not presentation and source.latex:
+        presentation = (
+            '<code class="document-math__latex" data-math-notation="latex">'
+            + escape(source.latex) + '</code>'
+        )
+    if not presentation and source.source_expression:
+        presentation = '<code class="document-math__source">' + escape(source.source_expression) + '</code>'
+    if not presentation and source.ocr_candidates:
+        presentation = '<code class="document-math__source">' + escape(source.ocr_candidates[0]) + '</code>'
+    if not presentation:
+        resource = source.source_resource_id or source.fallback_image_resource_id
+        presentation = (
+            '<span class="document-math__preserved">원본 수식 콘텐츠 보존됨'
+            + (f' · {escape(resource[:12])}…' if resource else '') + '</span>'
+        )
+
+    needs_review = source.needs_review or render_failure is not None
+    reason = source.failure_reason or render_failure
+    confidence = (
+        f'<span class="document-math__confidence">신뢰도 {source.confidence * 100:.1f}%</span>'
+        if source.confidence is not None else ''
+    )
+    review = ''
+    if needs_review:
+        review = (
+            '<span class="document-math__review" role="status">'
+            '<strong>수식 검토 필요</strong>'
+            + (f'<span>{escape(reason)}</span>' if reason else '')
+            + confidence
+            + '</span>'
+        )
+    elif confidence:
+        review = '<span class="document-math__meta">' + confidence + '</span>'
+
+    source_ref = source.source_ref
+    attributes = [
+        f'data-math-display="{source.display_mode}"',
+        f'data-needs-review="{str(needs_review).lower()}"',
+    ]
+    if source.source_syntax:
+        attributes.append(f'data-source-syntax="{escape(source.source_syntax, quote=True)}"')
+    if source_ref is not None:
+        attributes.append(f'data-source-format="{escape(source_ref.source_format, quote=True)}"')
+        if source_ref.page_no is not None:
+            attributes.append(f'data-source-page="{source_ref.page_no}"')
+        if source_ref.object_id:
+            attributes.append(f'data-source-object="{escape(source_ref.object_id, quote=True)}"')
+    if source.source_resource_id:
+        attributes.append(f'data-source-resource="{source.source_resource_id}"')
+    tag = 'span' if source.display_mode == 'inline' else 'div'
+    class_name = f'document-math document-math--{source.display_mode}'
+    image = _fallback_image(source, resources)
+    return (
+        f'<{tag} class="{class_name}" {" ".join(attributes)} role="math">'
+        f'<span class="document-math__content">{presentation}</span>{image}{review}</{tag}>'
+    )
+
+
+# 인라인 요소 목록을 HTML 태그 문자열로 변환 렌더링함
+def _inlines(inlines, warnings, resources):
     result = []
     stack = [('inline', item) for item in reversed(inlines)]
     while stack:
@@ -85,6 +214,8 @@ def _inlines(inlines, warnings):
             result.append(f'<a href="{escape(target, quote=True)}"{title}>' if safe else '<span data-conversion-loss="hyperlink-target">')
             stack.append(('literal', '</a>' if safe else '</span>'))
             stack.extend(('inline', child) for child in reversed(item.inlines))
+        elif isinstance(item, MathIR):
+            result.append(_math(item, warnings, resources))
         elif isinstance(item, FieldIR):
             _unmapped(warnings, item, 'dynamic-field:' + item.field_type)
             result.append(f'<span data-field-type="{escape(item.field_type, quote=True)}" '
@@ -100,8 +231,8 @@ def _inlines(inlines, warnings):
     return ''.join(result)
 
 
-# 문단 작업을 수행함
-def _paragraph(source, warnings):
+# ParagraphIR 문단 객체를 스타일이 적용된 HTML 태그로 렌더링함
+def _paragraph(source, warnings, resources):
     if source.list_type is not None or source.list_level is not None:
         _unmapped(warnings, source, 'list-numbering')
     alignment = 'justify' if source.align.value == 'distribute' else source.align.value
@@ -118,16 +249,18 @@ def _paragraph(source, warnings):
     if source.keep_lines_together:
         style += 'break-inside:avoid;page-break-inside:avoid;'
     tag = f'h{source.heading_level}' if source.heading_level in range(1, 7) else 'p'
-    return f'<{tag} style="{_style(style)}">{_inlines(source.inlines, warnings)}</{tag}>'
+    return f'<{tag} style="{_style(style)}">{_inlines(source.inlines, warnings, resources)}</{tag}>'
 
 
-# 셀 작업을 수행함
+# TableCellIR 셀 객체의 CSS 스타일 및 대각선 SVG를 생성함
 def _cell(source, warnings):
     alignment = 'middle' if source.vertical_align.value == 'center' else source.vertical_align.value
     style = f'vertical-align:{alignment};white-space:pre-wrap;position:relative;text-align:left;font-weight:normal;'
     style += 'padding:' + ' '.join(f'{value}pt' for value in source.padding_pt) + ';'
     if source.width_pt is not None:
         style += f'width:{source.width_pt}pt;'
+    minimum_width = max(72.0, min(360.0, (source.width_pt or 72.0)))
+    style += f'min-width:{minimum_width}pt;max-width:36rem;word-break:normal;overflow-wrap:break-word;'
     if source.height_pt is not None:
         style += f'height:{source.height_pt}pt;'
     if source.bg_color_hex:
@@ -171,12 +304,35 @@ class HtmlRenderer:
         supports_letter_spacing=True,
     )
 
-    # render 작업을 수행함
+    # DocumentIR 문서를 완전한 독립형 HTML 파일로 렌더링 출력함
     def render(self, document, output_path):
         result = ['<!doctype html><html><head><meta charset="utf-8"><style>'
-                  'body{margin:0}thead{display:table-header-group}'
-                  'tfoot{display:table-footer-group}table{border-collapse:collapse}'
+                  'html,body{max-width:100%;overflow-x:hidden}body{margin:0;min-width:0}'
+                  'section,section>div{min-width:0;max-width:100%}'
+                  'thead{display:table-header-group}tfoot{display:table-footer-group}'
+                  'table{border-collapse:collapse}'
+                  '.document-table-scroll{box-sizing:border-box;display:block;max-width:100%;overflow-x:auto;'
+                  'overflow-y:hidden;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}'
+                  '.document-table{table-layout:auto;min-width:100%}'
+                  '.document-table__cell{word-break:normal;overflow-wrap:break-word}'
+                  '.document-table__cell>p{min-width:0;max-width:100%}'
+                  '.document-math{box-sizing:border-box;max-width:100%;gap:.45rem;align-items:center;'
+                  'font-family:"Cambria Math","STIX Two Math","Noto Sans Math",serif;vertical-align:middle}'
+                  '.document-math--inline{display:inline-flex;margin-inline:.12em}'
+                  '.document-math--display{display:flex;width:100%;margin:.65rem 0;padding:.5rem;flex-wrap:wrap}'
+                  '.document-math__content{display:inline-flex;min-width:0;max-width:100%;overflow-x:auto;overflow-y:hidden}'
+                  '.document-math__latex,.document-math__source{box-sizing:border-box;display:inline-block;'
+                  'max-width:100%;overflow-x:auto;white-space:nowrap;word-break:normal;overflow-wrap:normal;'
+                  'font:inherit;background:transparent;border:0;padding:.1em .2em}'
+                  '.document-math__mathml{display:inline-block;max-width:100%;overflow-x:auto}'
+                  '.document-math__fallback-image{display:block;max-width:min(100%,36rem);height:auto;object-fit:contain}'
+                  '.document-math__review{display:inline-flex;max-width:100%;flex-wrap:wrap;gap:.25rem .45rem;'
+                  'align-items:center;padding:.25rem .45rem;border:1px solid #d97706;border-radius:.4rem;'
+                  'background:#fffbeb;color:#92400e;font:600 .75rem/1.35 system-ui,sans-serif}'
+                  '.document-math__confidence,.document-math__meta{white-space:nowrap}'
                   '@media print{section+section{break-before:page}}'
+                  '@media(max-width:640px){.document-math--display{align-items:flex-start;flex-direction:column}'
+                  '.document-table__cell{min-width:72pt!important;max-width:28rem}.document-math__review{font-size:.7rem}}'
                   '</style></head><body>']
         stack = []
         for section in reversed(document.sections):
@@ -204,17 +360,26 @@ class HtmlRenderer:
             if kind == 'literal':
                 result.append(value)
             elif isinstance(value, ParagraphIR):
-                result.append(_paragraph(value, document.warnings))
+                result.append(_paragraph(value, document.warnings, document.resources))
+            elif isinstance(value, MathIR):
+                result.append(_math(value, document.warnings, document.resources))
             elif isinstance(value, TableIR):
-                style = 'border-collapse:collapse;table-layout:fixed;'
+                style = 'border-collapse:collapse;table-layout:auto;min-width:100%;'
                 width = value.total_width_pt or sum(value.column_widths_pt)
                 if width:
                     style += f'width:{width}pt;'
                 style += {'left': 'margin-right:auto;', 'center': 'margin-left:auto;margin-right:auto;',
                           'right': 'margin-left:auto;'}[value.alignment.value]
-                result.append(f'<table style="{_style(style)}">')
+                result.append(
+                    '<div class="document-table-scroll" role="region" tabindex="0" '
+                    'aria-label="가로로 스크롤 가능한 문서 표" '
+                    'style="max-width:100%;overflow-x:auto;overflow-y:hidden">'
+                    f'<table class="document-table" style="{_style(style)}">'
+                )
                 if value.caption is not None:
-                    result.append('<caption>' + _paragraph(value.caption, document.warnings) + '</caption>')
+                    result.append('<caption>' + _paragraph(
+                        value.caption, document.warnings, document.resources
+                    ) + '</caption>')
                 if value.column_widths_pt:
                     result.append('<colgroup>' + ''.join(f'<col style="width:{w}pt">' for w in value.column_widths_pt) + '</colgroup>')
                 tasks = []
@@ -235,14 +400,14 @@ class HtmlRenderer:
                         for cell in sorted(row, key=lambda c: c.col_index):
                             cell_style, diagonals = _cell(cell, document.warnings)
                             tag = 'th' if group == 'thead' else 'td'
-                            tasks.append(('literal', f'<{tag} rowspan="{cell.row_span}" colspan="{cell.col_span}" style="{_style(cell_style)}">' + diagonals))
+                            tasks.append(('literal', f'<{tag} class="document-table__cell" rowspan="{cell.row_span}" colspan="{cell.col_span}" style="{_style(cell_style)}">' + diagonals))
                             tasks.extend(('block', child) for child in cell.content)
                             tasks.append(('literal', f'</{tag}>'))
                         tasks.append(('literal', '</tr>'))
                     tasks.append(('literal', f'</{group}>'))
                 if crossing:
                     tasks.append(('literal', '<!-- conversion-loss: repeat-header-rowspan-crossing -->'))
-                tasks.append(('literal', '</table>'))
+                tasks.append(('literal', '</table></div>'))
                 stack.extend(reversed(tasks))
             elif isinstance(value, ImageIR):
                 if value.opacity != 1 or value.rotation_deg != 0:
@@ -250,7 +415,7 @@ class HtmlRenderer:
                 encoded = base64.b64encode(value.image_bytes).decode('ascii')
                 result.append(f'<img alt="" src="data:{escape(value.mime_type, quote=True)};base64,{encoded}" style="width:{value.width_pt}pt;height:{value.height_pt}pt">')
                 if value.caption is not None:
-                    result.append(_paragraph(value.caption, document.warnings))
+                    result.append(_paragraph(value.caption, document.warnings, document.resources))
             else:
                 _unmapped(document.warnings, value, type(value).__name__)
                 result.append('<aside data-conversion-loss="unsupported">Unsupported source object</aside>')

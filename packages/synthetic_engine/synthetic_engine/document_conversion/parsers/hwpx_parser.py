@@ -2,10 +2,10 @@
 # =============================================================================
 # 파일명: hwpx_parser.py
 # 경로: packages/synthetic_engine/synthetic_engine/document_conversion/parsers/hwpx_parser.py
-# 목적: HWPX 한글 표준 문서를 분석하여 IR 트리로 파싱함.
+# 목적: HWPX 한글 표준 문서를 분석하여 IR 트리로 파싱함
 # 작성자: AI Agent
 # 작성일: 2026-09-13
-# 수정일: 2026-09-13
+# 수정일: 2026-09-14
 # =============================================================================
 """Namespace-based HWPX parsing with explicit preservation of unsupported XML."""
 from dataclasses import replace
@@ -18,7 +18,7 @@ from .package import DocumentPackage
 from .common import check_table_size, image_from_bytes, table_source_refs
 from ..core.ir import (
     DocumentIR, SectionIR, ParagraphIR, TextRunIR, TabIR, LineBreakIR,
-    TableIR, TableCellIR, ImageIR, UnsupportedRecordIR, ConversionWarning,
+    TableIR, TableCellIR, ImageIR, MathIR, UnsupportedRecordIR, ConversionWarning,
 )
 from ..core.source_ref import SourceRef
 from ..core.enums import ParagraphAlign
@@ -30,13 +30,63 @@ HH = 'http://www.hancom.co.kr/hwpml/2011/head'
 HS = 'http://www.hancom.co.kr/hwpml/2011/section'
 
 
-# number 작업을 수행함
+# 노드 속성값을 부동소수점 숫자로 파싱함
 def number(node, key, default=0):
     return float(node.get(key, default))
 
 
+# HWPX 수식 XML 요소를 MathIR 객체로 변환하고 대체 이미지를 연계함
+def _hwpx_equation(node, ref, document, package, binaries, source_resource_id):
+    """Preserve a native EqEdit expression without relabeling it as LaTeX."""
+    script = node.find(f'{{{HP}}}script')
+    source_expression = script.text if script is not None and script.text else None
+    position = node.find(f'{{{HP}}}pos')
+    treat_as_char = position.get('treatAsChar') if position is not None else None
+    line_mode = node.get('lineMode')
+    if treat_as_char in {'0', 'false'} or line_mode == 'LINE':
+        display_mode = 'display'
+    else:
+        display_mode = 'inline'
+
+    fallback_image_resource_id = None
+    image = next((item for item in node.iter() if item.get('binaryItemIDRef')), None)
+    resource = binaries.get(image.get('binaryItemIDRef')) if image is not None else None
+    image_suffixes = {'.bmp', '.emf', '.gif', '.jpeg', '.jpg', '.png', '.tif', '.tiff', '.wmf'}
+    if resource and Path(resource).suffix.lower() in image_suffixes:
+        try:
+            fallback_image_resource_id = document.resources.add(
+                package.read(resource), 'application/octet-stream'
+            )
+        except (OSError, ValueError):
+            fallback_image_resource_id = None
+
+    failure_reason = (
+        'Hancom equation script is preserved, but LaTeX/MathML conversion is not implemented.'
+        if source_expression is not None
+        else 'Hancom equation XML has no non-empty script.'
+    )
+    document.warnings.append(ConversionWarning(
+        'HWPX_MATH_REVIEW',
+        failure_reason + ' Original section XML is retained.',
+        source_ref=ref,
+        feature='math',
+    ))
+    return MathIR(
+        source_ref=ref,
+        display_mode=display_mode,
+        source_expression=source_expression,
+        source_syntax=(
+            'hancom-equation-script' if source_expression is not None else 'hwpx-equation-xml'
+        ),
+        source_resource_id=source_resource_id,
+        fallback_image_resource_id=fallback_image_resource_id,
+        needs_review=True,
+        failure_reason=failure_reason,
+    )
+
+
 class HwpxParser:
-    # can parse 작업을 수행함
+    # 대상 파일이 유효한 HWPX 패키지 구조인지 검증함
     def can_parse(self, path: Path) -> bool:
         try:
             with DocumentPackage(path) as package:
@@ -45,7 +95,7 @@ class HwpxParser:
         except (OSError, ValueError, BadZipFile, etree.XMLSyntaxError):
             return False
 
-    # parse 작업을 수행함
+    # HWPX 표준 문서를 구문 분석하여 DocumentIR 트리를 생성함
     def parse(self, path: Path) -> DocumentIR:
         document = DocumentIR(source_format='hwpx', source_path=str(path))
         with DocumentPackage(path) as package:
@@ -82,6 +132,7 @@ class HwpxParser:
             if not names:
                 raise DocumentConversionError('HWPX sections are missing')
             for section_no, name in enumerate(names, 1):
+                source_resource_id = document.resources.add(package.read(name), 'application/xml')
                 root = package.xml(name)
                 if etree.QName(root).namespace != HS:
                     raise DocumentConversionError('Not an HWPX section')
@@ -97,7 +148,20 @@ class HwpxParser:
                                     xml_path=name + ':' + root.getroottree().getpath(node),
                                     object_id=node.get('id'))
                     children = [item for child in node for item in mapped.get(child, [])]
-                    if tag == 't':
+                    inside_equation = any(
+                        isinstance(parent.tag, str)
+                        and etree.QName(parent).namespace == HP
+                        and etree.QName(parent).localname == 'equation'
+                        for parent in node.iterancestors()
+                    )
+                    if inside_equation:
+                        # The equation owner reads the entire native subtree once.
+                        mapped[node] = []
+                    elif tag == 'equation':
+                        mapped[node] = [_hwpx_equation(
+                            node, ref, document, package, binaries, source_resource_id
+                        )]
+                    elif tag == 't':
                         values = [TextRunIR(node.text, source_ref=ref)] if node.text is not None else []
                         for child in node:
                             values.extend(mapped.get(child, []))
@@ -127,7 +191,9 @@ class HwpxParser:
                         alignment = align.get('horizontal', 'LEFT').lower() if align is not None else 'left'
                         alignment = ParagraphAlign(alignment) if alignment in ParagraphAlign._value2member_map_ else ParagraphAlign.LEFT
                         for child in children:
-                            if isinstance(child, (TextRunIR, TabIR, LineBreakIR)):
+                            if isinstance(child, (TextRunIR, TabIR, LineBreakIR, MathIR)) and not (
+                                isinstance(child, MathIR) and child.display_mode == 'display'
+                            ):
                                 inline.append(child)
                             else:
                                 if inline:
@@ -184,6 +250,15 @@ class HwpxParser:
                         except (OSError, ValueError):
                             mapped[node] = [UnsupportedRecordIR(0, 0, etree.tostring(node), source_ref=ref)]
                             document.warnings.append(ConversionWarning('HWPX_IMAGE_UNRESOLVED', 'Image reference, format or size is unsupported; source XML is retained', source_ref=ref))
+                    elif tag == 'ole':
+                        raw_xml = etree.tostring(node, encoding='utf-8', with_tail=False)
+                        mapped[node] = [UnsupportedRecordIR(0, 0, raw_xml, source_ref=ref)]
+                        document.warnings.append(ConversionWarning(
+                            'HWPX_OLE_REVIEW',
+                            'Embedded OLE object is not assumed to be math; source XML is retained for review.',
+                            source_ref=ref,
+                            feature='embedded_object',
+                        ))
                     elif tag in {'cellAddr', 'cellSpan', 'cellSz', 'cellMargin', 'linesegarray', 'lineseg'}:
                         mapped[node] = []
                     elif tag in {'sec', 'subList', 'tr'}:

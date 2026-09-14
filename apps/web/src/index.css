@@ -556,3 +556,157 @@ html:not(.dark) .app-shell .placeholder-slate-500::placeholder {
   margin: 1rem auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
+
+/* Markdown 렌더러가 생성한 DocumentIR 수식 및 표 조각 스타일을 정의함 */
+.markdown-preview-body .document-table-scroll {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 1.25rem 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.markdown-preview-body .document-table-scroll > table.document-table {
+  width: max-content !important;
+  min-width: 100% !important;
+  margin: 0 !important;
+  table-layout: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.markdown-preview-body .document-table__cell {
+  min-width: 6rem !important;
+  max-width: 36rem;
+  word-break: keep-all !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+}
+
+.markdown-preview-body .document-table__cell > p {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0.25rem 0;
+}
+
+.markdown-preview-body .document-math {
+  box-sizing: border-box;
+  max-width: 100%;
+  gap: 0.4rem;
+  align-items: center;
+  vertical-align: middle;
+  font-family: 'Cambria Math', 'STIX Two Math', 'Noto Sans Math', serif;
+}
+
+.markdown-preview-body .document-math--inline {
+  display: inline-flex;
+  margin-inline: 0.12em;
+}
+
+.markdown-preview-body .document-math--display {
+  display: flex;
+  width: 100%;
+  margin: 0.75rem 0;
+  padding: 0.55rem;
+  flex-wrap: wrap;
+  border-radius: 0.6rem;
+  background: var(--color-bg-surface-muted);
+}
+
+.markdown-preview-body .document-math__content {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-preview-body code.document-math__latex,
+.markdown-preview-body code.document-math__source {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.1em 0.25em;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+
+.markdown-preview-body .document-math__mathml {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.markdown-preview-body .document-math__fallback-image {
+  display: block;
+  width: auto;
+  max-width: min(100%, 36rem);
+  height: auto;
+  margin: 0.25rem 0;
+  object-fit: contain;
+}
+
+.markdown-preview-body .document-math[data-needs-review='true'] {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.markdown-preview-body .document-math__review {
+  position: static;
+  display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.45rem;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(217, 119, 6, 0.45);
+  border-radius: 0.45rem;
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  font: 600 0.75rem/1.4 'Pretendard Variable', Pretendard, sans-serif;
+}
+
+:root.dark .markdown-preview-body .document-math__review {
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fcd34d;
+}
+
+.markdown-preview-body .document-math__confidence,
+.markdown-preview-body .document-math__meta {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .markdown-preview-body .document-table-scroll {
+    margin-inline: -0.5rem;
+    width: calc(100% + 1rem);
+    max-width: calc(100% + 1rem);
+    border-radius: 0.5rem;
+  }
+
+  .markdown-preview-body .document-table__cell {
+    min-width: 5.5rem !important;
+    max-width: 24rem;
+    padding: 0.55rem 0.65rem !important;
+  }
+
+  .markdown-preview-body .document-math--display {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .markdown-preview-body .document-math__review {
+    width: 100%;
+    font-size: 0.7rem;
+  }
+}

@@ -2,10 +2,10 @@
 # =============================================================================
 # 파일명: ir.py
 # 경로: packages/synthetic_engine/synthetic_engine/document_conversion/core/ir.py
-# 목적: 문서 중간 표현(IR) 노드 트리 및 요소 데이터 모델을 정의함.
+# 목적: 문서 중간 표현(IR) 노드 트리 및 요소 데이터 모델을 정의함
 # 작성자: AI Agent
 # 작성일: 2026-09-13
-# 수정일: 2026-09-13
+# 수정일: 2026-09-14
 # =============================================================================
 """Universal document objects. Dimensions are points; text remains verbatim.
 
@@ -64,7 +64,7 @@ class LineBreakIR:
     kind: Literal["soft", "hard"] = "soft"
     source_ref: SourceRef | None = None
 
-    # post init 작업을 수행함
+    # 줄바꿈 종류 유효성을 검증함
     def __post_init__(self) -> None:
         if self.kind not in ("soft", "hard"):
             raise ValueError("Line break kind must be soft or hard")
@@ -75,6 +75,61 @@ class TabIR:
     """A tab control with optional explicit stop."""
     position_pt: float | None = None
     source_ref: SourceRef | None = None
+
+
+@dataclass
+class MathIR:
+    """A preserved mathematical expression without claiming calculation correctness.
+
+    ``latex`` and ``mathml`` are renderer-ready only when a parser can map the
+    source structure without guessing. Source expressions and resources remain
+    available for review and loss-aware fallback when that mapping is partial.
+    """
+
+    source_ref: SourceRef | None = None
+    display_mode: Literal["inline", "display"] = "inline"
+    latex: str | None = None
+    mathml: str | None = None
+    source_expression: str | None = None
+    source_syntax: str | None = None
+    source_resource_id: str | None = None
+    fallback_image_resource_id: str | None = None
+    confidence: float | None = None
+    needs_review: bool = False
+    failure_reason: str | None = None
+    ocr_candidates: list[str] = field(default_factory=list)
+    bbox: BoundingBoxIR | None = None
+
+    # 수식 데이터 필드 및 신뢰도 유효성을 검증함
+    def __post_init__(self) -> None:
+        if self.display_mode not in ("inline", "display"):
+            raise ValueError("Math display mode must be inline or display")
+        _validate_confidence(self.confidence)
+        for name in ("latex", "mathml", "source_expression", "source_syntax", "failure_reason"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or value == ""):
+                raise ValueError(f"Math {name} must be a non-empty string when provided")
+        if not all(isinstance(candidate, str) and candidate for candidate in self.ocr_candidates):
+            raise ValueError("Math OCR candidates must be non-empty strings")
+        for name in ("source_resource_id", "fallback_image_resource_id"):
+            value = getattr(self, name)
+            if value is not None and (
+                not isinstance(value, str)
+                or len(value) != 64
+                or any(character not in "0123456789abcdef" for character in value)
+            ):
+                raise ValueError(f"Math {name} must be a lowercase SHA-256 resource identifier")
+        if not any((
+            self.latex,
+            self.mathml,
+            self.source_expression,
+            self.source_resource_id,
+            self.fallback_image_resource_id,
+            self.ocr_candidates,
+        )):
+            raise ValueError("MathIR requires recognized or preserved source evidence")
+        if self.needs_review and self.failure_reason is None:
+            raise ValueError("MathIR requiring review must include a failure reason")
 
 
 @dataclass
@@ -95,7 +150,7 @@ class FieldIR:
     source_ref: SourceRef | None = None
 
 
-InlineIR: TypeAlias = TextRunIR | LineBreakIR | TabIR | HyperlinkIR | FieldIR
+InlineIR: TypeAlias = TextRunIR | LineBreakIR | TabIR | MathIR | HyperlinkIR | FieldIR
 
 
 @dataclass
@@ -148,7 +203,7 @@ class TableCellIR:
     cached_value: str | float | int | bool | None = None
     number_format: str | None = None
 
-    # post init 작업을 수행함
+    # 셀 신뢰도 유효성을 검증함
     def __post_init__(self) -> None:
         _validate_confidence(self.cell_confidence)
 
@@ -171,7 +226,7 @@ class TableIR:
     table_confidence: float | None = None
     support_status: SupportStatus = SupportStatus.SUPPORTED
 
-    # post init 작업을 수행함
+    # 표 신뢰도 유효성을 검증함
     def __post_init__(self) -> None:
         _validate_confidence(self.table_confidence)
 
@@ -195,7 +250,7 @@ class ImageIR:
     bbox: BoundingBoxIR | None = None
     resource_id: str | None = None
 
-    # post init 작업을 수행함
+    # 이미지 바이너리 데이터 유효성을 검증함
     def __post_init__(self) -> None:
         if not isinstance(self.image_bytes, bytes):
             raise TypeError("Image data must be immutable bytes")
@@ -247,7 +302,7 @@ class UnsupportedRecordIR:
     support_status: SupportStatus = SupportStatus.UNSUPPORTED
 
 
-BlockIR: TypeAlias = ParagraphIR | TableIR | ImageIR | DrawingIR | UnsupportedRecordIR
+BlockIR: TypeAlias = ParagraphIR | TableIR | ImageIR | DrawingIR | MathIR | UnsupportedRecordIR
 
 
 @dataclass
@@ -302,11 +357,11 @@ class DocumentIR:
     warnings: list[ConversionWarning] = field(default_factory=list)
     source_path: str | None = None
 
-    # post init 작업을 수행함
+    # 문서 생성 후 리소스 내부 캐시를 동기화함
     def __post_init__(self) -> None:
         self.intern_resources()
 
-    # iter 블록 목록 작업을 수행함
+    # 순환 참조 없이 문서 내 블록 요소를 순회함
     def iter_blocks(self) -> Iterator[BlockIR]:
         """Visit blocks, rejecting block and paragraph-inline cycles before yield.
 
@@ -346,7 +401,7 @@ class DocumentIR:
                 children.extend(block.text_content)
             stack.extend((child, False) for child in reversed(children))
 
-    # intern resources 작업을 수행함
+    # 문서 내 이미지 바이너리 리소스를 인턴 처리하여 메모리를 절약함
     def intern_resources(self) -> None:
         """Share image payloads after construction or later tree mutations."""
         for block in self.iter_blocks():
@@ -355,7 +410,7 @@ class DocumentIR:
                 block.image_bytes = self.resources.get(block.resource_id)
 
 
-# inline cycles 유효성 및 제약조건을 검증함
+# 하이퍼링크 순환 참조 유효성을 검증함
 def _validate_inline_cycles(inlines: list[InlineIR]) -> None:
     """Check hyperlink ancestry without recursion or rejecting shared subgraphs."""
     active: set[int] = set()
@@ -379,7 +434,7 @@ def _validate_inline_cycles(inlines: list[InlineIR]) -> None:
                      if isinstance(child, HyperlinkIR))
 
 
-# 인식 신뢰도 유효성 및 제약조건을 검증함
+# 인식 신뢰도 점수의 범위 및 유효성을 검증함
 def _validate_confidence(value: float | None) -> None:
     """Validate an inferred score without inventing confidence for source facts."""
     if value is not None and (not _is_finite_number(value) or not 0 <= value <= 1):
