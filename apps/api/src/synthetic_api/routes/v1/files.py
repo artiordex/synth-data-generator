@@ -2,10 +2,10 @@
 # =============================================================================
 # 파일명: files.py
 # 경로: apps/api/src/synthetic_api/routes/v1/files.py
-# 목적: 원본 및 결과 파일 업로드, 다운로드 파일 관리 API 엔드포인트를 제공함.
+# 목적: 원본 및 결과 파일 업로드, 다운로드 파일 관리 API 엔드포인트를 제공함
 # 작성자: AI Agent
 # 작성일: 2026-09-13
-# 수정일: 2026-09-13
+# 수정일: 2026-09-14
 # =============================================================================
 from fastapi import APIRouter, HTTPException
 
@@ -49,5 +49,4 @@ async def check_download_file(path: str):
     p = confined_file(p, [settings.OUTPUT_DIR, settings.STORAGE_DIR])
     return Response(headers={
         "Content-Length": str(p.stat().st_size),
-        "X-File-Name": p.name,
     })

@@ -5,7 +5,7 @@
 # 목적: 파일 접근 보안 경계 및 디렉터리 순회 방지 기능을 검증함
 # 작성자: 개발팀
 # 작성일: 2026-09-09
-# 수정일: 2026-09-13
+# 수정일: 2026-09-14
 # =============================================================================
 from pathlib import Path
 
@@ -44,6 +44,21 @@ def test_output_download_remains_compatible(download_env):
         assert check.headers['content-length'] == str((outputs / 'result.csv').stat().st_size)
 
 
+# 한글 파일명 다운로드 시 HEAD 및 GET 요청의 정상 응답을 검증함
+def test_korean_filename_download_head_succeeds(download_env):
+    client, _, outputs = download_env
+    result = outputs / '변환 결과.md'
+    result.write_text('변환 내용', encoding='utf-8')
+
+    check = client.head('/files/download', params={'path': 'outputs/변환 결과.md'})
+    assert check.status_code == 200
+    assert check.headers['content-length'] == str(result.stat().st_size)
+
+    response = client.get('/files/download', params={'path': 'outputs/변환 결과.md'})
+    assert response.status_code == 200
+    assert response.content == result.read_bytes()
+
+
 # private 파일 목록 and traversal are rejected 기능의 정상 동작 및 제약조건을 테스트함
 def test_private_files_and_traversal_are_rejected(download_env):
     client, root, outputs = download_env
@@ -68,7 +83,7 @@ def test_resolved_link_outside_output_is_rejected(tmp_path, monkeypatch):
     link = outputs / 'result.csv'
     original = Path.resolve
 
-    # Exercise link resolution on Windows without requiring symlink privileges.
+    # 심볼릭 링크 권한 없이 윈도우 환경에서 링크 해석 검증을 수행함
     monkeypatch.setattr(Path, 'resolve', lambda self, *a, **kw:
                         outside if self == link else original(self, *a, **kw))
     with pytest.raises(HTTPException) as error:
