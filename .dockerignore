@@ -20,3 +20,9 @@ packages/synthetic_engine/tests
 apps/api/app
 apps/api/test_hwp_html.html
 storage/test_*
+tmp
+scratch
+.tempmediaStorage
+.orchestra
+storage/converted
+storage/pseudonymized

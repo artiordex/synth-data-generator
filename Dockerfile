@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
-RUN npm ci
+RUN npm ci --force
 COPY apps/web apps/web
 COPY packages/contracts packages/contracts
 RUN npm run build
@@ -32,6 +32,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-nanum \
     fonts-noto-cjk \
     ca-certificates \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package configurations and source modules

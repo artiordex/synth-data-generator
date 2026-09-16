@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.mo
+*.pot
 .Python
 env/
 venv/
@@ -22,6 +24,7 @@ dist-ssr/
 .wrangler/
 
 # Storage & Runtime Data (Enterprise Isolation)
+apps/storage/
 storage/uploads/*
 !storage/uploads/.gitkeep
 storage/outputs/*
@@ -38,19 +41,6 @@ storage/local/*.json
 /storage/test_*
 /apps/api/test_hwp_html.html/
 /docs/test_survey*.zip
-
-# Legacy scratch & local DBs
-app.db
-uploads/*
-!uploads/.gitkeep
-outputs/*
-!outputs/.gitkeep
-scratch_*
-flowhunt_*
-
-# Environment & Secrets
-.env
-.env.local
 
 # Legacy scratch & local DBs
 app.db

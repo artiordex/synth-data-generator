@@ -19,6 +19,11 @@ services:
     volumes:
       # 로컬 PC의 storage 디렉토리와 컨테이너 바인딩 (생성된 HWPX 및 SQLite DB 영구 보존)
       - ./storage:/app/storage
+      # 로컬 웹 빌드 산출물 바인딩 (npm run build 시 컨테이너에 즉각 반영)
+      - ./apps/web/dist:/app/apps/web/dist
+      # 백엔드 API 및 합성 엔진 소스 바인딩 (코드 변경 시 즉각 반영)
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages/synthetic_engine/synthetic_engine:/app/packages/synthetic_engine/synthetic_engine
     restart: unless-stopped
 
   # 사내망 진입점: 웹 UI와 API를 통합 서버로 전달한다.
