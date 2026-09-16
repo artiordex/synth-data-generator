@@ -3,14 +3,15 @@
 # 파일명: image_parser.py
 # 경로: packages/synthetic_engine/synthetic_engine/document_conversion/parsers/image_parser.py
 # 목적: 단일/다중 이미지 파일을 문서 IR 트리로 변환 파싱함
-# 작성자: AI Agent
+# 작성자: 개발팀
 # 작성일: 2026-09-13
-# 수정일: 2026-09-14
+# 수정일: 2026-09-16
 # =============================================================================
 """Image parser that turns scanned images into text-first DocumentIR."""
 from __future__ import annotations
 
 from io import BytesIO
+import os
 from pathlib import Path
 
 import numpy as np
@@ -176,6 +177,104 @@ def _figure_ir(figure, page_no: int) -> ImageIR:
     )
 
 
+# 로컬 OCR 결과의 신뢰도, 손글씨 유무 및 한국어 텍스트 문맥 품질을 평가하여 AI 에스컬레이션 필요 여부를 판별함
+def _evaluate_local_ocr_quality(ocr: Any, image_bgr: np.ndarray | None = None) -> tuple[bool, str, float]:
+    if ocr is None:
+        return False, "ocr_engine_failed", 0.0
+
+    text_blocks = getattr(ocr, "text_blocks", []) or []
+    tables = getattr(ocr, "tables", []) or []
+
+    # 1. 텍스트 추출 총량 검사함
+    all_texts: list[str] = []
+    block_texts: list[str] = []
+    for tb in text_blocks:
+        t = str(getattr(tb, "text", "") or "").strip()
+        if t:
+            all_texts.append(t)
+            block_texts.append(t)
+    for table in tables:
+        for cell in getattr(table, "cells", []) or []:
+            c_text = str(getattr(cell, "text", "") or "").strip()
+            if c_text:
+                all_texts.append(c_text)
+
+    combined = " ".join(all_texts).strip()
+    if len(combined) < 8:
+        return False, "insufficient_text_extracted", 0.0
+
+    # 2. 신뢰도(Confidence) 측정함
+    conf_scores: list[float] = []
+    for tb in text_blocks:
+        conf = getattr(tb, "confidence", None)
+        if isinstance(conf, (int, float)) and 0.0 <= conf <= 1.0:
+            conf_scores.append(float(conf))
+    for table in tables:
+        for cell in getattr(table, "cells", []) or []:
+            c_conf = getattr(cell, "confidence", None)
+            if isinstance(c_conf, (int, float)) and 0.0 <= c_conf <= 1.0:
+                conf_scores.append(float(c_conf))
+
+    mean_conf = (sum(conf_scores) / len(conf_scores)) if conf_scores else 0.85
+    if conf_scores and mean_conf < 0.68:
+        return False, f"low_confidence_{mean_conf:.2f}", mean_conf
+
+    # 3. 깨진 문자 및 노이즈 비율 검사함
+    noisy_chars = 0
+    total_chars = len(combined)
+    for ch in combined:
+        if ch in "□■▲▼◆◇§※":
+            noisy_chars += 1
+    if total_chars > 0 and (noisy_chars / total_chars) > 0.25:
+        return False, "high_noise_ratio", mean_conf
+
+    # 4. 손글씨(Handwriting) 영역 탐지 검사함
+    try:
+        from synthetic_engine.exporters.handwriting_vlm import is_handwritten_region
+
+        if image_bgr is not None and isinstance(image_bgr, np.ndarray) and image_bgr.size > 0:
+            h_img, w_img = image_bgr.shape[:2]
+            handwritten_count = 0
+            for tb in text_blocks:
+                bbox = getattr(tb, "bbox", None)
+                conf = float(getattr(tb, "confidence", 0.85) or 0.85)
+                if bbox and len(bbox) == 4:
+                    x0, y0, x1, y1 = [int(v) for v in bbox]
+                    x0, y0 = max(0, x0), max(0, y0)
+                    x1, y1 = min(w_img, x1), min(h_img, y1)
+                    if x1 > x0 + 10 and y1 > y0 + 10:
+                        crop = image_bgr[y0:y1, x0:x1]
+                        if crop.size > 0 and is_handwritten_region(crop, conf):
+                            handwritten_count += 1
+            if handwritten_count >= 1:
+                return False, f"handwriting_detected_{handwritten_count}_blocks", mean_conf
+    except (ImportError, OSError, RuntimeError, ValueError):
+        pass
+
+    # 5. 한국어 문맥 품질(korean_quality_score) 및 외계어 검사함
+    try:
+        from ocr.text.korean_quality import korean_quality_score
+
+        hangul_blocks = [
+            t for t in block_texts
+            if any("\uac00" <= c <= "\ud7a3" for c in t) and len(t.strip()) >= 5
+        ]
+        if hangul_blocks:
+            block_scores = [korean_quality_score(t) for t in hangul_blocks]
+            low_score_count = sum(1 for s in block_scores if s < 0.45)
+            low_ratio = low_score_count / len(block_scores)
+            avg_korean_score = sum(block_scores) / len(block_scores)
+
+            if low_ratio >= 0.30:
+                return False, f"low_korean_quality_ratio_{low_ratio:.2f}", mean_conf
+            if avg_korean_score < 0.48:
+                return False, f"low_korean_quality_avg_{avg_korean_score:.2f}", mean_conf
+    except (ImportError, OSError, RuntimeError, ValueError):
+        pass
+
+    return True, "acceptable_quality", mean_conf
+
+
 class ImageParser:
     """Parse PNG/JPEG/TIFF/BMP/WEBP/HEIC images through local OCR into IR."""
 
@@ -193,64 +292,97 @@ class ImageParser:
         source_resource_id = document.resources.add(source.read_bytes(), source_mime)
         for page_no, frame in enumerate(ImageSequence.Iterator(image), start=1):
             page = frame.convert("RGB")
+            page_bgr = _to_bgr_array(page)
             width, height = page.size
             section = SectionIR(
                 page_width_pt=width * 0.75,
                 page_height_pt=height * 0.75,
                 source_ref=SourceRef("image", page_no=page_no, section_no=page_no),
             )
+
+            # 1. 로컬 고정밀 OCR 파이프라인 1차 시도함
+            ocr = None
             try:
                 from synthetic_engine.exporters.ocr_table_reconstructor import process_scanned_page
 
-                ocr = process_scanned_page(_to_bgr_array(page), page_num=page_no)
+                ocr = process_scanned_page(page_bgr, page_num=page_no)
             except (ImportError, OSError, RuntimeError, ValueError) as exc:
                 ocr = None
-                document.metadata.custom[f"ocr_status_p{page_no}"] = "failed"
                 document.metadata.custom[f"ocr_error_p{page_no}"] = str(exc)[:500]
-                document.warnings.append(ConversionWarning(
-                    "IMAGE_OCR_FAILED",
-                    f"이미지 OCR 처리에 실패했습니다: {exc}",
-                    source_ref=SourceRef("image", page_no=page_no),
-                    feature="image_ocr",
-                ))
 
-            if ocr is not None:
-                for block_no, block in enumerate(getattr(ocr, "text_blocks", [])):
-                    text = str(getattr(block, "text", "") or "").strip()
-                    ref = SourceRef("image", page_no=page_no, object_id=f"ocr-block:{block_no}")
-                    if _is_explicit_math_candidate(block):
-                        section.elements.append(_ocr_math(
-                            block, page_no, ref, source_resource_id, display_mode="display"
-                        ))
+            # 2. 로컬 결과 품질 자동 진단 게이트 평가함
+            is_acceptable, reason, mean_conf = _evaluate_local_ocr_quality(ocr, image_bgr=page_bgr)
+
+            # 3. 품질 미달 또는 판독 실패 시 OpenAI GPT-4o Vision으로 자동 에스컬레이션함
+            escalated_to_ai = False
+            if not is_acceptable and os.environ.get("OPENAI_API_KEY"):
+                try:
+                    from .openai_vision_ocr import extract_text_with_openai_vision
+
+                    page_bytes = _image_bytes(page, "PNG")
+                    vlm_paragraphs = extract_text_with_openai_vision(page_bytes, "image/png")
+                    if vlm_paragraphs:
+                        for p_idx, p_text in enumerate(vlm_paragraphs):
+                            p_ref = SourceRef("image", page_no=page_no, object_id=f"vlm-block:{p_idx}")
+                            section.elements.append(_paragraph(p_text, ref=p_ref))
+                        document.metadata.custom[f"ocr_engine_p{page_no}"] = "hybrid_ai_escalated"
+                        document.metadata.custom[f"ocr_escalation_reason_p{page_no}"] = reason
+                        document.metadata.custom[f"ocr_status_p{page_no}"] = "success"
+                        document.metadata.custom[f"ocr_mean_confidence_p{page_no}"] = "0.99"
+                        escalated_to_ai = True
+                except Exception:
+                    escalated_to_ai = False
+
+            # 4. AI 에스컬레이션이 실행되지 않은 경우 로컬 OCR 결과를 IR 요소로 조립함
+            if not escalated_to_ai:
+                if ocr is not None:
+                    for block_no, block in enumerate(getattr(ocr, "text_blocks", [])):
+                        text = str(getattr(block, "text", "") or "").strip()
+                        ref = SourceRef("image", page_no=page_no, object_id=f"ocr-block:{block_no}")
+                        if _is_explicit_math_candidate(block):
+                            section.elements.append(_ocr_math(
+                                block, page_no, ref, source_resource_id, display_mode="display"
+                            ))
+                            document.warnings.append(ConversionWarning(
+                                "IMAGE_MATH_REVIEW",
+                                "OCR math candidate retains its source image and coordinates for review.",
+                                source_ref=ref,
+                                feature="math",
+                            ))
+                        elif text:
+                            section.elements.append(_paragraph(
+                                text,
+                                heading=bool(getattr(block, "is_heading", False)),
+                                ref=ref,
+                            ))
+                    for table in getattr(ocr, "tables", []):
+                        section.elements.append(_table_ir(table, page_no, source_resource_id))
+                    for figure in getattr(ocr, "figures", []):
+                        try:
+                            section.elements.append(_figure_ir(figure, page_no))
+                        except (AttributeError, OSError, TypeError, ValueError) as exc:
+                            document.warnings.append(ConversionWarning(
+                                "IMAGE_FIGURE_PRESERVATION_FAILED",
+                                f"{page_no}페이지 이미지 요소를 보존하지 못했습니다: {exc}",
+                                source_ref=SourceRef("image", page_no=page_no),
+                                feature="embedded_image",
+                            ))
+                            continue
+                    for message in getattr(ocr, "warnings", []) or []:
                         document.warnings.append(ConversionWarning(
-                            "IMAGE_MATH_REVIEW",
-                            "OCR math candidate retains its source image and coordinates for review.",
-                            source_ref=ref,
-                            feature="math",
-                        ))
-                    elif text:
-                        section.elements.append(_paragraph(
-                            text,
-                            heading=bool(getattr(block, "is_heading", False)),
-                            ref=ref,
-                        ))
-                for table in getattr(ocr, "tables", []):
-                    section.elements.append(_table_ir(table, page_no, source_resource_id))
-                for figure in getattr(ocr, "figures", []):
-                    try:
-                        section.elements.append(_figure_ir(figure, page_no))
-                    except (AttributeError, OSError, TypeError, ValueError) as exc:
-                        document.warnings.append(ConversionWarning(
-                            "IMAGE_FIGURE_PRESERVATION_FAILED",
-                            f"{page_no}페이지 이미지 요소를 보존하지 못했습니다: {exc}",
+                            "IMAGE_OCR_REVIEW",
+                            str(message),
                             source_ref=SourceRef("image", page_no=page_no),
-                            feature="embedded_image",
+                            feature="image_ocr",
                         ))
-                        continue
-                for message in getattr(ocr, "warnings", []) or []:
+                    document.metadata.custom[f"ocr_engine_p{page_no}"] = "local_rapidocr_korean"
+                    document.metadata.custom[f"ocr_status_p{page_no}"] = "success" if is_acceptable else "review_required"
+                    document.metadata.custom[f"ocr_mean_confidence_p{page_no}"] = f"{mean_conf:.2f}"
+                else:
+                    document.metadata.custom[f"ocr_status_p{page_no}"] = "failed"
                     document.warnings.append(ConversionWarning(
-                        "IMAGE_OCR_REVIEW",
-                        str(message),
+                        "IMAGE_OCR_FAILED",
+                        "이미지 OCR 처리에 실패했습니다.",
                         source_ref=SourceRef("image", page_no=page_no),
                         feature="image_ocr",
                     ))

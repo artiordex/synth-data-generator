@@ -64,8 +64,8 @@ class RapidOCRKoreanBackend(OCRBackend):
         self.review_threshold = review_threshold
         self.det_box_thresh = _bounded_float_env("OCR_DET_BOX_THRESH", det_box_thresh, 0.35, 0.0, 1.0)
         self.det_text_thresh = _bounded_float_env("OCR_DET_TEXT_THRESH", det_text_thresh, 0.18, 0.0, 1.0)
-        self.det_unclip_ratio = _bounded_float_env("OCR_DET_UNCLIP_RATIO", det_unclip_ratio, 1.30, 1.0, 3.0)
-        self.det_limit_side_len = _positive_int_env("OCR_DET_LIMIT_SIDE_LEN", det_limit_side_len, 960)
+        self.det_unclip_ratio = _bounded_float_env("OCR_DET_UNCLIP_RATIO", det_unclip_ratio, 1.25, 1.0, 3.0)
+        self.det_limit_side_len = _positive_int_env("OCR_DET_LIMIT_SIDE_LEN", det_limit_side_len, 1536)
         # Injected readers in unit tests return coordinates for the supplied
         # array and must retain the historical no-padding contract.  The
         # production reader receives adaptive context padding by default.
