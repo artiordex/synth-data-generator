@@ -7,9 +7,9 @@
  * 수정일: 2026-09-09
  */
 import React, { useEffect, useState } from 'react';
-import { FileText, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { AssessmentIssue, JobAssessmentReport, JobStatus } from '../../types';
-import { getDownloadUrl, getJobAssessment } from '../../services/api';
+import { FileText, Download, AlertCircle, CheckCircle2, Table, Copy, Check, Search, RefreshCw, Layers } from 'lucide-react';
+import { AssessmentIssue, JobAssessmentReport, JobStatus, SyntheticPreviewData } from '../../types';
+import { getDownloadUrl, getJobAssessment, getJobPreview } from '../../services/api';
 import { DistributionComparisonChart } from './DistributionComparisonChart';
 import { SectionHeader } from '../../components/SectionHeader';
 
@@ -31,6 +31,13 @@ export const StepReport: React.FC<StepReportProps> = ({
   const [assessmentReport, setAssessmentReport] = useState<JobAssessmentReport | null>(null);
   const [assessmentLoading, setAssessmentLoading] = useState(false);
 
+  // Synthetic sample preview states
+  const [previewData, setPreviewData] = useState<SyntheticPreviewData | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewTab, setPreviewTab] = useState<'synthetic' | 'original'>('synthetic');
+  const [previewSearch, setPreviewSearch] = useState('');
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -46,7 +53,20 @@ export const StepReport: React.FC<StepReportProps> = ({
       }
     };
 
+    const loadPreview = async () => {
+      setPreviewLoading(true);
+      try {
+        const preview = await getJobPreview(activeJob.id, 15);
+        if (isMounted) setPreviewData(preview);
+      } catch {
+        if (isMounted) setPreviewData(null);
+      } finally {
+        if (isMounted) setPreviewLoading(false);
+      }
+    };
+
     loadAssessment();
+    loadPreview();
     return () => { isMounted = false; };
   }, [activeJob.id]);
 
@@ -214,6 +234,152 @@ export const StepReport: React.FC<StepReportProps> = ({
       {/* Interactive Distribution Comparison Overlay Chart */}
       <DistributionComparisonChart jobId={activeJob.id} isDarkMode={isDarkMode} />
 
+      {/* Generated Synthetic Data Preview Table */}
+      {(() => {
+        const rows = previewTab === 'synthetic' ? previewData?.synthetic_rows : previewData?.original_rows;
+        const filteredRows = (rows || []).filter(row => {
+          if (!previewSearch.trim()) return true;
+          const query = previewSearch.toLowerCase();
+          return Object.values(row).some(val => String(val ?? '').toLowerCase().includes(query));
+        });
+
+        const copyTableToClipboard = () => {
+          if (!previewData || !rows || rows.length === 0) return;
+          const headers = previewData.columns.join('\t');
+          const body = rows.map(r => previewData.columns.map(c => r[c] ?? '').join('\t')).join('\n');
+          navigator.clipboard.writeText(`${headers}\n${body}`);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        };
+
+        return (
+          <div className="ui-panel space-y-4 p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-4 dark:border-slate-800">
+              <SectionHeader
+                title="생성된 합성데이터 샘플 미리보기"
+                description={
+                  previewData
+                    ? `전체 ${previewData.total_rows.toLocaleString()}건 중 상위 ${rows?.length || 0}행 샘플 (총 ${previewData.columns.length}개 컬럼)`
+                    : '생성된 합성 데이터를 불러오는 중입니다.'
+                }
+                Icon={Table}
+              />
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Tab switcher: Synthetic vs Original */}
+                <div className="inline-flex rounded-xl border border-subtle bg-surface-muted p-0.5 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('synthetic')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                      previewTab === 'synthetic'
+                        ? 'bg-accent text-accent-fg shadow-xs font-bold'
+                        : 'text-fg-muted hover:text-fg'
+                    }`}
+                  >
+                    합성데이터 ({previewData?.synthetic_rows.length || 0})
+                  </button>
+                  {previewData?.original_rows && previewData.original_rows.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTab('original')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        previewTab === 'original'
+                          ? 'bg-accent text-accent-fg shadow-xs font-bold'
+                          : 'text-fg-muted hover:text-fg'
+                      }`}
+                    >
+                      원본 대조
+                    </button>
+                  )}
+                </div>
+
+                {/* Copy button */}
+                <button
+                  type="button"
+                  onClick={copyTableToClipboard}
+                  disabled={!rows || rows.length === 0}
+                  className="ui-button-secondary px-2.5 py-1.5 text-xs cursor-pointer"
+                  title="표 데이터를 클립보드에 복사 (Excel 붙여넣기 가능)"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span className="hidden sm:inline">{copied ? '복사됨' : '샘플 복사'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search & sub-info bar */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
+                <input
+                  type="text"
+                  value={previewSearch}
+                  onChange={(e) => setPreviewSearch(e.target.value)}
+                  placeholder="샘플 내 값 검색..."
+                  className="ui-field w-full py-1.5 pl-8 pr-3 text-xs"
+                />
+              </div>
+              <div className="text-2xs text-fg-muted font-mono">
+                {previewTab === 'synthetic' ? '[합성] 딥러닝 100% 가상 생성본' : '[원본] 원본 데이터 레퍼런스'}
+              </div>
+            </div>
+
+            {/* Table container */}
+            <div className="rounded-xl border border-subtle bg-surface overflow-hidden">
+              {previewLoading ? (
+                <div className="py-12 text-center text-xs text-fg-muted space-y-2">
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto text-accent" />
+                  <p>합성데이터 샘플을 로드하는 중입니다...</p>
+                </div>
+              ) : !previewData || !rows || rows.length === 0 ? (
+                <div className="py-12 text-center text-xs text-fg-muted">
+                  미리보기 가능한 데이터가 없습니다.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[380px] scrollbar-thin">
+                  <table className="w-full text-left text-xs font-mono border-collapse">
+                    <thead className="sticky top-0 bg-surface-muted border-b border-subtle text-fg font-bold z-10">
+                      <tr>
+                        <th className="px-3 py-2.5 border-r border-subtle text-center text-2xs text-fg-muted bg-surface-muted w-12 shrink-0">
+                          #
+                        </th>
+                        {previewData.columns.map((col) => (
+                          <th key={col} className="px-3.5 py-2.5 border-r border-subtle last:border-r-0 whitespace-nowrap text-2xs">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-subtle">
+                      {filteredRows.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-surface-muted/40 transition-colors">
+                          <td className="px-3 py-2 border-r border-subtle text-center text-2xs text-fg-muted select-none bg-surface-muted/20">
+                            {idx + 1}
+                          </td>
+                          {previewData.columns.map((col) => {
+                            const val = row[col];
+                            const isNull = val === null || val === undefined || val === '';
+                            return (
+                              <td key={col} className="px-3.5 py-2 border-r border-subtle last:border-r-0 whitespace-nowrap text-fg/90">
+                                {isNull ? (
+                                  <span className="italic text-fg-muted/50 text-2xs">null</span>
+                                ) : (
+                                  String(val)
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Submission Package Directory Structure & Download Box */}
       <div className="ui-panel space-y-4 p-6">
         <SectionHeader
@@ -232,7 +398,7 @@ export const StepReport: React.FC<StepReportProps> = ({
         />
 
         {/* Folder structure cards */}
-        <div className="grid grid-cols-3 gap-4 pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           <div className={`p-4 rounded-xl border space-y-2 ${
             isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}>

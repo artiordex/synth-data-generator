@@ -4,7 +4,7 @@
  * 목적: 데이터·문서·스캔 이미지 변환 및 고정밀 OCR 작업 화면을 제공함
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-14
+ * 수정일: 2026-09-16
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -17,7 +17,6 @@ import {
   Database,
   Table,
   FileCode,
-  Layers,
   RotateCcw,
   Copy,
   Check,
@@ -45,7 +44,6 @@ interface Props {
   onSelectStep?: (step: number) => void;
 }
 
-export type ConverterCategoryMode = 'all' | 'dataset' | 'document' | 'image';
 export type FileCategory = 'document' | 'dataset' | 'image';
 
 const SUPPORTED_CONVERTER_EXTENSIONS =
@@ -92,13 +90,9 @@ const chooseDocumentReviewTab = (
   targetFormat?: string,
   hasHtmlPreview?: boolean
 ): 'html' | 'markdown' => {
-  if (!hasHtmlPreview) return 'markdown';
-  const source = sourceFormat?.trim().toLowerCase() || '';
   const target = targetFormat?.trim().toLowerCase() || '';
   if (['html', 'htm'].includes(target)) return 'html';
-  if (DOCUMENT_REVIEW_HTML_FIRST_FORMATS.has(source)) return 'html';
-  if (['md', 'markdown', 'txt'].includes(target)) return 'markdown';
-  return 'html';
+  return 'markdown';
 };
 
 export const DataConverterStudio: React.FC<Props> = ({
@@ -109,7 +103,6 @@ export const DataConverterStudio: React.FC<Props> = ({
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileCategory, setFileCategory] = useState<FileCategory | null>(null);
-  const [categoryMode, setCategoryMode] = useState<ConverterCategoryMode>('all');
   const [targetFormat, setTargetFormat] = useState<string>('md');
   const [tableName, setTableName] = useState<string>('converted_data');
   const [isConverting, setIsConverting] = useState<boolean>(false);
@@ -322,28 +315,11 @@ export const DataConverterStudio: React.FC<Props> = ({
       !result.html_preview
     ))
   );
-  const apiDownloadReady = Boolean(result?.download_url && (result.download_ready ?? true) && !hasEmptyResult);
-  const downloadReady = apiDownloadReady && downloadCheckStatus === 'ready';
+  const downloadReady = Boolean(result?.download_url && !hasEmptyResult);
   const downloadStatusLabel = (() => {
-    if (hasEmptyResult) return '결과가 비어 있어 다운로드 차단';
-    if (result?.download_ready === false) {
-      return result.status === 'review_required'
-        ? '품질 검토 완료 전 다운로드 차단'
-        : '다운로드 준비 안 됨';
-    }
+    if (hasEmptyResult) return '결과가 비어 있어 다운로드 불가';
     if (!result?.download_url) return '다운로드 파일 없음';
-    switch (downloadCheckStatus) {
-      case 'checking':
-        return '다운로드 파일 확인 중';
-      case 'ready':
-        return '다운로드 가능';
-      case 'missing':
-        return '다운로드 파일을 찾을 수 없음';
-      case 'failed':
-        return '다운로드 확인 실패';
-      default:
-        return '다운로드 대기';
-    }
+    return '다운로드 가능';
   })();
   const reviewPageText = quality?.ocr_review_pages?.length
     ? `${quality.ocr_review_pages.join(', ')}페이지`
@@ -375,40 +351,6 @@ export const DataConverterStudio: React.FC<Props> = ({
     ? chooseDocumentReviewTab(result.source_format, result.target_format, Boolean(result.html_preview))
     : 'markdown';
 
-  const uploaderConfig = (() => {
-    switch (categoryMode) {
-      case 'dataset':
-        return {
-          title: '정형 데이터셋 포맷 상호 변환 업로드',
-          subtitle: 'CSV, Excel(XLSX/XLS), TSV, JSON, XML, Parquet 데이터셋을 드래그하거나 선택하세요.',
-          accept: '.csv,.xlsx,.xls,.tsv,.txt,.json,.jsonl,.xml,.parquet,.pq',
-          formatsHint: 'CSV · XLSX · XLS · TSV · JSON · XML · PARQUET/PQ (최대 100MB)',
-        };
-      case 'document':
-        return {
-          title: '사내 전자문서 고충실도 변환 업로드',
-          subtitle: '한글(HWP, HWPX), MS Word(DOCX, DOC), PDF, 마크다운(MD) 문서를 드래그하거나 선택하세요.',
-          accept: '.hwp,.hwpx,.doc,.docx,.pdf,.md,.txt',
-          formatsHint: 'HWP · HWPX · DOCX · DOC · PDF · MD · TXT (최대 100MB)',
-        };
-      case 'image':
-        return {
-          title: '스캔 이미지 & 고정밀 OCR 문서 변환 업로드',
-          subtitle: '스캔본 문서 또는 PNG, JPG, JPEG, TIFF, BMP, WEBP, HEIC 고해상도 이미지를 드래그하거나 선택하세요.',
-          accept: '.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.heic',
-          formatsHint: 'PNG · JPG · JPEG · TIF · TIFF · BMP · WEBP · HEIC (최대 100MB · 하이브리드 OCR)',
-        };
-      case 'all':
-      default:
-        return {
-          title: '변환할 데이터셋 또는 사내 문서·스캔 이미지 파일 업로드',
-          subtitle: 'CSV, Excel, TSV, JSON, XML, Parquet 데이터셋 또는 HWP, HWPX, Word, PDF, 이미지 문서를 드래그하거나 선택하세요.',
-          accept: SUPPORTED_CONVERTER_EXTENSIONS,
-          formatsHint: 'CSV · XLSX · TSV · JSON · XML · PARQUET · HWP · HWPX · DOCX · PDF · PNG · JPG · TIFF · BMP · WEBP (최대 100MB)',
-        };
-    }
-  })();
-
   return (
     <div className="space-y-6">
       {errorMsg && (
@@ -426,131 +368,16 @@ export const DataConverterStudio: React.FC<Props> = ({
       {/* Step 1: Upload Zone if no file is selected */}
       {!selectedFile && (
         <div className="space-y-6">
-          {/* Converter Category Mode Selector */}
-          <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 bg-surface-muted rounded-2xl border border-subtle max-w-2xl mx-auto">
-            {[
-              { id: 'all', label: '전체 통합 변환', icon: Layers, desc: '모든 포맷 자동 감지' },
-              { id: 'dataset', label: '정형 데이터셋', icon: Database, desc: 'CSV·Excel·Parquet·SQL' },
-              { id: 'document', label: '사내 전자문서', icon: FileText, desc: 'HWP·HWPX·Word·PDF' },
-              { id: 'image', label: '스캔 이미지 & OCR', icon: ImageIcon, desc: 'PNG·JPG·TIFF·스캔본', badge: '고정밀 OCR' },
-            ].map(tab => {
-              const Icon = tab.icon;
-              const active = categoryMode === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setCategoryMode(tab.id as ConverterCategoryMode)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    active
-                      ? 'bg-accent text-accent-fg shadow-xs scale-[1.02]'
-                      : 'text-fg-muted hover:text-fg hover:bg-surface'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                  {tab.badge && (
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
-                        active ? 'bg-white/20 text-white' : 'bg-accent/10 text-accent'
-                      }`}
-                    >
-                      {tab.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
           <UnifiedFileUploader
-            key={categoryMode}
-            title={uploaderConfig.title}
-            subtitle={uploaderConfig.subtitle}
-            accept={uploaderConfig.accept}
-            formatsHint={uploaderConfig.formatsHint}
+            title="변환할 데이터셋 또는 사내 문서·스캔 이미지 파일 업로드"
+            subtitle="CSV, Excel, TSV, JSON, XML, Parquet 데이터셋 또는 HWP, HWPX, Word, PDF, 이미지 문서를 드래그하거나 선택하세요."
+            accept={SUPPORTED_CONVERTER_EXTENSIONS}
+            formatsHint="CSV · XLSX · TSV · JSON · XML · PARQUET · HWP · HWPX · DOCX · PDF · PNG · JPG · TIFF · BMP · WEBP (최대 100MB)"
             onFilesSelected={([file]) => {
               if (file) handleSelectFile(file);
             }}
             onError={msg => setErrorMsg(msg)}
           />
-
-          {/* 3 Pipeline Showcase Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            {/* Card 1: 정형 데이터셋 */}
-            <div
-              onClick={() => setCategoryMode('dataset')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer ${
-                categoryMode === 'dataset'
-                  ? 'border-accent bg-accent-subtle/50 ring-2 ring-accent/20'
-                  : 'border-subtle bg-surface hover:border-accent/50 hover:bg-surface-muted/50'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                  <Database className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-fg">정형 데이터셋 변환</h4>
-                  <span className="text-[11px] text-fg-muted">CSV · XLSX · Parquet · JSON · SQL</span>
-                </div>
-              </div>
-              <p className="text-xs text-fg-muted leading-relaxed">
-                DuckDB 인메모리 엔진 기반 초고속 포맷 상호 변환 및 테이블 스키마 자동 추출, SQL DDL/DML 생성
-              </p>
-            </div>
-
-            {/* Card 2: 사내 전자문서 */}
-            <div
-              onClick={() => setCategoryMode('document')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer ${
-                categoryMode === 'document'
-                  ? 'border-accent bg-accent-subtle/50 ring-2 ring-accent/20'
-                  : 'border-subtle bg-surface hover:border-accent/50 hover:bg-surface-muted/50'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-fg">사내 전자문서 고충실도</h4>
-                  <span className="text-[11px] text-fg-muted">HWP · HWPX · DOCX · PDF · MD</span>
-                </div>
-              </div>
-              <p className="text-xs text-fg-muted leading-relaxed">
-                표 으스러짐 방지(Colspan/Rowspan 완벽 복원), MathIR 수식 파싱 및 공공서식 1:1 레이아웃 보존
-              </p>
-            </div>
-
-            {/* Card 3: 스캔 이미지 & OCR */}
-            <div
-              onClick={() => setCategoryMode('image')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
-                categoryMode === 'image'
-                  ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20'
-                  : 'border-subtle bg-surface hover:border-emerald-500/50 hover:bg-surface-muted/50'
-              }`}
-            >
-              <div className="absolute top-2.5 right-2.5">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  AI OCR 탑재
-                </span>
-              </div>
-              <div className="flex items-center gap-3 mb-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                  <ImageIcon className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-fg">스캔 이미지 & 고정밀 OCR</h4>
-                  <span className="text-[11px] text-fg-muted">PNG · JPG · TIFF · WEBP · 스캔본</span>
-                </div>
-              </div>
-              <p className="text-xs text-fg-muted leading-relaxed">
-                기울기 자동 보정(Deskew), 표 격자 검출, 수기/인쇄체 분리 인식 및 마크다운·HTML·Word 1:1 복원
-              </p>
-            </div>
-          </div>
         </div>
       )}
 
@@ -1305,27 +1132,11 @@ export const DataConverterStudio: React.FC<Props> = ({
           {hasDocumentPreviewResult ? (
             <div className="shrink-0 flex flex-col gap-2 rounded-xl border border-subtle bg-surface-muted/55 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex flex-wrap items-center gap-2">
-                <span className={`px-2 py-0.5 rounded-full text-2xs font-bold border flex items-center gap-1 ${requiresQualityReview ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'}`}>
-                  {requiresQualityReview ? <AlertCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                  {requiresQualityReview ? '변환 결과 검토 필요' : '변환 완료'}
+                <span className="px-2 py-0.5 rounded-full text-2xs font-bold border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>변환 완료</span>
                 </span>
-                {result.document_structure && (
-                  <span className={`px-2 py-0.5 rounded-full text-2xs font-bold border flex items-center gap-1 ${ocrStatusClass}`}>
-                    {quality?.requires_review || !hasQuality ? (
-                      <AlertCircle className="w-3 h-3" />
-                    ) : (
-                      <CheckCircle2 className="w-3 h-3" />
-                    )}
-                    {ocrStatusLabel}
-                  </span>
-                )}
-                {['PNG', 'JPG', 'JPEG', 'TIFF', 'TIF', 'BMP', 'WEBP', 'HEIC'].includes(result.source_format.toUpperCase()) && (
-                  <span className="px-2 py-0.5 rounded-full text-2xs font-bold border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <ScanLine className="w-3 h-3" />
-                    스캔 이미지 OCR 복원
-                  </span>
-                )}
-                <span className="text-2xs text-fg-muted font-mono shrink-0">
+                <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-accent/10 text-accent font-mono shrink-0">
                   {result.source_format} → {result.target_format}
                 </span>
                 <h3
@@ -1387,23 +1198,13 @@ export const DataConverterStudio: React.FC<Props> = ({
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-subtle pb-4 shrink-0">
             <div>
               <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center gap-1 ${requiresQualityReview ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'}`}>
-                    {requiresQualityReview ? <AlertCircle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                    {requiresQualityReview ? '변환 결과 검토 필요' : '변환 완료'}
-                  </span>
-                  {result.document_structure && (
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center gap-1 ${ocrStatusClass}`}>
-                      {quality?.requires_review || !hasQuality ? (
-                        <AlertCircle className="w-3.5 h-3.5" />
-                      ) : (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      )}
-                      {ocrStatusLabel}
-                    </span>
-                  )}
-                  <span className="text-xs text-fg-muted font-mono">
-                    {result.source_format} → {result.target_format}
-                  </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>변환 완료</span>
+                </span>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent font-mono">
+                  {result.source_format} → {result.target_format}
+                </span>
               </div>
               <h3 className="text-base sm:text-lg font-bold text-fg mt-1">
                 {result.file_name}
@@ -1638,6 +1439,7 @@ export const DataConverterStudio: React.FC<Props> = ({
                 htmlPreview={result.html_preview}
                 pagesCount={result.document_structure?.pages_count}
                 initialRightTab={documentReviewInitialTab}
+                targetFormat={result.target_format}
               />
             </div>
           )}

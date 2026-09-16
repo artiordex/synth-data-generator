@@ -44,6 +44,7 @@ export interface MarkdownPreviewStudioProps {
   htmlPreview?: string;
   pagesCount?: number;
   initialRightTab?: 'html' | 'markdown' | 'source';
+  targetFormat?: string;
 }
 
 interface PageItem {
@@ -243,16 +244,21 @@ export const MarkdownPreviewStudio: React.FC<MarkdownPreviewStudioProps> = ({
   htmlPreview,
   pagesCount,
   initialRightTab,
+  targetFormat,
 }) => {
+  const isHtmlTarget = Boolean(
+    (targetFormat && ['html', 'htm'].includes(targetFormat.toLowerCase())) ||
+    fileName.toLowerCase().endsWith('.html') ||
+    fileName.toLowerCase().endsWith('.htm') ||
+    (!markdown && htmlPreview)
+  );
   const hasOriginal = Boolean(originalFile || originalUrl);
   const [viewMode, setViewMode] = useState<'preview' | 'split' | 'source'>(() => {
     return hasOriginal ? 'split' : 'preview';
   });
-  const [leftPaneMode, setLeftPaneMode] = useState<'original' | 'source'>(() => {
-    return hasOriginal ? 'original' : 'source';
-  });
+  const [leftPaneMode, setLeftPaneMode] = useState<'original' | 'source'>('original');
   const [rightFormatTab, setRightFormatTab] = useState<'html' | 'markdown' | 'source'>(() => {
-    return resolveInitialRightTab(initialRightTab, htmlPreview, markdown, fileName);
+    return isHtmlTarget ? 'html' : 'markdown';
   });
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -990,7 +996,7 @@ body::-webkit-scrollbar {
             <FileText className="w-4 h-4 text-accent shrink-0" />
             <span className="font-mono text-xs max-w-[180px] sm:max-w-xs truncate">{fileName}</span>
             <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-              {htmlPreview && rightFormatTab === 'html' ? 'HTML' : 'Markdown'}
+              {isHtmlTarget ? 'HTML' : 'Markdown'}
             </span>
           </div>
 
@@ -1014,7 +1020,7 @@ body::-webkit-scrollbar {
                   ? 'bg-accent text-white shadow-xs'
                   : 'text-fg-muted hover:text-fg hover:bg-surface-muted'
               }`}
-              title="원본 문서와 변환 마크다운 나란히 대조 보기"
+              title="원본 문서와 변환 결과 나란히 대조 보기"
             >
               <Columns className="w-3.5 h-3.5" />
               <span>{hasOriginal ? '나란히 대조' : '나란히 보기'}</span>
@@ -1033,7 +1039,7 @@ body::-webkit-scrollbar {
                   ? 'bg-accent text-white shadow-xs'
                   : 'text-fg-muted hover:text-fg hover:bg-surface-muted'
               }`}
-              title="마크다운 렌더링 화면만 단독 미리보기"
+              title="변환 결과 단독 미리보기"
             >
               <Eye className="w-3.5 h-3.5" />
               <span>미리보기</span>
@@ -1047,7 +1053,7 @@ body::-webkit-scrollbar {
                   ? 'bg-accent text-white shadow-xs'
                   : 'text-fg-muted hover:text-fg hover:bg-surface-muted'
               }`}
-              title="마크다운 소스 코드만 단독 표시"
+              title="변환 소스 코드만 단독 표시"
             >
               <Code2 className="w-3.5 h-3.5" />
               <span>소스 코드</span>
@@ -1069,45 +1075,47 @@ body::-webkit-scrollbar {
 
           {/* 복사 및 다운로드 액션 */}
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleCopyMarkdown}
-              className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
-              title={compareScope === 'page' && totalPages > 1 ? `${currentPage}페이지 마크다운 복사` : '전체 마크다운 복사'}
-            >
-              {copiedMd ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-emerald-500 font-bold">복사됨!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">
-                    {compareScope === 'page' && totalPages > 1 ? `${currentPage}p 복사` : '마크다운 복사'}
-                  </span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCopyHtml}
-              className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 text-fg-muted hover:text-fg"
-              title="렌더링된 HTML 복사"
-            >
-              {copiedHtml ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-emerald-500 font-bold">HTML 복사됨!</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                  <span className="hidden sm:inline">HTML 복사</span>
-                </>
-              )}
-            </button>
+            {isHtmlTarget ? (
+              <button
+                type="button"
+                onClick={handleCopyHtml}
+                className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
+                title="HTML 소스 복사"
+              >
+                {copiedHtml ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-emerald-500 font-bold">HTML 복사됨!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">HTML 복사</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCopyMarkdown}
+                className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
+                title={compareScope === 'page' && totalPages > 1 ? `${currentPage}페이지 마크다운 복사` : '전체 마크다운 복사'}
+              >
+                {copiedMd ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-emerald-500 font-bold">복사됨!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">
+                      {compareScope === 'page' && totalPages > 1 ? `${currentPage}p 복사` : '마크다운 복사'}
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
 
             {downloadUrl && (
               <a
@@ -1182,7 +1190,7 @@ body::-webkit-scrollbar {
       >
         {/* 1. 미리보기 단독 모드 */}
         {viewMode === 'preview' && (
-          htmlPreview && rightFormatTab === 'html' ? (
+          isHtmlTarget && htmlPreview ? (
             <div className="w-full h-full flex flex-col bg-white">
               <iframe
                 ref={htmlIframeRef}
@@ -1243,36 +1251,12 @@ body::-webkit-scrollbar {
         {/* 2. 나란히 대조 분할 뷰 */}
         {viewMode === 'split' && (
           <div className="h-full grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_14px] divide-x divide-subtle overflow-hidden">
-            {/* 좌측 패널: 원본 문서(PDF/이미지) 대조 또는 마크다운 소스 뷰 */}
+            {/* 좌측 패널: 원본 문서(PDF/이미지) 대조 뷰 */}
             <div className="h-full min-w-0 min-h-0 flex flex-col bg-surface-muted/20 overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-subtle bg-surface-muted/90 backdrop-blur-xs text-2xs font-semibold text-fg-muted">
-                <div className="flex items-center gap-1 bg-surface p-0.5 rounded-lg border border-subtle">
-                  {effectiveOriginalUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setLeftPaneMode('original')}
-                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
-                        leftPaneMode === 'original'
-                          ? 'bg-accent text-white font-bold shadow-xs'
-                          : 'text-fg-muted hover:text-fg'
-                      }`}
-                    >
-                      <ImageIcon className="w-3 h-3" />
-                      <span>{isPdfOriginal ? '원본 PDF 대조' : '원본 문서 대조'}</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setLeftPaneMode('source')}
-                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
-                      leftPaneMode === 'source' || !effectiveOriginalUrl
-                        ? 'bg-accent text-white font-bold shadow-xs'
-                        : 'text-fg-muted hover:text-fg'
-                    }`}
-                  >
-                    <Code2 className="w-3 h-3" />
-                    <span>마크다운 소스</span>
-                  </button>
+              <div className="flex items-center justify-between px-3 py-2 border-b border-subtle bg-surface-muted/90 backdrop-blur-xs text-2xs font-semibold text-fg">
+                <div className="flex items-center gap-1.5 font-bold text-fg">
+                  <ImageIcon className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span>{isPdfOriginal ? '원본 PDF 대조' : '원본 문서 대조'}</span>
                 </div>
 
                 {leftPaneMode === 'original' && (isImageOriginal || isPdfOriginal) && (
@@ -1487,49 +1471,12 @@ body::-webkit-scrollbar {
               )}
             </div>
 
-            {/* 우측 패널: 실시간 마크다운 / HTML / 소스 렌더링 미리보기 */}
+            {/* 우측 패널: 변환 결과 렌더링 미리보기 */}
             <div className="h-full min-w-0 min-h-0 flex flex-col overflow-hidden bg-surface">
               <div className="flex items-center justify-between px-3 py-2 border-b border-subtle bg-surface/90 backdrop-blur-xs text-2xs font-semibold text-fg">
-                {/* 탭 전환 버튼 */}
-                <div className="flex items-center gap-1 bg-surface p-0.5 rounded-lg border border-subtle">
-                  {htmlPreview && (
-                    <button
-                      type="button"
-                      onClick={() => handleFormatTabChange('html')}
-                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
-                        rightFormatTab === 'html'
-                          ? 'bg-accent text-white font-bold shadow-xs'
-                          : 'text-fg-muted hover:text-fg'
-                      }`}
-                    >
-                      <Globe className="w-3 h-3" />
-                      <span>고충실도 웹(HTML)</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleFormatTabChange('markdown')}
-                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
-                      rightFormatTab === 'markdown'
-                        ? 'bg-accent text-white font-bold shadow-xs'
-                        : 'text-fg-muted hover:text-fg'
-                    }`}
-                  >
-                    <FileText className="w-3 h-3" />
-                    <span>마크다운(GFM)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFormatTabChange('source')}
-                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
-                      rightFormatTab === 'source'
-                        ? 'bg-accent text-white font-bold shadow-xs'
-                        : 'text-fg-muted hover:text-fg'
-                    }`}
-                  >
-                    <Code2 className="w-3 h-3" />
-                    <span>소스 코드</span>
-                  </button>
+                <div className="flex items-center gap-1.5 font-bold text-fg">
+                  {isHtmlTarget ? <Globe className="w-3.5 h-3.5 text-accent shrink-0" /> : <FileText className="w-3.5 h-3.5 text-accent shrink-0" />}
+                  <span>{isHtmlTarget ? 'HTML 변환 결과' : '마크다운 변환 결과'}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1538,7 +1485,7 @@ body::-webkit-scrollbar {
                       ? `${currentPage} / ${totalPages}p`
                       : `연속 스크롤 (${totalPages}p 전체)`}
                   </span>
-                  {htmlPreview && rightFormatTab === 'html' && downloadUrl && (
+                  {isHtmlTarget && htmlPreview && downloadUrl && (
                     <a
                       href={downloadUrl}
                       target="_blank"
@@ -1553,7 +1500,7 @@ body::-webkit-scrollbar {
                 </div>
               </div>
 
-              {rightFormatTab === 'html' && htmlPreview ? (
+              {isHtmlTarget && htmlPreview ? (
                 <div className="flex-1 w-full h-full min-h-0 relative flex flex-col bg-white overflow-hidden">
                   <iframe
                     ref={htmlIframeRef}
@@ -1674,9 +1621,13 @@ body::-webkit-scrollbar {
                     : `전체 ${linesCount}줄, ${charCount.toLocaleString()}자`}
                   )
                 </span>
-                <span>Plaintext / Markdown</span>
+                <span>{isHtmlTarget ? 'HTML 소스' : '마크다운 소스'}</span>
               </div>
-              {totalPages > 1 ? (
+              {isHtmlTarget && htmlPreview ? (
+                <pre className="font-mono text-xs sm:text-sm leading-relaxed text-fg whitespace-pre-wrap bg-surface p-6 rounded-2xl border border-subtle shadow-xs">
+                  {htmlPreview}
+                </pre>
+              ) : totalPages > 1 ? (
                 parsedPages.map((p) => (
                   <div
                     key={p.pageNumber}

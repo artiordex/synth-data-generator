@@ -12,6 +12,7 @@ import {
   CheckCircle2, Database, RefreshCw, ChevronRight, Search, X, FileCode,
 } from 'lucide-react';
 import { getDummyDomains, getDummyTemplates, inferDummyColumn, generateDummyData, importDummySchema, generateDummySchema } from '../../services/api';
+import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 
 interface ColumnItem {
   id: string;
@@ -187,6 +188,39 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode, onStepChange })
     setIsPickerOpen(false);
   };
 
+  // Schema file upload handler
+  const handleSchemaFileSelected = async (file: File) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const detectedType: 'ddl' | 'json-schema' | 'openapi' =
+        ext === 'json' ? 'json-schema' : (ext === 'yaml' || ext === 'yml') ? 'openapi' : 'ddl';
+      setSchemaType(detectedType);
+      setSchemaContent(text);
+      setErrorMsg(null);
+      
+      const result = await importDummySchema(detectedType, text);
+      setImportedSchema(result);
+      const table = result.tables[0];
+      if (table) {
+        setTableName(table.name);
+        setColumns(table.columns.map((column: any, index: number) => ({
+          id: `schema-${index}`, name: column.name, domain_id: '',
+          domain_name: column.data_type + (column.primary_key ? ' · PK' : ''),
+          category: column.nullable ? '선택' : '필수', source: detectedType.toUpperCase(),
+          sample: column.rule?.type || column.data_type, rule: column.rule,
+          primary_key: column.primary_key, unique: column.unique,
+          nullable: column.nullable, constraints: column.constraints,
+        })));
+      }
+      setShowSchemaImport(false);
+      setGenerationResult(null);
+    } catch (err: any) {
+      setErrorMsg(err.message || '스키마 파일 분석에 실패했습니다.');
+    }
+  };
+
   // Generate data
   const handleSchemaImport = async () => {
     if (!schemaContent.trim()) return;
@@ -268,37 +302,54 @@ export const QuickDummyBuilder: React.FC<Props> = ({ isDarkMode, onStepChange })
         </div>
 
         {showSchemaImport && (
-          <div className="mt-4 space-y-3 pt-3 border-t border-subtle">
-            <div className="flex flex-wrap gap-2">
-              {(['ddl', 'json-schema', 'openapi'] as const).map(type => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setSchemaType(type)}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
-                    schemaType === type
-                      ? 'border-accent bg-accent/10 text-accent'
-                      : 'border-subtle text-fg-muted hover:text-fg hover:bg-surface-muted'
-                  }`}
-                >
-                  {type.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            <textarea
-              value={schemaContent}
-              onChange={e => setSchemaContent(e.target.value)}
-              rows={7}
-              placeholder="CREATE TABLE ...; 또는 JSON 문서를 붙여 넣으세요."
-              className="ui-field p-3 font-mono text-xs"
+          <div className="mt-4 space-y-4 pt-3 border-t border-subtle">
+            <UnifiedFileUploader
+              title="더미데이터 스키마 파일 선택"
+              subtitle="DDL(.sql), JSON Schema(.json), OpenAPI 명세서 파일을 이곳에 놓거나 직접 선택하세요."
+              accept=".sql,.ddl,.json,.yaml,.yml,.txt"
+              formatsHint="SQL · DDL · JSON SCHEMA · YAML · OPENAPI (최대 100MB)"
+              multiple={false}
+              onFilesSelected={([file]) => handleSchemaFileSelected(file)}
+              onError={msg => setErrorMsg(msg)}
             />
-            <button
-              type="button"
-              onClick={handleSchemaImport}
-              className="ui-button-primary px-5 py-2 text-xs"
-            >
-              분석하여 컬럼에 적용
-            </button>
+
+            <details className="text-xs text-fg-muted">
+              <summary className="cursor-pointer font-semibold hover:text-fg select-none py-1.5">
+                또는 직접 텍스트로 DDL / JSON 스키마 붙여넣기
+              </summary>
+              <div className="mt-3 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {(['ddl', 'json-schema', 'openapi'] as const).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setSchemaType(type)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+                        schemaType === type
+                          ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                          : 'border-subtle text-fg-muted hover:text-fg hover:bg-surface-muted'
+                      }`}
+                    >
+                      {type.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={schemaContent}
+                  onChange={e => setSchemaContent(e.target.value)}
+                  rows={6}
+                  placeholder="CREATE TABLE ...; 또는 JSON 문서를 붙여 넣으세요."
+                  className="ui-field p-3 font-mono text-xs w-full"
+                />
+                <button
+                  type="button"
+                  onClick={handleSchemaImport}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-accent-fg bg-accent hover:bg-accent-hover active:opacity-90 shadow-sm transition-all cursor-pointer"
+                >
+                  분석하여 컬럼에 적용
+                </button>
+              </div>
+            </details>
           </div>
         )}
       </div>

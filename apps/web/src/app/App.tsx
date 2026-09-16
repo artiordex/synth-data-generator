@@ -4,16 +4,16 @@
  * 목적: 애플리케이션 화면과 전역 워크플로 상태를 조정함
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-09
+ * 수정일: 2026-09-16
  */
 import React, { useState, useEffect } from 'react';
 import {
   Upload, Database, Sliders, Play, CheckCircle2,
   AlertCircle, Layers, Sun, Moon, ShieldCheck,
-  ArrowLeftRight, BookOpen, Clock, FileCode, Code2
+  ArrowLeftRight, BookOpen, Clock, FileCode, Code2, Sparkles
 } from 'lucide-react';
 import { DatasetProfile, JobStatus, ReviewMetadataInput, SynthesisRequest } from '../types';
-import { uploadDataset, getDatasetProfile, startSynthesis, cancelSynthesis, getJobStatus } from '../services/api';
+import { uploadDataset, uploadDatasets, getDatasetProfile, startSynthesis, cancelSynthesis, getJobStatus } from '../services/api';
 import { DataDictionaryView } from '../features/dictionary/DataDictionaryView';
 import { IntegratedHistoryView } from '../features/history/IntegratedHistoryView';
 import { StepUpload } from '../features/dataset/StepUpload';
@@ -30,6 +30,7 @@ import { StepReport } from '../features/reports/StepReport';
 import { QuickDummyBuilder } from '../features/dummy/QuickDummyBuilder';
 import { PseudonymStudio } from '../features/pseudonym/PseudonymStudio';
 import { DataConverterStudio } from '../features/converter/DataConverterStudio';
+import { AiRuleGuideStudio } from '../features/aiguide/AiRuleGuideStudio';
 import { SystemDocsView } from '../features/system/SystemDocsView';
 import { ApiDocsView } from '../features/system/ApiDocsView';
 import { Footer } from '../components/Footer';
@@ -65,6 +66,13 @@ const converterSteps: WorkflowStepItem<number>[] = [
   { id: 2, label: '변환 설정' },
   { id: 3, label: '변환 실행' },
   { id: 4, label: '결과 검토' },
+];
+
+const aiGuideSteps: WorkflowStepItem<number>[] = [
+  { id: 1, label: '데이터 업로드' },
+  { id: 2, label: '데이터 자동 분석' },
+  { id: 3, label: '메타데이터 검토' },
+  { id: 4, label: '가이드 생성·내보내기' },
 ];
 
 const workflowStepSets: Record<SyntheticWorkflow, WorkflowStepItem<number>[]> = {
@@ -141,6 +149,7 @@ export default function App() {
   const [pseudoStep, setPseudoStep] = useState<number>(1);
   const [dummyStep, setDummyStep] = useState<number>(1);
   const [converterStep, setConverterStep] = useState<number>(1);
+  const [aiGuideStep, setAiGuideStep] = useState<number>(1);
   const [syntheticAuxStep, setSyntheticAuxStep] = useState<number>(1);
   const [dictionaryStep, setDictionaryStep] = useState<number>(1);
   const [historyStep, setHistoryStep] = useState<number>(1);
@@ -155,6 +164,8 @@ export default function App() {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadedFilename, setUploadedFilename] = useState<string>('');
   const [profile, setProfile] = useState<DatasetProfile | null>(null);
+  const [profiles, setProfiles] = useState<DatasetProfile[]>([]);
+  const [activeProfileIndex, setActiveProfileIndex] = useState<number>(0);
   const [reviewMetadata, setReviewMetadata] = useState<ReviewMetadataInput>({});
   const [batchViewKey, setBatchViewKey] = useState(0);
 
@@ -195,6 +206,16 @@ export default function App() {
     return () => clearInterval(interval);
   }, [activeJob]);
 
+  const handleSelectProfile = (index: number) => {
+    if (!profiles[index]) return;
+    setActiveProfileIndex(index);
+    const current = profiles[index];
+    setProfile(current);
+    setUploadedFilename(current.filename);
+    setSynthesisOptions({ ...defaultSynthesisOptions, ...current.notebook_preset?.options });
+    setTargetRows(current.row_count);
+  };
+
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
     setErrorMsg(null);
@@ -203,11 +224,44 @@ export default function App() {
       setUploadedFilename(uploadRes.filename);
       const prof = await getDatasetProfile(uploadRes.filename);
       setProfile(prof);
+      setProfiles([prof]);
+      setActiveProfileIndex(0);
       setSynthesisOptions({ ...defaultSynthesisOptions, ...prof.notebook_preset?.options });
       setTargetRows(prof.row_count);
       setStep(2);
     } catch (err: any) {
       setErrorMsg(err.message || '파일 업로드 실패');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFilesUpload = async (files: File[]) => {
+    if (!files || files.length === 0) return;
+    if (files.length === 1) {
+      await handleFileUpload(files[0]);
+      return;
+    }
+    setIsUploading(true);
+    setErrorMsg(null);
+    try {
+      const batchItems = await uploadDatasets(files);
+      const validProfiles = batchItems
+        .filter(item => !item.error && item.profile)
+        .map(item => item.profile as DatasetProfile);
+      if (validProfiles.length === 0) {
+        throw new Error('선택한 파일 중 정상적으로 분석된 데이터셋이 없습니다.');
+      }
+      setProfiles(validProfiles);
+      setActiveProfileIndex(0);
+      const primary = validProfiles[0];
+      setProfile(primary);
+      setUploadedFilename(primary.filename);
+      setSynthesisOptions({ ...defaultSynthesisOptions, ...primary.notebook_preset?.options });
+      setTargetRows(primary.row_count);
+      setStep(2);
+    } catch (err: any) {
+      setErrorMsg(err.message || '다중 파일 업로드 실패');
     } finally {
       setIsUploading(false);
     }
@@ -313,6 +367,19 @@ export default function App() {
         },
       };
     }
+    if (activeTab === 'ai-guide') {
+      return {
+        eyebrow: 'AI RULE GUIDE WORKSPACE',
+        title: 'AI 친화 가이드 생성',
+        description: 'CSV · JSON · XML 데이터를 분석하여 공공 표준 HWPX 서식 구조 및 변환 롤(Rule) 가이드 자동 제작',
+        icon: Sparkles,
+        steps: aiGuideSteps,
+        activeStep: aiGuideStep,
+        onSelectStep: (stepItem) => {
+          setAiGuideStep(stepItem.id);
+        },
+      };
+    }
     if (activeTab === 'synthetic') {
       const titles: Record<SyntheticWorkflow, string> = {
         single: '합성데이터 생성 (단일 테이블)',
@@ -368,7 +435,7 @@ export default function App() {
                   사내 데이터 생성기
                 </h1>
                 <span className="hidden md:inline-block rounded-md border border-subtle bg-surface-muted px-2 py-0.5 text-2xs font-medium text-fg-muted whitespace-nowrap">
-                  가명 · 합성 · 더미 · 변환
+                  가명 · 합성 · 더미 · 변환 · AI 친화 가이드
                 </span>
               </div>
             </button>
@@ -484,6 +551,14 @@ export default function App() {
                 onSelectStep={setConverterStep}
               />
             )}
+            {activeTab === 'ai-guide' && (
+              <AiRuleGuideStudio
+                isDarkMode={isDarkMode}
+                onStepChange={setAiGuideStep}
+                activeStep={aiGuideStep}
+                onSelectStep={setAiGuideStep}
+              />
+            )}
             {activeTab === 'synthetic' && (
               <>
                 <SynthesisWorkflowSelector
@@ -545,6 +620,7 @@ export default function App() {
                           setStep={setStep}
                           setErrorMsg={setErrorMsg}
                           handleFileUpload={handleFileUpload}
+                          handleFilesUpload={handleFilesUpload}
                         />
                       </div>
                     )}
@@ -554,6 +630,9 @@ export default function App() {
                       <StepProfile
                         isDarkMode={isDarkMode}
                         profile={profile}
+                        profiles={profiles}
+                        activeProfileIndex={activeProfileIndex}
+                        setActiveProfileIndex={handleSelectProfile}
                         setStep={setStep}
                       />
                     )}

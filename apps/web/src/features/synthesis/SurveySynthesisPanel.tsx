@@ -96,14 +96,15 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
     return () => clearInterval(interval);
   }, [activeJobId, jobStatus]);
 
-  const handleAnalyze = async () => {
-    if (files.length < 2) return;
+  const handleAnalyze = async (targetFiles?: File[]) => {
+    const toAnalyze = targetFiles || files;
+    if (toAnalyze.length < 2) return;
     setIsAnalyzing(true);
     setError('');
     setAnalysis(null);
     setJobStatus(null);
     try {
-      const uploaded = await uploadDatasets(files);
+      const uploaded = await uploadDatasets(toAnalyze);
       const names = uploaded.flatMap(x => (!x.error && x.filename ? [x.filename] : []));
       if (names.length < 2) throw new Error('정상 업로드된 설문 파일이 2개 미만입니다.');
       setUploadedNames(names);
@@ -173,8 +174,17 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
           multiple
           maxFiles={30}
           title="설문조사 모듈 파일 일괄 업로드 (2~30개)"
-          subtitle="동일 응답자 대상 설문 엑셀/CSV 파일들을 드래그하거나 선택하세요. (예: 1. 진로수업.xlsx ~ 10. 가정소통.xlsx)"
-          onFilesSelected={selectedFiles => setFiles(selectedFiles)}
+          subtitle="동일 응답자 대상 설문 엑셀/CSV 파일들을 드래그하거나 선택하면 구조 및 분기 로직을 즉시 자동 분석합니다."
+          isUploading={isAnalyzing}
+          busyText="설문 모듈 구조, 분기 로직 및 리커트 척도 자동 분석 중..."
+          onFilesSelected={selectedFiles => {
+            setFiles(selectedFiles);
+            if (selectedFiles.length >= 2) {
+              void handleAnalyze(selectedFiles);
+            } else if (selectedFiles.length === 1) {
+              setError('설문 모듈 연계 합성을 위해 최소 2개 이상의 설문 파일을 선택해 주세요.');
+            }
+          }}
           className="mt-5"
         />
 
@@ -191,19 +201,6 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
             ))}
           </div>
         )}
-
-        <button
-          disabled={files.length < 2 || isAnalyzing || isGenerating}
-          onClick={handleAnalyze}
-          className="ui-button-primary mt-5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-        >
-          {isAnalyzing ? (
-            <RefreshCw className="mr-2 inline h-4 w-4 animate-spin" />
-          ) : (
-            <Link2 className="mr-2 inline h-4 w-4" />
-          )}
-          설문 모듈 구조, 분기 로직 및 리커트 척도 자동 분석
-        </button>
 
         {error && (
           <div className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3.5 text-xs text-rose-500 flex items-center gap-2">

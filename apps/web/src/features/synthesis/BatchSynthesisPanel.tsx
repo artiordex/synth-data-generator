@@ -7,6 +7,7 @@
  * 수정일: 2026-09-09
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { Table, Shield } from 'lucide-react';
 import { BatchStatus, BatchUploadItem, JobStatus, ReviewMetadataInput, SynthesisRequest } from '../../types';
 import { uploadDatasets, startBatch, getBatch, cancelBatch, cancelSynthesis, getDownloadUrl } from '../../services/api';
 import { AdvancedSynthesisSettings, defaultSynthesisOptions, SynthesisOptions } from './AdvancedSynthesisSettings';
@@ -139,20 +140,128 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
         {dpEnabled && <input className={field} aria-label="노이즈 Epsilon" type="number" min={0.1} step={0.1} value={epsilon} onChange={e => setEpsilon(Number(e.target.value))} />}</label>
       <AdvancedSynthesisSettings options={options} onChange={setOptions} profile={null} isDarkMode={isDarkMode} />
       <p className="text-xs text-slate-500">공통 학습 설정을 적용하며, 아래 파일별 상세 설정에서 변경한 값이 우선합니다.</p>
-      <div className="space-y-2">{files.map((file, index) => <div key={index} className="rounded-xl border border-slate-300/40 p-3">
-        <div className="flex justify-between gap-3 text-sm"><strong className="break-all">{index + 1}. {file.original_filename}</strong>
-          <span>{file.error ? '분석 실패' : `${file.profile?.row_count.toLocaleString()}행 · ${file.profile?.column_count}개 컬럼`}</span></div>
-        {file.error ? <p className="text-xs text-rose-600 mt-2">{file.error}</p> : <><AdvancedSynthesisSettings
-          options={{ ...defaultSynthesisOptions, ...file.profile?.notebook_preset?.options, ...options, ...overrides[index] }} onChange={value => setOverrides(prev => ({ ...prev, [index]: value }))}
-          profile={file.profile || null} isDarkMode={isDarkMode}
-          reviewMetadata={metadata[index] || {}}
-          onReviewMetadataChange={value => setMetadata(prev => ({ ...prev, [index]: value }))} />
-          <details className="p-3 text-xs"><summary className="cursor-pointer font-semibold">이 파일의 심의자료 입력</summary>
-            <div className="grid md:grid-cols-2 gap-3 mt-3">{reviewFields.map(([key, label]) => <label key={key} className="grid gap-1">{label}
-              <textarea className={field} rows={2} value={metadata[index]?.[key] || ''}
-                onChange={e => setMetadata(prev => ({ ...prev, [index]: { ...prev[index], [key]: e.target.value } }))} /></label>)}</div>
-          </details></>}
-      </div>)}</div>
+      <div className="space-y-3">{files.map((file, index) => {
+        const piiCount = file.profile ? Object.keys(file.profile.detected_pii || {}).length : 0;
+        const rawPreview = file.profile?.preview || [];
+        return (
+          <div key={index} className="rounded-xl border border-slate-300/40 p-3.5 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-2xs font-bold flex items-center justify-center shrink-0">
+                  {index + 1}
+                </span>
+                <strong className="break-all font-semibold text-fg">{file.original_filename}</strong>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {file.error ? (
+                  <span className="text-rose-600 font-medium">분석 실패</span>
+                ) : (
+                  <>
+                    <span className="px-2 py-0.5 rounded bg-surface-muted text-fg-muted font-mono text-2xs border border-subtle">
+                      {file.profile?.row_count.toLocaleString()}행 · {file.profile?.column_count}개 컬럼
+                    </span>
+                    {piiCount > 0 ? (
+                      <span className="px-2 py-0.5 rounded bg-warning-subtle text-warning font-medium text-2xs border border-warning/20 flex items-center gap-1">
+                        <Shield className="w-3 h-3" />
+                        PII {piiCount}개
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded bg-success-subtle text-success font-medium text-2xs border border-success/20">
+                        안전
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {file.error ? (
+              <p className="text-xs text-rose-600 mt-2">{file.error}</p>
+            ) : (
+              <>
+                {/* 15-Row Raw Data Preview Table */}
+                {rawPreview.length > 0 && file.profile && (
+                  <details className="rounded-lg border border-subtle bg-surface-muted/30 overflow-hidden text-xs">
+                    <summary className="px-3 py-2 cursor-pointer font-semibold flex items-center justify-between text-fg hover:text-accent transition-colors select-none">
+                      <span className="flex items-center gap-1.5">
+                        <Table className="w-3.5 h-3.5 text-accent" />
+                        <span>원본 데이터 샘플 미리보기 (상위 {rawPreview.length}행)</span>
+                      </span>
+                      <span className="text-2xs text-fg-muted font-normal">클릭하여 펼치기/접기</span>
+                    </summary>
+                    <div className="p-2 border-t border-subtle bg-surface overflow-x-auto max-h-[320px] scrollbar-thin">
+                      <table className="w-full text-left text-2xs font-mono border-collapse">
+                        <thead className="sticky top-0 bg-surface-muted border-b border-subtle text-fg font-bold z-10">
+                          <tr>
+                            <th className="px-2.5 py-1.5 border-r border-subtle text-center text-fg-muted bg-surface-muted w-10 shrink-0">#</th>
+                            {file.profile.columns.map((col) => (
+                              <th key={col.name} className="px-2.5 py-1.5 border-r border-subtle last:border-r-0 whitespace-nowrap">
+                                <div className="flex items-center gap-1">
+                                  <span>{col.name}</span>
+                                  <span className={`px-1 py-0.2 rounded text-3xs font-mono font-normal border ${
+                                    col.inferred_type === 'numerical'
+                                      ? 'bg-accent-subtle text-accent border-accent/20'
+                                      : col.inferred_type === 'pii'
+                                      ? 'bg-danger-subtle text-danger border-danger/20'
+                                      : 'bg-surface text-fg-subtle border-subtle'
+                                  }`}>
+                                    {col.inferred_type}
+                                  </span>
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-subtle">
+                          {rawPreview.map((row, rIdx) => (
+                            <tr key={rIdx} className="hover:bg-surface-muted/30 transition-colors">
+                              <td className="px-2.5 py-1 border-r border-subtle text-center text-fg-muted select-none bg-surface-muted/20">{rIdx + 1}</td>
+                              {file.profile!.columns.map((col) => {
+                                const val = row[col.name];
+                                const isNull = val === null || val === undefined || val === '';
+                                return (
+                                  <td key={col.name} className="px-2.5 py-1 border-r border-subtle last:border-r-0 whitespace-nowrap text-fg/90">
+                                    {isNull ? <span className="italic text-fg-muted/50 text-3xs">null</span> : String(val)}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                )}
+
+                <AdvancedSynthesisSettings
+                  options={{ ...defaultSynthesisOptions, ...file.profile?.notebook_preset?.options, ...options, ...overrides[index] }}
+                  onChange={value => setOverrides(prev => ({ ...prev, [index]: value }))}
+                  profile={file.profile || null}
+                  isDarkMode={isDarkMode}
+                  reviewMetadata={metadata[index] || {}}
+                  onReviewMetadataChange={value => setMetadata(prev => ({ ...prev, [index]: value }))}
+                />
+                <details className="p-3 text-xs border border-subtle rounded-lg bg-surface-muted/20">
+                  <summary className="cursor-pointer font-semibold">이 파일의 심의자료 입력</summary>
+                  <div className="grid md:grid-cols-2 gap-3 mt-3">
+                    {reviewFields.map(([key, label]) => (
+                      <label key={key} className="grid gap-1">
+                        {label}
+                        <textarea
+                          className={field}
+                          rows={2}
+                          value={metadata[index]?.[key] || ''}
+                          onChange={e => setMetadata(prev => ({ ...prev, [index]: { ...prev[index], [key]: e.target.value } }))}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              </>
+            )}
+          </div>
+        );
+      })}</div>
       <button type="button" disabled={busy || !good.length || (!sameRows && rows < 1)} onClick={() => void start()}
         className="ui-button-primary px-5 py-3">{good.length}개 파일 일괄 실행</button>
       {good.length !== files.length && <p className="text-xs text-rose-600">분석에 실패한 {files.length - good.length}개 파일은 실행에서 제외됩니다.</p>}

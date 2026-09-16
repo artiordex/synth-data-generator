@@ -85,9 +85,10 @@ export function SynthesisWorkflowSelector({ value, onChange, isDarkMode }: {
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" role="group" aria-label="합성 방식">
-        {workflows.map((workflow) => {
+        {workflows.map((workflow, idx) => {
           const Icon = workflow.icon;
           const selected = value === workflow.value;
+          const isLast = idx === workflows.length - 1;
           return (
             <button
               key={workflow.value}
@@ -95,6 +96,8 @@ export function SynthesisWorkflowSelector({ value, onChange, isDarkMode }: {
               aria-pressed={selected}
               onClick={() => onChange(workflow.value)}
               className={`flex min-h-[86px] items-center gap-3 rounded-xl border p-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                isLast ? 'col-span-2 md:col-span-1' : ''
+              } ${
                 selected
                   ? `${selectedStyles[workflow.accent]} shadow-sm ring-1`
                   : isDarkMode

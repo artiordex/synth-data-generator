@@ -27,11 +27,12 @@ export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose,
     onStepChange?.(result ? 4 : busy && analysis ? 3 : analysis ? 2 : 1);
   }, [analysis, busy, onStepChange, result]);
 
-  const analyze = async () => {
-    if (files.length < 2) return;
+  const analyze = async (targetFiles?: File[]) => {
+    const toAnalyze = targetFiles || files;
+    if (toAnalyze.length < 2) return;
     setBusy(true); setError(''); setResult(null);
     try {
-      const uploaded = await uploadDatasets(files);
+      const uploaded = await uploadDatasets(toAnalyze);
       const names = uploaded.flatMap(x => !x.error && x.filename ? [x.filename] : []);
       if (names.length < 2) throw new Error('정상 업로드된 테이블이 2개 미만입니다.');
       setUploadedNames(names);
@@ -58,13 +59,20 @@ export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose,
         multiple
         maxFiles={20}
         title="관계형 테이블 파일 업로드 (2~20개)"
-        subtitle="PK/FK 참조 관계를 가진 복수 테이블(CSV, Excel, TSV, JSON, Parquet)을 드래그하거나 선택하세요."
-        onFilesSelected={selectedFiles => setFiles(selectedFiles)}
+        subtitle="PK/FK 참조 관계를 가진 복수 테이블(CSV, Excel, TSV, JSON, Parquet)을 드래그하거나 선택하면 참조 무결성을 즉시 자동 분석합니다."
+        isUploading={busy}
+        busyText="테이블 간 PK/FK 참조 관계 및 무결성 자동 분석 중..."
+        onFilesSelected={selectedFiles => {
+          setFiles(selectedFiles);
+          if (selectedFiles.length >= 2) {
+            void analyze(selectedFiles);
+          } else if (selectedFiles.length === 1) {
+            setError('관계형 테이블 합성을 위해 최소 2개 이상의 연계 테이블 파일을 선택해 주세요.');
+          }
+        }}
         className="mt-5"
       />
       {files.length > 0 && <div className="mt-2 text-xs text-slate-400">{files.map(f => f.name).join(' · ')}</div>}
-      <button disabled={files.length < 2 || busy} onClick={analyze} className="ui-button-primary mt-4 px-5 py-2.5">
-        {busy ? <RefreshCw className="mr-2 inline h-4 w-4 animate-spin"/> : <Link2 className="mr-2 inline h-4 w-4"/>}PK/FK 관계 분석</button>
       {error && <div className="mt-3 rounded-xl bg-rose-500/10 p-3 text-xs text-rose-500">{error}</div>}
     </div>
 

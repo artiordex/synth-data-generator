@@ -20,22 +20,32 @@ interface StepUploadProps {
   setStep: (step: number) => void;
   setErrorMsg: (msg: string | null) => void;
   handleFileUpload: (file: File) => Promise<void>;
+  handleFilesUpload?: (files: File[]) => Promise<void>;
 }
 
 export const StepUpload: React.FC<StepUploadProps> = ({
   isUploading,
   setErrorMsg,
   handleFileUpload,
+  handleFilesUpload,
 }) => {
   return (
     <UnifiedFileUploader
       title="데이터 파일 업로드"
-      subtitle="CSV, Excel(XLSX/XLS), TSV, TXT, JSON, JSONL, Parquet 등 표 형식 데이터셋을 업로드하여 합성을 시작합니다."
+      subtitle="CSV, Excel(XLSX/XLS), TSV, TXT, JSON, JSONL, Parquet 등 단일 또는 복수의 표 형식 데이터셋을 업로드하여 합성을 시작합니다."
       accept={TABLE_DATA_FILE_EXTENSIONS}
       formatsHint={TABLE_DATA_FORMATS_HINT}
       isUploading={isUploading}
-      multiple={false}
-      onFilesSelected={([file]) => handleFileUpload(file)}
+      multiple={true}
+      maxFiles={20}
+      onFilesSelected={(files) => {
+        if (!files || files.length === 0) return;
+        if (handleFilesUpload) {
+          handleFilesUpload(files);
+        } else {
+          handleFileUpload(files[0]);
+        }
+      }}
       onError={setErrorMsg}
     />
   );

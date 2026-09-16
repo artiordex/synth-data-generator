@@ -4,9 +4,9 @@
  * 목적: 프론트엔드의 백엔드 API 호출과 응답 타입을 제공함
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-09
+ * 수정일: 2026-09-16
  */
-import { DatasetProfile, JobStatus, SynthesisRequest, AuditLogEntry, ColumnDistribution, BatchStatus, BatchUploadItem, JobAssessmentReport } from '../types';
+import { DatasetProfile, JobStatus, SynthesisRequest, AuditLogEntry, ColumnDistribution, BatchStatus, BatchUploadItem, JobAssessmentReport, SyntheticPreviewData } from '../types';
 
 const BASE_URL = '/api/v1';
 
@@ -247,6 +247,13 @@ export async function getJobAssessment(jobId: string): Promise<JobAssessmentRepo
   return res.json();
 }
 
+// 생성된 합성 데이터셋의 상위 레코드 샘플 미리보기를 조회함
+export async function getJobPreview(jobId: string, limit = 15): Promise<SyntheticPreviewData> {
+  const res = await fetch(`${BASE_URL}/jobs/${jobId}/preview?limit=${limit}`);
+  if (!res.ok) throw new Error('합성 데이터 샘플 미리보기 조회 실패');
+  return res.json();
+}
+
 // 정형 데이터 컬럼별 가명화 기법을 적용하고 지정 포맷으로 내보냄
 export async function pseudonymizeDataset(payload: {
   file_name: string;
@@ -344,6 +351,7 @@ export interface ConvertResponse {
     text_length: number;
     blocks?: Array<Record<string, any>>;
     tables?: Array<Record<string, any>>;
+    ocr_engine?: string;
     quality?: {
       source_format: string;
       text_coverage: number | null;
@@ -537,5 +545,185 @@ export async function getSurveyJobStatus(jobId: string): Promise<SurveyJobStatus
   return res.json();
 }
 
+export interface ReadinessCheckItem {
+  item: string;
+  status: 'pass' | 'warn' | 'fail';
+  message: string;
+}
 
+export interface GenerateAiRuleGuideRequest {
+  file_base64?: string;
+  payload_text: string;
+  format?: string;
+  data_category?: 'file' | 'api';
+  preset_style?: string;
+  document_title?: string;
+  orientation?: string;
+  is_large_dataset?: boolean;
+  file_size_bytes?: number;
+  estimated_total_rows?: number;
+  api_key?: string;
+  model?: string;
+  provider?: 'gemini' | 'openai' | 'auto' | 'local';
+}
+
+export interface GenerateAiRuleGuideResponse {
+  json_ld: string;
+  metadata_xml: string;
+  canonical_metadata: Record<string, unknown>;
+  success: boolean;
+  ai_powered: boolean;
+  document_title: string;
+  preset_style: string;
+  orientation: string;
+  columns: Array<{
+    key: string;
+    label: string;
+    inferredType: string;
+    align: 'left' | 'center' | 'right';
+    widthPercent: number;
+    formatType: 'text' | 'number_comma' | 'date_standard' | 'badge';
+    include: boolean;
+    sampleValues: string[];
+  }>;
+  markdown_guide: string;
+  json_rule: string;
+  ai_summary: string;
+  data_category?: 'file' | 'api';
+  is_large_dataset?: boolean;
+  ai_readiness_score?: number;
+  ai_readiness_checklist?: ReadinessCheckItem[];
+  large_data_guide?: string | null;
+}
+
+// OpenAI API를 통해 CSV/JSON/XML 데이터 기반 HWPX 롤 가이드 생성을 요청함
+export async function generateAiRuleGuide(
+  params: GenerateAiRuleGuideRequest
+): Promise<GenerateAiRuleGuideResponse> {
+  const res = await fetch(`${BASE_URL}/ai-guide/generate-rule`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    let errMsg = 'AI 롤 가이드 생성 실패';
+    try {
+      const j = await res.json();
+      errMsg = j.detail || errMsg;
+    } catch {
+      errMsg = (await res.text()) || errMsg;
+    }
+    throw new Error(errMsg);
+  }
+  return res.json();
+}
+
+
+
+
+export async function exportAiGuideHwpx(markdown: string): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}/ai-guide/export-hwpx`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({markdown}),
+  });
+  if (!res.ok) throw new Error('HWPX 생성 실패: ' + await res.text());
+  return res.blob();
+}
+
+export interface AiGuideFieldAnnotation {
+  label: string;
+  description: string;
+  unit: string;
+  codes: string;
+}
+
+export interface AiGuideTemplateRequest {
+  canonical_metadata: Record<string, unknown>;
+  metadata: Record<string, string>;
+  field_annotations: Record<string, AiGuideFieldAnnotation>;
+}
+
+export async function exportAiGuideTemplate(params: AiGuideTemplateRequest): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}/ai-guide/export-template-hwpx`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(typeof error.detail === 'string' ? error.detail : '템플릿 가이드 생성 실패');
+  }
+  return res.blob();
+}
+
+export async function parseAiGuideTemplate(fileBase64: string): Promise<{
+  title: string;
+  document_status: string;
+  dictionary: unknown[];
+  review_required: string[];
+}> {
+  const res = await fetch(`${BASE_URL}/ai-guide/parse-template-hwpx`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({file_base64: fileBase64}),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(typeof error.detail === 'string' ? error.detail : 'HWPX 재파싱 실패');
+  }
+  return res.json();
+}
+
+export interface ParsedSimpleTable {
+  title: string;
+  headers: string[];
+  rows: string[][];
+  category: string;
+}
+
+export interface GovDocParseResult {
+  filename: string;
+  format: string;
+  title: string;
+  paragraph_count: number;
+  total_tables_count: number;
+  overview_tables: ParsedSimpleTable[];
+  operation_tables: ParsedSimpleTable[];
+  parameter_tables: ParsedSimpleTable[];
+  payload_data_tables: ParsedSimpleTable[];
+  error_code_tables: ParsedSimpleTable[];
+  quality_tables: ParsedSimpleTable[];
+  other_tables: ParsedSimpleTable[];
+}
+
+export async function parseGovDocument(params: {
+  file_base64?: string;
+  text_content?: string;
+  format: string;
+  filename: string;
+}): Promise<{ success: boolean; data: GovDocParseResult; markdown: string }> {
+  const res = await fetch(`${BASE_URL}/ai-guide/parse-document`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(typeof error.detail === 'string' ? error.detail : '문서 표 파싱 실패');
+  }
+  return res.json();
+}
+
+export async function exportParsedDocx(params: {
+  file_base64?: string;
+  text_content?: string;
+  format: string;
+  filename: string;
+}): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}/ai-guide/export-parsed-docx`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(typeof error.detail === 'string' ? error.detail : 'DOCX 보고서 생성 실패');
+  }
+  return res.blob();
+}
 

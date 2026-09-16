@@ -202,3 +202,12 @@ export interface ColumnDistribution {
   };
   bins: DistributionBin[];
 }
+
+export interface SyntheticPreviewData {
+  job_id: string;
+  total_rows: number;
+  columns: string[];
+  synthetic_rows: Record<string, any>[];
+  original_rows?: Record<string, any>[];
+  filename?: string;
+}
