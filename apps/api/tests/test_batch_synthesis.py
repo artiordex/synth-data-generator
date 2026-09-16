@@ -320,15 +320,16 @@ def test_batch_creates_documents_zip_with_sequential_numbering(batch_env, monkey
     with ZipFile(final['documents_zip']) as archive:
         names = set(archive.namelist())
 
-    # 원천데이터 넘버링 확인
-    assert any(n.startswith('01_원천데이터_') for n in names), f"01_원천데이터_ 없음: {names}"
-    assert any(n.startswith('02_원천데이터_') for n in names), f"02_원천데이터_ 없음: {names}"
-    # 합성데이터 넘버링 확인
-    assert any(n.startswith('01_합성데이터_') for n in names), f"01_합성데이터_ 없음: {names}"
-    assert any(n.startswith('02_합성데이터_') for n in names), f"02_합성데이터_ 없음: {names}"
-    # 심의자료 넘버링 확인
-    assert any(n.startswith('01_심의자료_') for n in names), f"01_심의자료_ 없음: {names}"
-    assert any(n.startswith('02_심의자료_') for n in names), f"02_심의자료_ 없음: {names}"
+    # 원본데이터 폴더 안 넘버링 확인
+    assert any(n.startswith('원본데이터/01_') for n in names), f"원본데이터/01_ 없음: {names}"
+    assert any(n.startswith('원본데이터/02_') for n in names), f"원본데이터/02_ 없음: {names}"
+    # 합성데이터 폴더 안 넘버링 확인
+    assert any(n.startswith('합성데이터/01_') for n in names), f"합성데이터/01_ 없음: {names}"
+    assert any(n.startswith('합성데이터/02_') for n in names), f"합성데이터/02_ 없음: {names}"
+    # 심의자료 폴더 안 넘버링 확인
+    assert any(n.startswith('심의자료/01_') for n in names), f"심의자료/01_ 없음: {names}"
+    assert any(n.startswith('심의자료/02_') for n in names), f"심의자료/02_ 없음: {names}"
     # documents_zip과 package_zip은 별개여야 함
     assert final['documents_zip'] != final['package_zip']
+
 

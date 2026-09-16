@@ -224,10 +224,16 @@ class BatchService:
                 wrote_any = True
         return wrote_any
 
-    # 일괄 문서 단일 아카이브 파일 기록 (원천, 합성, 심의자료 순서 넘버링)
+    # 일괄 문서 단일 아카이브 파일 기록 (원천데이터/합성데이터/심의자료 폴더 안에 순서 넘버링)
     @staticmethod
     def _write_unified_documents_to_batch_zip(archive: ZipFile, job: dict, index: int) -> bool:
-        """Write one completed job's files into a single-level archive with uniform sequential numbering."""
+        """각 폴더(원본데이터, 합성데이터, 심의자료) 안에 처리 순서 넘버링된 파일을 기록함.
+
+        구조:
+          원본데이터/01_파일명.xlsx, 02_파일명.xlsx ...
+          합성데이터/01_파일명.xlsx, 02_파일명.xlsx ...
+          심의자료/01_원본데이터명세서(파일명).hwpx, 01_합성데이터명세서(파일명).hwpx ...
+        """
         original_filename = Path(job.get('original_filename') or f"data-{index}.xlsx").name
         _, raw_stem = split_leading_sequence(Path(original_filename).stem)
         dataset_name = safe_path_part(raw_stem, "데이터")
@@ -237,55 +243,54 @@ class BatchService:
 
         wrote_any = False
 
-        # 1. 원천데이터(원본데이터)
-        raw_source = package_folders.get("원본데이터")
-        raw_dir = Path(raw_source).resolve() if raw_source else None
-        if (not raw_dir or not raw_dir.is_dir()) and package_root and package_root.is_dir():
-            candidates = [p for p in package_root.iterdir() if p.is_dir() and (p.name == "원본데이터" or p.name.startswith("원본데이터_"))]
-            raw_dir = candidates[0].resolve() if candidates else None
-        if raw_dir and raw_dir.is_dir() and raw_dir.is_relative_to(output_root):
+        def resolve_source_dir(key_candidates: list[str], folder_prefix: str) -> "Path | None":
+            """package_folders 또는 package_root 탐색으로 소스 디렉터리를 찾음."""
+            configured = next((package_folders.get(k) for k in key_candidates if package_folders.get(k)), None)
+            d = Path(configured).resolve() if configured else None
+            if (not d or not d.is_dir()) and package_root and package_root.is_dir():
+                candidates = [p for p in package_root.iterdir()
+                              if p.is_dir() and (p.name == folder_prefix or p.name.startswith(f"{folder_prefix}_"))]
+                d = candidates[0].resolve() if candidates else None
+            return d if d and d.is_dir() and d.is_relative_to(output_root) else None
+
+        # 1. 원본데이터 폴더 → 원본데이터/{index:02d}_{원본파일명}
+        raw_dir = resolve_source_dir(["원본데이터"], "원본데이터")
+        if raw_dir:
             for file_path in sorted((p for p in raw_dir.iterdir() if p.is_file()), key=lambda p: p.name):
                 _, clean_stem = split_leading_sequence(file_path.stem)
-                arc_name = f"{index:02d}_원천데이터_{safe_path_part(clean_stem, '데이터')}{file_path.suffix}"
+                arc_name = f"원본데이터/{index:02d}_{safe_path_part(clean_stem, '데이터')}{file_path.suffix}"
                 archive.write(file_path, arc_name)
                 wrote_any = True
 
-        # 2. 합성데이터
-        synth_source = package_folders.get("합성데이터")
-        synth_dir = Path(synth_source).resolve() if synth_source else None
-        if (not synth_dir or not synth_dir.is_dir()) and package_root and package_root.is_dir():
-            candidates = [p for p in package_root.iterdir() if p.is_dir() and (p.name == "합성데이터" or p.name.startswith("합성데이터_"))]
-            synth_dir = candidates[0].resolve() if candidates else None
-        if synth_dir and synth_dir.is_dir() and synth_dir.is_relative_to(output_root):
+        # 2. 합성데이터 폴더 → 합성데이터/{index:02d}_{합성파일명}
+        synth_dir = resolve_source_dir(["합성데이터"], "합성데이터")
+        if synth_dir:
             for file_path in sorted((p for p in synth_dir.iterdir() if p.is_file()), key=lambda p: p.name):
                 _, clean_stem = split_leading_sequence(file_path.stem)
-                arc_name = f"{index:02d}_합성데이터_{safe_path_part(clean_stem, '데이터')}{file_path.suffix}"
+                arc_name = f"합성데이터/{index:02d}_{safe_path_part(clean_stem, '데이터')}{file_path.suffix}"
                 archive.write(file_path, arc_name)
                 wrote_any = True
 
-        # 3. 심의자료
-        review_source = package_folders.get("심의자료") or package_folders.get("심의위원회 심의자료")
-        review_dir = Path(review_source).resolve() if review_source else None
-        if (not review_dir or not review_dir.is_dir()) and package_root and package_root.is_dir():
-            candidates = [p for p in package_root.iterdir() if p.is_dir() and (p.name == "심의자료" or p.name.startswith("심의자료_"))]
-            review_dir = candidates[0].resolve() if candidates else None
-        if review_dir and review_dir.is_dir() and review_dir.is_relative_to(output_root):
+        # 3. 심의자료 폴더 → 심의자료/{index:02d}_{문서종류}
+        review_dir = resolve_source_dir(["심의자료", "심의위원회 심의자료"], "심의자료")
+        if review_dir:
             for file_path in sorted((p for p in review_dir.iterdir() if p.is_file()), key=lambda p: p.name):
                 _, clean_stem = split_leading_sequence(file_path.stem)
                 clean_name = safe_path_part(clean_stem, '문서')
+                # 심의 문서 종류 판별 — 기존 파일명에 종류가 들어 있으므로 그대로 유지하고 앞에 번호만 붙임
                 if "원본데이터 명세서" in clean_name or "원본데이터명세서" in clean_name:
-                    sub_title = f"1_원본데이터명세서({dataset_name})"
+                    doc_label = f"원본데이터 명세서({dataset_name})"
                 elif "합성데이터 명세서" in clean_name or "합성데이터명세서" in clean_name:
-                    sub_title = f"2_합성데이터명세서({dataset_name})"
+                    doc_label = f"합성데이터 명세서({dataset_name})"
                 elif "측정결과서" in clean_name or "평가서" in clean_name:
-                    sub_title = f"3_안전성및유용성측정결과서({dataset_name})"
+                    doc_label = f"안전성 및 유용성 측정결과서({dataset_name})"
                 else:
-                    sub_title = clean_name
-                arc_name = f"{index:02d}_심의자료_{sub_title}{file_path.suffix}"
+                    doc_label = clean_name
+                arc_name = f"심의자료/{index:02d}_{doc_label}{file_path.suffix}"
                 archive.write(file_path, arc_name)
                 wrote_any = True
 
-        # Fallback: 개별 package_zip이 있는 경우 내부 파일 추출
+        # Fallback: package_folders 미구성 시 개별 package_zip 내부 파일 추출
         if not wrote_any and job.get('package_zip'):
             p_zip = Path(job['package_zip']).resolve()
             if p_zip.is_file() and p_zip.is_relative_to(output_root):
@@ -295,24 +300,26 @@ class BatchService:
                             if not member.is_dir() and not member.filename.endswith('.json'):
                                 mem_path = Path(member.filename)
                                 _, clean_stem = split_leading_sequence(mem_path.stem)
-                                if "원본" in member.filename:
-                                    tag = "원천데이터"
-                                elif "합성" in member.filename:
-                                    tag = "합성데이터"
-                                elif "심의" in member.filename:
-                                    tag = "심의자료"
+                                fn = member.filename
+                                if "원본데이터" in fn or "원본" in fn:
+                                    folder = "원본데이터"
+                                elif "합성데이터" in fn or "합성" in fn:
+                                    folder = "합성데이터"
+                                elif "심의" in fn:
+                                    folder = "심의자료"
                                 else:
-                                    tag = "데이터"
-                                arc_name = f"{index:02d}_{tag}_{safe_path_part(clean_stem, '문서')}{mem_path.suffix}"
+                                    folder = "기타"
+                                arc_name = f"{folder}/{index:02d}_{safe_path_part(clean_stem, '문서')}{mem_path.suffix}"
                                 archive.writestr(arc_name, inner_zip.read(member))
                                 wrote_any = True
                 except Exception:
                     pass
                 if not wrote_any:
-                    archive.write(p_zip, f"{index:02d}_{p_zip.name}")
+                    archive.write(p_zip, f"기타/{index:02d}_{p_zip.name}")
                     wrote_any = True
 
         return wrote_any
+
 
     # recover interrupted 작업을 수행함
     @staticmethod
