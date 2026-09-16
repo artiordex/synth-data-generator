@@ -99,7 +99,10 @@ class BatchService:
                     'failed': sum(j.status == 'failed' for j in jobs),
                     'canceled': sum(j.status == 'canceled' for j in jobs),
                     'progress': min(progress, 99) if batch.status in {'pending', 'processing'} else progress,
-                    'jobs': [j.model_dump() for j in jobs], 'package_zip': batch.package_zip, 'error': batch.error}
+                    'jobs': [j.model_dump() for j in jobs],
+                    'package_zip': batch.package_zip,
+                    'documents_zip': getattr(batch, 'documents_zip', None) or batch.package_zip,
+                    'error': batch.error}
 
     # cancel 작업을 수행함
     @staticmethod
@@ -152,6 +155,8 @@ class BatchService:
                       'failed' if snapshot['failed'] else 'canceled')
             target = settings.OUTPUT_DIR / f'{batch_id}.zip'
             temporary = target.with_suffix('.zip.tmp')
+            target_docs = settings.OUTPUT_DIR / f'{batch_id}_documents.zip'
+            temporary_docs = target_docs.with_suffix('.zip.tmp')
             try:
                 with ZipFile(temporary, 'w', compression=ZIP_STORED) as archive:
                     for index, job in enumerate(snapshot['jobs'], 1):
@@ -164,11 +169,22 @@ class BatchService:
                     manifest = {**snapshot, 'status': status, 'progress': 100}
                     archive.writestr('처리결과.json', json.dumps(manifest, ensure_ascii=False, indent=2))
                 temporary.replace(target)
+
+                # 일괄 문서 단일 묶음 ZIP (원천, 합성, 심의자료 순서별 일괄 넘버링)
+                with ZipFile(temporary_docs, 'w', compression=ZIP_STORED) as docs_archive:
+                    for index, job in enumerate(snapshot['jobs'], 1):
+                        if job['status'] == 'completed':
+                            BatchService._write_unified_documents_to_batch_zip(docs_archive, job, index)
+                    docs_manifest = {**snapshot, 'status': status, 'progress': 100, 'package_type': 'unified_documents'}
+                    docs_archive.writestr('처리결과.json', json.dumps(docs_manifest, ensure_ascii=False, indent=2))
+                temporary_docs.replace(target_docs)
             finally:
                 temporary.unlink(missing_ok=True)
+                temporary_docs.unlink(missing_ok=True)
             with SessionLocal() as db:
                 batch = db.get(BatchEntity, batch_id)
                 batch.status, batch.package_zip = status, str(target)
+                batch.documents_zip = str(target_docs)
                 db.commit()
         except Exception as exc:
             with SessionLocal() as db:
@@ -206,6 +222,96 @@ class BatchService:
             for file_path in sorted((p for p in source_dir.iterdir() if p.is_file()), key=lambda p: p.name):
                 archive.write(file_path, f"{archive_folder}/{numbered_submission_filename(file_path.name, index)}")
                 wrote_any = True
+        return wrote_any
+
+    # 일괄 문서 단일 아카이브 파일 기록 (원천, 합성, 심의자료 순서 넘버링)
+    @staticmethod
+    def _write_unified_documents_to_batch_zip(archive: ZipFile, job: dict, index: int) -> bool:
+        """Write one completed job's files into a single-level archive with uniform sequential numbering."""
+        original_filename = Path(job.get('original_filename') or f"data-{index}.xlsx").name
+        _, raw_stem = split_leading_sequence(Path(original_filename).stem)
+        dataset_name = safe_path_part(raw_stem, "데이터")
+        package_folders = job.get('package_folders') or {}
+        package_root = Path(job.get('package_dir') or "").resolve() if job.get('package_dir') else None
+        output_root = settings.OUTPUT_DIR.resolve()
+
+        wrote_any = False
+
+        # 1. 원천데이터(원본데이터)
+        raw_source = package_folders.get("원본데이터")
+        raw_dir = Path(raw_source).resolve() if raw_source else None
+        if (not raw_dir or not raw_dir.is_dir()) and package_root and package_root.is_dir():
+            candidates = [p for p in package_root.iterdir() if p.is_dir() and (p.name == "원본데이터" or p.name.startswith("원본데이터_"))]
+            raw_dir = candidates[0].resolve() if candidates else None
+        if raw_dir and raw_dir.is_dir() and raw_dir.is_relative_to(output_root):
+            for file_path in sorted((p for p in raw_dir.iterdir() if p.is_file()), key=lambda p: p.name):
+                _, clean_stem = split_leading_sequence(file_path.stem)
+                arc_name = f"{index:02d}_원천데이터_{safe_path_part(clean_stem, '데이터')}{file_path.suffix}"
+                archive.write(file_path, arc_name)
+                wrote_any = True
+
+        # 2. 합성데이터
+        synth_source = package_folders.get("합성데이터")
+        synth_dir = Path(synth_source).resolve() if synth_source else None
+        if (not synth_dir or not synth_dir.is_dir()) and package_root and package_root.is_dir():
+            candidates = [p for p in package_root.iterdir() if p.is_dir() and (p.name == "합성데이터" or p.name.startswith("합성데이터_"))]
+            synth_dir = candidates[0].resolve() if candidates else None
+        if synth_dir and synth_dir.is_dir() and synth_dir.is_relative_to(output_root):
+            for file_path in sorted((p for p in synth_dir.iterdir() if p.is_file()), key=lambda p: p.name):
+                _, clean_stem = split_leading_sequence(file_path.stem)
+                arc_name = f"{index:02d}_합성데이터_{safe_path_part(clean_stem, '데이터')}{file_path.suffix}"
+                archive.write(file_path, arc_name)
+                wrote_any = True
+
+        # 3. 심의자료
+        review_source = package_folders.get("심의자료") or package_folders.get("심의위원회 심의자료")
+        review_dir = Path(review_source).resolve() if review_source else None
+        if (not review_dir or not review_dir.is_dir()) and package_root and package_root.is_dir():
+            candidates = [p for p in package_root.iterdir() if p.is_dir() and (p.name == "심의자료" or p.name.startswith("심의자료_"))]
+            review_dir = candidates[0].resolve() if candidates else None
+        if review_dir and review_dir.is_dir() and review_dir.is_relative_to(output_root):
+            for file_path in sorted((p for p in review_dir.iterdir() if p.is_file()), key=lambda p: p.name):
+                _, clean_stem = split_leading_sequence(file_path.stem)
+                clean_name = safe_path_part(clean_stem, '문서')
+                if "원본데이터 명세서" in clean_name or "원본데이터명세서" in clean_name:
+                    sub_title = f"1_원본데이터명세서({dataset_name})"
+                elif "합성데이터 명세서" in clean_name or "합성데이터명세서" in clean_name:
+                    sub_title = f"2_합성데이터명세서({dataset_name})"
+                elif "측정결과서" in clean_name or "평가서" in clean_name:
+                    sub_title = f"3_안전성및유용성측정결과서({dataset_name})"
+                else:
+                    sub_title = clean_name
+                arc_name = f"{index:02d}_심의자료_{sub_title}{file_path.suffix}"
+                archive.write(file_path, arc_name)
+                wrote_any = True
+
+        # Fallback: 개별 package_zip이 있는 경우 내부 파일 추출
+        if not wrote_any and job.get('package_zip'):
+            p_zip = Path(job['package_zip']).resolve()
+            if p_zip.is_file() and p_zip.is_relative_to(output_root):
+                try:
+                    with ZipFile(p_zip, 'r') as inner_zip:
+                        for member in inner_zip.infolist():
+                            if not member.is_dir() and not member.filename.endswith('.json'):
+                                mem_path = Path(member.filename)
+                                _, clean_stem = split_leading_sequence(mem_path.stem)
+                                if "원본" in member.filename:
+                                    tag = "원천데이터"
+                                elif "합성" in member.filename:
+                                    tag = "합성데이터"
+                                elif "심의" in member.filename:
+                                    tag = "심의자료"
+                                else:
+                                    tag = "데이터"
+                                arc_name = f"{index:02d}_{tag}_{safe_path_part(clean_stem, '문서')}{mem_path.suffix}"
+                                archive.writestr(arc_name, inner_zip.read(member))
+                                wrote_any = True
+                except Exception:
+                    pass
+                if not wrote_any:
+                    archive.write(p_zip, f"{index:02d}_{p_zip.name}")
+                    wrote_any = True
+
         return wrote_any
 
     # recover interrupted 작업을 수행함

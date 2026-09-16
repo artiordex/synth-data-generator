@@ -261,3 +261,74 @@ def test_profile_returns_unique_value_preview_beyond_first_five(batch_env):
     assert column['unique_values_total'] == 8
     assert column['samples'] == values
     assert column['samples_truncated'] is False
+
+
+# 일괄 처리 완료 후 documents_zip에 순서 넘버링 파일 생성 기능을 테스트함
+def test_batch_creates_documents_zip_with_sequential_numbering(batch_env, monkeypatch):
+    """BatchService._run_batch이 완료 시 documents_zip을 생성하고 순서 넘버링이 적용되는지 확인함."""
+    originals = [
+        '1. 진로수업_세종.xlsx',
+        '2. 자기이해_세종.xlsx',
+    ]
+    requests = []
+    for index, original in enumerate(originals, 1):
+        upload_name = f'upload-doc-{index}.xlsx'
+        pd.DataFrame({'값': [index]}).to_excel(batch_env.uploads / upload_name, index=False)
+        requests.append({'file_name': upload_name, 'original_filename': original, 'target_rows': 2})
+
+    batch = batch_env.client.post('/api/v1/batches', json={'requests': requests}).json()
+
+    def run(job_id, request):
+        dataset_name = request.original_filename.split('. ', 1)[1].rsplit('.', 1)[0]
+        root = batch_env.outputs / f'{job_id}_{dataset_name}'
+        original_dir = root / '원본데이터_세종'
+        synthetic_dir = root / '합성데이터_세종'
+        review_dir = root / '심의자료_세종'
+        for directory in (original_dir, synthetic_dir, review_dir):
+            directory.mkdir(parents=True)
+        (original_dir / request.original_filename).write_text('원본', encoding='utf-8')
+        (synthetic_dir / f'합성데이터_{dataset_name}.xlsx').write_text('합성', encoding='utf-8')
+        (review_dir / f'원본데이터 명세서({dataset_name}).hwpx').write_text('명세서', encoding='utf-8')
+        (review_dir / f'합성데이터 명세서({dataset_name}).hwpx').write_text('합성명세서', encoding='utf-8')
+        (review_dir / f'합성데이터 안전성 및 유용성 측정결과서({dataset_name}).hwpx').write_text('측정', encoding='utf-8')
+        job_zip = batch_env.outputs / f'{job_id}.zip'
+        with ZipFile(job_zip, 'w') as archive:
+            archive.writestr('legacy.txt', 'legacy')
+        with batch_env.sessions() as db:
+            from synthetic_api.infrastructure.repositories.job_repo_impl import JobRepository
+            repo = JobRepository(db)
+            job = repo.get_by_id(job_id)
+            job.status = 'completed'
+            job.progress = 100
+            job.package_dir = str(root)
+            job.package_zip = str(job_zip)
+            job.package_folders = {
+                '원본데이터': str(original_dir),
+                '합성데이터': str(synthetic_dir),
+                '심의자료': str(review_dir),
+            }
+            repo.save(job)
+
+    monkeypatch.setattr(synthesis_service.SynthesisService, '_run_pipeline', run)
+    BatchService._run_batch(batch['id'])
+    final = BatchService.get(batch['id'])
+
+    assert final['status'] == 'completed'
+    assert final['documents_zip'] is not None
+    assert Path(final['documents_zip']).exists()
+
+    with ZipFile(final['documents_zip']) as archive:
+        names = set(archive.namelist())
+
+    # 원천데이터 넘버링 확인
+    assert any(n.startswith('01_원천데이터_') for n in names), f"01_원천데이터_ 없음: {names}"
+    assert any(n.startswith('02_원천데이터_') for n in names), f"02_원천데이터_ 없음: {names}"
+    # 합성데이터 넘버링 확인
+    assert any(n.startswith('01_합성데이터_') for n in names), f"01_합성데이터_ 없음: {names}"
+    assert any(n.startswith('02_합성데이터_') for n in names), f"02_합성데이터_ 없음: {names}"
+    # 심의자료 넘버링 확인
+    assert any(n.startswith('01_심의자료_') for n in names), f"01_심의자료_ 없음: {names}"
+    assert any(n.startswith('02_심의자료_') for n in names), f"02_심의자료_ 없음: {names}"
+    # documents_zip과 package_zip은 별개여야 함
+    assert final['documents_zip'] != final['package_zip']
+

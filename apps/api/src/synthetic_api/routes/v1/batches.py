@@ -50,3 +50,21 @@ def cancel_batch(batch_id: str):
         return BatchService.cancel(batch_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+# 일괄 작업의 통합 순서 넘버링 문서 ZIP을 다운로드함
+@router.get('/{batch_id}/download-documents', summary='일괄 처리 문서 ZIP 다운로드', description='원천데이터, 합성데이터, 심의자료 문서가 순서대로 넘버링된 단일 압축파일을 다운로드합니다.')
+def download_batch_documents(batch_id: str):
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    try:
+        snapshot = BatchService.get(batch_id)
+        zip_path = snapshot.get('documents_zip') or snapshot.get('package_zip')
+        if not zip_path or not Path(zip_path).is_file():
+            raise HTTPException(status_code=404, detail="다운로드할 일괄 문서 파일이 아직 준비되지 않았거나 없습니다.")
+        path = Path(zip_path).resolve()
+        filename = f"일괄처리문서_{batch_id}.zip"
+        return FileResponse(path=str(path), filename=filename, media_type="application/zip")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+

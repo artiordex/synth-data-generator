@@ -96,5 +96,7 @@ class BatchEntity(Base):
     status = Column(String(32), default="pending")
     items_json = Column(Text, nullable=False)
     package_zip = Column(Text, nullable=True)
+    documents_zip = Column(Text, nullable=True)
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+

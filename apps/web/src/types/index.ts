@@ -93,6 +93,7 @@ export interface BatchStatus {
   progress: number;
   jobs: JobStatus[];
   package_zip: string | null;
+  documents_zip?: string | null;
   error: string | null;
 }
 

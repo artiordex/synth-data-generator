@@ -20,8 +20,17 @@ from synthetic_api.infrastructure.db.session import engine, Base
 from synthetic_api.routes.v1.router import api_router
 from synthetic_api.infrastructure.file_access import confined_file
 
+from sqlalchemy import text
+
 # Initialize database schema
 Base.metadata.create_all(bind=engine)
+try:
+    with engine.begin() as conn:
+        cols = [r[1] for r in conn.execute(text("PRAGMA table_info(synthesis_batches)")).fetchall()]
+        if cols and "documents_zip" not in cols:
+            conn.execute(text("ALTER TABLE synthesis_batches ADD COLUMN documents_zip TEXT"))
+except Exception:
+    pass
 setup_logging()
 
 # lifespan 작업을 수행함

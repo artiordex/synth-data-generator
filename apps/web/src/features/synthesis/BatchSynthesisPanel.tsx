@@ -1,18 +1,19 @@
 /**
  * 파일명: BatchSynthesisPanel.tsx
  * 경로: apps/web/src/features/synthesis/BatchSynthesisPanel.tsx
- * 목적: 합성 파일 일괄 처리 화면을 제공함
+ * 목적: 합성 파일 일괄 처리 화면을 제공함 (순서 조정 및 일괄 문서 다운로드 포함)
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-09
+ * 수정일: 2026-09-17
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Table, Shield } from 'lucide-react';
+import { Table, Shield, GripVertical, ChevronUp, ChevronDown, ArrowUpAZ, ArrowDownAZ, Download, FolderArchive } from 'lucide-react';
 import { BatchStatus, BatchUploadItem, JobStatus, ReviewMetadataInput, SynthesisRequest } from '../../types';
 import { uploadDatasets, startBatch, getBatch, cancelBatch, cancelSynthesis, getDownloadUrl } from '../../services/api';
 import { AdvancedSynthesisSettings, defaultSynthesisOptions, SynthesisOptions } from './AdvancedSynthesisSettings';
 import { TABLE_DATA_FILE_EXTENSIONS, TABLE_DATA_FORMATS_HINT, UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 import { SectionHeader } from '../../components/SectionHeader';
+
 
 const labels: Record<string, string> = { pending: '대기', processing: '처리 중', completed: '완료',
   completed_with_errors: '일부 실패·취소', failed: '실패', canceled: '취소' };
@@ -22,10 +23,23 @@ const reviewFields: Array<[keyof Pick<ReviewMetadataInput, 'dataset_name' | 'spe
   ['overview', '정보 개요'], ['privacy_plan', '개인정보 처리계획'],
 ];
 
+/** 파일별 확장 상태: filename을 키로 해서 순서 변경과 독립적으로 유지됨 */
+interface FileExtraState {
+  metadata: ReviewMetadataInput;
+  overrides: SynthesisOptions;
+}
+
+/** 자연어 숫자 정렬 comparator */
+function naturalCompare(a: string, b: string) {
+  return a.localeCompare(b, 'ko', { numeric: true, sensitivity: 'base' });
+}
+
 export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, onClose, onOpenJob, onStepChange }: {
   initialFiles: File[]; initialBatchId?: string | null; isDarkMode: boolean; onClose: () => void; onOpenJob: (job: JobStatus) => void; onStepChange?: (step: number) => void;
 }) {
   const [files, setFiles] = useState<BatchUploadItem[]>([]);
+  // 파일별 확장 상태: key = file.filename (서버 고유명)
+  const [extras, setExtras] = useState<Record<string, FileExtraState>>({});
   const [batch, setBatch] = useState<BatchStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -36,9 +50,10 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
   const [purpose, setPurpose] = useState('합성데이터 생성 및 분석');
   const [dpEnabled, setDpEnabled] = useState(false);
   const [epsilon, setEpsilon] = useState(1);
-  const [metadata, setMetadata] = useState<Record<number, ReviewMetadataInput>>({});
   const [options, setOptions] = useState<SynthesisOptions>({});
-  const [overrides, setOverrides] = useState<Record<number, SynthesisOptions>>({});
+  // 드래그 앤 드롭 상태
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const initialized = useRef(false);
   const active = isRunning(batch);
   const field = 'ui-field';
@@ -52,7 +67,7 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
     if (!selected.length) return;
     if (selected.length > 20) { setError('한 번에 최대 20개 파일을 선택하세요.'); return; }
     if (selected.some(f => f.size > 100 * 1024 * 1024)) { setError('파일당 최대 100MB까지 업로드할 수 있습니다.'); return; }
-    setBusy(true); setError(''); setBatch(null); setFiles([]); setOverrides({}); setMetadata({});
+    setBusy(true); setError(''); setBatch(null); setFiles([]); setExtras({});
     try { setFiles(await uploadDatasets(selected)); }
     catch (e) { setError(String(e)); }
     finally { setBusy(false); }
@@ -85,11 +100,14 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
   async function start() {
     setBusy(true); setError('');
     try {
-      const requests: SynthesisRequest[] = files.flatMap((file, index) => file.filename && file.profile && !file.error ? [{
-        ...defaultSynthesisOptions, ...file.profile.notebook_preset?.options, ...options, ...overrides[index], file_name: file.filename, original_filename: file.original_filename,
+      const requests: SynthesisRequest[] = files.flatMap((file) => file.filename && file.profile && !file.error ? [{
+        ...defaultSynthesisOptions, ...file.profile.notebook_preset?.options, ...options,
+        ...(extras[file.filename!]?.overrides || {}),
+        file_name: file.filename!, original_filename: file.original_filename,
         model_type: model, target_rows: sameRows ? Math.max(file.profile.row_count, 1) : rows,
         department_name: department, project_purpose: purpose,
-        dp_enabled: dpEnabled, eps: epsilon, quality_threshold: 0.8, review_metadata: metadata[index],
+        dp_enabled: dpEnabled, eps: epsilon, quality_threshold: 0.8,
+        review_metadata: extras[file.filename!]?.metadata,
       }] : []);
       const result = await startBatch(requests);
       setBatch(result);
@@ -104,6 +122,56 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
       else setBatch(await cancelBatch(batch.id));
     } catch (e) { setError(String(e)); }
   }
+
+  // 순서 변경 헬퍼
+  function moveFile(from: number, to: number) {
+    if (to < 0 || to >= files.length) return;
+    const next = [...files];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setFiles(next);
+  }
+
+  function sortFiles(asc: boolean) {
+    setFiles(prev => [...prev].sort((a, b) =>
+      asc ? naturalCompare(a.original_filename, b.original_filename)
+           : naturalCompare(b.original_filename, a.original_filename)
+    ));
+  }
+
+  // Drag & Drop handlers
+  function onDragStart(e: React.DragEvent, index: number) {
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function onDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  }
+  function onDrop(e: React.DragEvent, index: number) {
+    e.preventDefault();
+    if (dragIndex !== null && dragIndex !== index) moveFile(dragIndex, index);
+    setDragIndex(null); setDragOverIndex(null);
+  }
+  function onDragEnd() { setDragIndex(null); setDragOverIndex(null); }
+
+  // 파일별 extra 상태 업데이터
+  function updateExtra(filename: string, patch: Partial<FileExtraState>) {
+    setExtras(prev => {
+      const existing = prev[filename] || { metadata: {} as ReviewMetadataInput, overrides: {} as SynthesisOptions };
+      return { ...prev, [filename]: { ...existing, ...patch } };
+    });
+  }
+
+
+  // 일괄 문서 다운로드 URL (documents_zip 우선, fallback은 API 엔드포인트)
+  const documentsZipUrl = batch
+    ? (batch.documents_zip
+        ? getDownloadUrl(batch.documents_zip)
+        : `/api/v1/batches/${batch.id}/download-documents`)
+    : null;
+
 
   return <section className="ui-panel space-y-5 p-6">
     <SectionHeader
@@ -140,19 +208,82 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
         {dpEnabled && <input className={field} aria-label="노이즈 Epsilon" type="number" min={0.1} step={0.1} value={epsilon} onChange={e => setEpsilon(Number(e.target.value))} />}</label>
       <AdvancedSynthesisSettings options={options} onChange={setOptions} profile={null} isDarkMode={isDarkMode} />
       <p className="text-xs text-slate-500">공통 학습 설정을 적용하며, 아래 파일별 상세 설정에서 변경한 값이 우선합니다.</p>
+
+      {/* 파일 순서 조정 툴바 */}
+      <div className="flex flex-wrap items-center gap-2 pb-1 border-b border-subtle">
+        <span className="text-xs font-semibold text-fg-muted mr-1">처리 순서 조정</span>
+        <button
+          type="button"
+          onClick={() => sortFiles(true)}
+          className="ui-button-secondary flex items-center gap-1 px-2.5 py-1 text-xs"
+          title="파일명 오름차순 정렬"
+        >
+          <ArrowUpAZ className="w-3.5 h-3.5" /> 오름차순
+        </button>
+        <button
+          type="button"
+          onClick={() => sortFiles(false)}
+          className="ui-button-secondary flex items-center gap-1 px-2.5 py-1 text-xs"
+          title="파일명 내림차순 정렬"
+        >
+          <ArrowDownAZ className="w-3.5 h-3.5" /> 내림차순
+        </button>
+        <span className="text-xs text-fg-muted ml-1">· 또는 각 항목을 드래그하거나 ▲▼ 버튼으로 순서를 조정하세요.</span>
+      </div>
+
       <div className="space-y-3">{files.map((file, index) => {
+        const key = file.filename || file.original_filename;
+        const extra = extras[key] || { metadata: {} as ReviewMetadataInput, overrides: {} };
         const piiCount = file.profile ? Object.keys(file.profile.detected_pii || {}).length : 0;
         const rawPreview = file.profile?.preview || [];
+        const isDragging = dragIndex === index;
+        const isDragOver = dragOverIndex === index && dragIndex !== index;
         return (
-          <div key={index} className="rounded-xl border border-slate-300/40 p-3.5 space-y-2.5">
+          <div
+            key={key}
+            draggable
+            onDragStart={e => onDragStart(e, index)}
+            onDragOver={e => onDragOver(e, index)}
+            onDrop={e => onDrop(e, index)}
+            onDragEnd={onDragEnd}
+            className={`rounded-xl border p-3.5 space-y-2.5 transition-all
+              ${isDragging ? 'opacity-40 border-accent scale-[0.99]' : 'border-slate-300/40'}
+              ${isDragOver ? 'border-accent border-dashed bg-accent/5 shadow-md' : ''}
+            `}
+          >
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <div className="flex items-center gap-2 min-w-0">
+                {/* 드래그 핸들 */}
+                <span
+                  className="w-5 h-5 flex items-center justify-center text-fg-muted cursor-grab active:cursor-grabbing shrink-0"
+                  title="드래그하여 순서 변경"
+                >
+                  <GripVertical className="w-4 h-4" />
+                </span>
+                {/* 순서 번호 배지 */}
                 <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-2xs font-bold flex items-center justify-center shrink-0">
                   {index + 1}
                 </span>
                 <strong className="break-all font-semibold text-fg">{file.original_filename}</strong>
               </div>
               <div className="flex items-center gap-2 text-xs">
+                {/* 위/아래 이동 버튼 */}
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => moveFile(index, index - 1)}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-surface-muted disabled:opacity-25"
+                    title="위로 이동"
+                  ><ChevronUp className="w-3 h-3" /></button>
+                  <button
+                    type="button"
+                    disabled={index === files.length - 1}
+                    onClick={() => moveFile(index, index + 1)}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-surface-muted disabled:opacity-25"
+                    title="아래로 이동"
+                  ><ChevronDown className="w-3 h-3" /></button>
+                </div>
                 {file.error ? (
                   <span className="text-rose-600 font-medium">분석 실패</span>
                 ) : (
@@ -179,7 +310,7 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
               <p className="text-xs text-rose-600 mt-2">{file.error}</p>
             ) : (
               <>
-                {/* 15-Row Raw Data Preview Table */}
+                {/* 원본 데이터 샘플 미리보기 */}
                 {rawPreview.length > 0 && file.profile && (
                   <details className="rounded-lg border border-subtle bg-surface-muted/30 overflow-hidden text-xs">
                     <summary className="px-3 py-2 cursor-pointer font-semibold flex items-center justify-between text-fg hover:text-accent transition-colors select-none">
@@ -234,24 +365,24 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
                 )}
 
                 <AdvancedSynthesisSettings
-                  options={{ ...defaultSynthesisOptions, ...file.profile?.notebook_preset?.options, ...options, ...overrides[index] }}
-                  onChange={value => setOverrides(prev => ({ ...prev, [index]: value }))}
+                  options={{ ...defaultSynthesisOptions, ...file.profile?.notebook_preset?.options, ...options, ...extra.overrides }}
+                  onChange={value => updateExtra(key, { overrides: value })}
                   profile={file.profile || null}
                   isDarkMode={isDarkMode}
-                  reviewMetadata={metadata[index] || {}}
-                  onReviewMetadataChange={value => setMetadata(prev => ({ ...prev, [index]: value }))}
+                  reviewMetadata={extra.metadata}
+                  onReviewMetadataChange={value => updateExtra(key, { metadata: value })}
                 />
                 <details className="p-3 text-xs border border-subtle rounded-lg bg-surface-muted/20">
                   <summary className="cursor-pointer font-semibold">이 파일의 심의자료 입력</summary>
                   <div className="grid md:grid-cols-2 gap-3 mt-3">
-                    {reviewFields.map(([key, label]) => (
-                      <label key={key} className="grid gap-1">
+                    {reviewFields.map(([rKey, label]) => (
+                      <label key={rKey} className="grid gap-1">
                         {label}
                         <textarea
                           className={field}
                           rows={2}
-                          value={metadata[index]?.[key] || ''}
-                          onChange={e => setMetadata(prev => ({ ...prev, [index]: { ...prev[index], [key]: e.target.value } }))}
+                          value={extra.metadata?.[rKey] || ''}
+                          onChange={e => updateExtra(key, { metadata: { ...extra.metadata, [rKey]: e.target.value } })}
                         />
                       </label>
                     ))}
@@ -267,10 +398,35 @@ export function BatchSynthesisPanel({ initialFiles, initialBatchId, isDarkMode, 
       {good.length !== files.length && <p className="text-xs text-rose-600">분석에 실패한 {files.length - good.length}개 파일은 실행에서 제외됩니다.</p>}
     </>}
     {batch && <>
-      <div className="flex flex-wrap items-center justify-between gap-3"><strong>{labels[batch.status]} · {batch.finished}/{batch.total}개 처리</strong>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <strong>{labels[batch.status]} · {batch.finished}/{batch.total}개 처리</strong>
         <span className="text-sm">완료 {batch.completed} · 실패 {batch.failed} · 취소 {batch.canceled}</span>
         {active && <button className="ui-button-danger" onClick={() => void cancel()}>전체 중단</button>}
-        {batch.package_zip && <a className="ui-button-primary" href={getDownloadUrl(batch.package_zip)}>전체 결과 ZIP 다운로드</a>}
+        {/* 다운로드 버튼 영역 (완료 후 표시) */}
+        {!active && (batch.package_zip || batch.documents_zip) && (
+          <div className="flex flex-wrap gap-2 items-center">
+            {documentsZipUrl && (
+              <a
+                className="ui-button-primary flex items-center gap-1.5 px-3 py-2 text-sm"
+                href={documentsZipUrl}
+                title="원천데이터, 합성데이터, 심의자료가 처리 순서(01, 02, …)로 넘버링된 단일 ZIP 파일"
+              >
+                <Download className="w-4 h-4" />
+                일괄 문서 다운로드 (순서 넘버링)
+              </a>
+            )}
+            {batch.package_zip && (
+              <a
+                className="ui-button-secondary flex items-center gap-1.5 px-3 py-2 text-sm"
+                href={getDownloadUrl(batch.package_zip)}
+                title="원본 폴더 구조(원천데이터/합성데이터/심의자료 폴더별)로 패키징된 전체 결과 ZIP"
+              >
+                <FolderArchive className="w-4 h-4" />
+                폴더별 결과 ZIP
+              </a>
+            )}
+          </div>
+        )}
       </div>
       <progress className="w-full h-3" max={100} value={batch.progress} aria-label="일괄 처리 진행률" />
       {batch.error && <p role="alert" className="text-rose-600 text-sm">{batch.error}</p>}
