@@ -16,9 +16,26 @@ import pandas as pd
 from synthetic_api.domain.models.job import JobStatus
 from synthetic_api.routes.dependencies import get_job_repo
 from synthetic_api.infrastructure.repositories.job_repo_impl import JobRepository
+from synthetic_api.core.config import settings
 from synthetic_engine import compute_column_distributions, read_table, infer_columns, build_column_plan
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def resolve_folder(folder_path: str | None) -> Path | None:
+    """윈도우 및 도커(리눅스) 컨테이너 간 storage 경로 불일치를 자동 매핑함"""
+    if not folder_path:
+        return None
+    p = Path(folder_path)
+    if p.exists():
+        return p
+    norm = str(folder_path).replace("\\", "/")
+    if "storage/" in norm:
+        sub = norm.split("storage/", 1)[1]
+        candidate = settings.STORAGE_DIR / sub
+        if candidate.exists():
+            return candidate
+    return None
 
 # 등록된 데이터 합성 작업 목록과 진행 상태를 조회함
 @router.get("", response_model=List[JobStatus], summary="전체 합성 작업 목록 조회", description="등록된 모든 합성 작업(Job)의 상태, 진행률, 생성일시 목록을 조회합니다.")
@@ -42,26 +59,27 @@ async def get_job_distributions(job_id: str, repo: JobRepository = Depends(get_j
 
     # 1. Try reading precomputed distributions from evaluation report json
     review_folder = (job.package_folders.get("심의자료") or job.package_folders.get("심의위원회 심의자료")) if job.package_folders else None
-    if review_folder:
-        rev_path = Path(review_folder)
-        if rev_path.exists():
-            for report_file in rev_path.glob("*evaluation_report.json"):
-                try:
-                    with report_file.open("r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    dists = data.get("column_distributions") or data.get("utility", {}).get("column_distributions")
-                    if dists:
-                        return {"job_id": job_id, "columns": dists}
-                except Exception:
-                    pass
+    rev_path = resolve_folder(review_folder)
+    if rev_path:
+        for report_file in rev_path.glob("*evaluation_report.json"):
+            try:
+                with report_file.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                dists = data.get("column_distributions") or data.get("utility", {}).get("column_distributions")
+                if dists:
+                    return {"job_id": job_id, "columns": dists}
+            except Exception:
+                pass
 
     # 2. Fallback: on-the-fly calculation from original & synthetic files if available
     try:
         orig_folder = job.package_folders.get("원본데이터") if job.package_folders else None
         synth_folder = job.package_folders.get("합성데이터") if job.package_folders else None
+        orig_path = resolve_folder(orig_folder)
+        synth_path = resolve_folder(synth_folder)
         
-        orig_csv = next(Path(orig_folder).glob("*.csv"), None) if orig_folder and Path(orig_folder).exists() else None
-        synth_csv = next(Path(synth_folder).glob("*.csv"), None) if synth_folder and Path(synth_folder).exists() else None
+        orig_csv = next(orig_path.glob("*.csv"), None) if orig_path else None
+        synth_csv = next(synth_path.glob("*.csv"), None) if synth_path else None
 
         if orig_csv and synth_csv:
             orig_df = read_table(orig_csv)
@@ -69,7 +87,7 @@ async def get_job_distributions(job_id: str, repo: JobRepository = Depends(get_j
             plan = build_column_plan({}, orig_df)
             dists = compute_column_distributions(orig_df, synth_df, plan)
             return {"job_id": job_id, "columns": dists}
-    except Exception as e:
+    except Exception:
         pass
 
     return {"job_id": job_id, "columns": []}
@@ -82,11 +100,8 @@ async def get_job_assessment(job_id: str, repo: JobRepository = Depends(get_job_
         raise HTTPException(status_code=404, detail="작업을 찾을 수 없습니다.")
 
     review_folder = (job.package_folders.get("심의자료") or job.package_folders.get("심의위원회 심의자료")) if job.package_folders else None
-    if not review_folder:
-        return {"job_id": job_id, "assessment": None}
-
-    rev_path = Path(review_folder)
-    if not rev_path.exists():
+    rev_path = resolve_folder(review_folder)
+    if not rev_path:
         return {"job_id": job_id, "assessment": None}
 
     for report_file in rev_path.glob("*evaluation_report.json"):
@@ -106,3 +121,59 @@ async def get_job_assessment(job_id: str, repo: JobRepository = Depends(get_job_
             pass
 
     return {"job_id": job_id, "assessment": None}
+
+
+# 합성 작업 결과 데이터셋의 상위 샘플 미리보기 데이터를 조회함
+@router.get("/{job_id}/preview", summary="생성된 합성 데이터 샘플 미리보기 조회", description="생성 완료된 합성 데이터셋의 상위 레코드 샘플(기본 15행) 및 원본 데이터 샘플을 조회합니다.")
+async def get_job_preview(
+    job_id: str,
+    limit: int = 15,
+    repo: JobRepository = Depends(get_job_repo)
+):
+    job = repo.get_by_id(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="작업을 찾을 수 없습니다.")
+
+    limit = max(1, min(limit, 100))
+    result: Dict[str, Any] = {
+        "job_id": job_id,
+        "total_rows": job.target_rows,
+        "columns": [],
+        "synthetic_rows": [],
+        "original_rows": [],
+        "filename": job.original_filename,
+    }
+
+    # 1. 합성데이터 CSV 읽기
+    synth_folder = job.package_folders.get("합성데이터") if job.package_folders else None
+    synth_path = resolve_folder(synth_folder)
+    if synth_path:
+        synth_csv = next(synth_path.glob("*.csv"), None)
+        if synth_csv and synth_csv.exists():
+            try:
+                synth_df = read_table(synth_csv)
+                result["columns"] = list(synth_df.columns)
+                result["total_rows"] = len(synth_df)
+                sample_synth = synth_df.head(limit)
+                sample_synth = sample_synth.where(pd.notnull(sample_synth), None)
+                result["synthetic_rows"] = sample_synth.to_dict(orient="records")
+            except Exception:
+                pass
+
+    # 2. 원본데이터 CSV 읽기 (비교용)
+    orig_folder = job.package_folders.get("원본데이터") if job.package_folders else None
+    orig_path = resolve_folder(orig_folder)
+    if orig_path:
+        orig_csv = next(orig_path.glob("*.csv"), None)
+        if orig_csv and orig_csv.exists():
+            try:
+                orig_df = read_table(orig_csv)
+                if not result["columns"]:
+                    result["columns"] = list(orig_df.columns)
+                sample_orig = orig_df.head(limit)
+                sample_orig = sample_orig.where(pd.notnull(sample_orig), None)
+                result["original_rows"] = sample_orig.to_dict(orient="records")
+            except Exception:
+                pass
+
+    return result

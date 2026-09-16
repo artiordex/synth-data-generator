@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 # 파일명: dataset_service.py
 # 경로: apps/api/src/synthetic_api/application/services/dataset_service.py
@@ -97,7 +98,7 @@ class DatasetService:
                 'unique_values_total': int(len(unique_values)),
             })
             
-        preview_rows = df.head(10).fillna('').to_dict(orient='records')
+        preview_rows = df.head(15).fillna('').to_dict(orient='records')
         sha256_hash = calculate_sha256(p)
         
         return {

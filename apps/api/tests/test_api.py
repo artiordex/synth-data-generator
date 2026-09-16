@@ -42,6 +42,11 @@ def test_job_distributions_not_found():
     res = client.get("/api/v1/jobs/non-existent-job-id/distributions")
     assert res.status_code == 404
 
+# 합성 작업 preview not found 기능의 정상 동작 및 제약조건을 테스트함
+def test_job_preview_not_found():
+    res = client.get("/api/v1/jobs/non-existent-job-id/preview")
+    assert res.status_code == 404
+
 
 # src layout resolves workspace 경로 목록 기능의 정상 동작 및 제약조건을 테스트함
 def test_src_layout_resolves_workspace_paths():

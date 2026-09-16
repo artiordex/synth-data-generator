@@ -5,7 +5,7 @@
 # 목적: PDF, HWPX, DOCX, HTML 등 다중 포맷 고충실도 변환을 오케스트레이션함
 # 작성자: 개발팀
 # 작성일: 2026-09-09
-# 수정일: 2026-09-13
+# 수정일: 2026-09-16
 # =============================================================================
 """Document conversion orchestration and legacy format adapters; no route dependency."""
 from __future__ import annotations
@@ -748,6 +748,8 @@ def _convert_hwpx_to_html_and_markdown(input_path: Path) -> tuple[str, str]:
                         raw_data = zf.read(n)
                         b64 = base64.b64encode(raw_data).decode("ascii")
                         bindata_map[Path(n).name] = b64
+                        bindata_map[Path(n).stem] = b64
+                        bindata_map[n] = b64
                     except Exception:
                         pass
             if "Contents/content.hpf" in namelist:
@@ -757,7 +759,11 @@ def _convert_hwpx_to_html_and_markdown(input_path: Path) -> tuple[str, str]:
                     if identifier and href:
                         path = href if href in namelist else f"Contents/{href}"
                         if path in namelist:
-                            bindata_map[identifier] = base64.b64encode(zf.read(path)).decode("ascii")
+                            b64 = base64.b64encode(zf.read(path)).decode("ascii")
+                            bindata_map[identifier] = b64
+                            bindata_map[href] = b64
+                            bindata_map[Path(href).name] = b64
+                            bindata_map[Path(href).stem] = b64
 
             style_maps = {"cell_fills": {}, "bold_chars": set(), "paragraph_alignments": {}}
             if "Contents/header.xml" in namelist:
@@ -787,6 +793,8 @@ def _convert_hwpx_to_html_and_markdown(input_path: Path) -> tuple[str, str]:
                     return "\n".join(paragraphs), txt
                 return "<p>본문 내용이 없습니다.</p>", "본문 내용이 없습니다."
 
+            extracted_images: List[tuple[str, str]] = []
+
             for s_name in section_names:
                 xml_bytes = zf.read(s_name)
                 root = ET.fromstring(xml_bytes)
@@ -805,7 +813,45 @@ def _convert_hwpx_to_html_and_markdown(input_path: Path) -> tuple[str, str]:
                         html_blocks.append(f"<p>{p_text}</p>")
                         md_blocks.append(f"{p_text}\n")
 
-                    # 2. Tables inside this paragraph
+                    # 2. Pictures/Images inside this paragraph
+                    seen_pics = set()
+                    for pic in p.findall(".//hp:pic", hp_ns) or [el for el in p.iter() if el.tag.rsplit("}", 1)[-1] == "pic"]:
+                        marker = id(pic)
+                        if marker in seen_pics:
+                            continue
+                        seen_pics.add(marker)
+
+                        bin_id = next((v for k, v in pic.attrib.items() if k.rsplit("}", 1)[-1] in {"binaryItemIDRef", "binDataID", "binData"}), "")
+                        if not bin_id:
+                            for sub in pic.iter():
+                                bin_id = next((v for k, v in sub.attrib.items() if k.rsplit("}", 1)[-1] in {"binaryItemIDRef", "binDataID", "binData"}), "")
+                                if bin_id:
+                                    break
+
+                        b64_data = None
+                        media_type = "image/png"
+                        if bin_id and bindata_map:
+                            for k, v in bindata_map.items():
+                                if bin_id == k or bin_id in k or k in bin_id:
+                                    b64_data = v
+                                    if k.lower().endswith(".png"):
+                                        media_type = "image/png"
+                                    elif k.lower().endswith((".jpg", ".jpeg")):
+                                        media_type = "image/jpeg"
+                                    elif k.lower().endswith(".bmp"):
+                                        media_type = "image/bmp"
+                                    elif k.lower().endswith(".gif"):
+                                        media_type = "image/gif"
+                                    break
+
+                        if b64_data:
+                            comment = next((sub.text for sub in pic.iter() if sub.tag.rsplit("}", 1)[-1] == "shapeComment" and sub.text), "")
+                            alt = comment.splitlines()[0].strip() if comment else "문서 포함 이미지"
+                            html_blocks.append(f'<p><img src="data:{media_type};base64,{b64_data}" alt="{alt}" style="max-width:100%; height:auto;" /></p>')
+                            md_blocks.append(f"\n![{alt}](data:{media_type};base64,{b64_data})\n")
+                            extracted_images.append((b64_data, alt))
+
+                    # 3. Tables inside this paragraph
                     for tbl in p.findall("./hp:run/hp:tbl", hp_ns) or p.findall(".//hp:tbl", hp_ns):
                         table_html, table_md = _convert_hwpx_tbl_to_grid_and_html(
                             tbl, hp_ns, bindata_map=bindata_map, style_maps=style_maps
@@ -814,6 +860,37 @@ def _convert_hwpx_to_html_and_markdown(input_path: Path) -> tuple[str, str]:
                             html_blocks.append(table_html)
                         if table_md:
                             md_blocks.append("\n" + table_md + "\n")
+
+            # 4. Fallback if no content extracted from sections, but images exist in bindata_map
+            if not html_blocks and not md_blocks and bindata_map:
+                for img_name, b64_data in bindata_map.items():
+                    if img_name.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif")):
+                        ext = img_name.rsplit(".", 1)[-1].lower().replace("jpg", "jpeg")
+                        media_type = f"image/{ext}"
+                        html_blocks.append(f'<p><img src="data:{media_type};base64,{b64_data}" alt="{img_name}" style="max-width:100%; height:auto;" /></p>')
+                        md_blocks.append(f"\n![{img_name}](data:{media_type};base64,{b64_data})\n")
+                        extracted_images.append((b64_data, img_name))
+
+            # 5. OCR Fallback for scanned image-only HWPX documents
+            total_text = "".join(md_blocks).strip()
+            total_text_clean = re.sub(r"\[!\[.*?\]\(.*?\)\]|\!\[.*?\]\(.*?\)|data:image/[^;]+;base64,[A-Za-z0-9+/=]+", "", total_text).strip()
+            if len(total_text_clean) < 30 and extracted_images:
+                try:
+                    from rapidocr_onnxruntime import RapidOCR
+                    ocr = RapidOCR()
+                    ocr_texts = []
+                    for b64_str, alt in extracted_images[:5]:
+                        raw_bytes = base64.b64decode(b64_str)
+                        res, _ = ocr(raw_bytes)
+                        if res:
+                            lines = [r[1].strip() for r in res if r[1].strip()]
+                            if lines:
+                                ocr_texts.extend(lines)
+                    if ocr_texts:
+                        html_blocks.append(f'<div class="ocr-extracted-text" style="margin-top:16px; padding:12px; background:#f8fafc; border-left:4px solid #3b82f6;"><p><strong>[이미지 추출 텍스트 (OCR)]</strong></p><p>{"<br/>".join(ocr_texts)}</p></div>')
+                        md_blocks.append(f"\n\n### [이미지 추출 텍스트 (OCR)]\n" + "\n".join(f"* {t}" for t in ocr_texts) + "\n")
+                except Exception:
+                    pass
 
         return "\n".join(html_blocks), "\n".join(md_blocks).strip()
     except Exception as exc:
@@ -1190,6 +1267,43 @@ def _convert_pdf_to_html_and_markdown(input_path: Path) -> tuple[str, str]:
     except Exception:
         pass
 
+    # 3. 텍스트 레이어가 없는 스캔본 PDF인 경우 페이지 렌더링 후 OCR 자동 실행함
+    try:
+        import pymupdf as fitz
+        doc = fitz.open(str(input_path.resolve()))
+        scan_html_blocks: List[str] = []
+        scan_md_blocks: List[str] = []
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            from synthetic_engine.document_conversion.parsers.image_parser import ImageParser
+            from synthetic_engine.document_conversion.registry import renderer_for
+
+            img_parser = ImageParser()
+            md_renderer = renderer_for("md")
+            html_renderer = renderer_for("html")
+
+            for p_idx in range(len(doc)):
+                page = doc[p_idx]
+                pix = page.get_pixmap(dpi=200)
+                img_path = Path(tmp_dir) / f"page_{p_idx + 1}.png"
+                pix.save(str(img_path))
+
+                doc_ir = img_parser.parse(img_path)
+                page_md_path = Path(tmp_dir) / f"page_{p_idx + 1}.md"
+                page_html_path = Path(tmp_dir) / f"page_{p_idx + 1}.html"
+                md_renderer.render(doc_ir, page_md_path)
+                html_renderer.render(doc_ir, page_html_path)
+
+                p_md = page_md_path.read_text(encoding="utf-8", errors="ignore")
+                p_html = page_html_path.read_text(encoding="utf-8", errors="ignore")
+                if p_md.strip():
+                    scan_md_blocks.append(f"## Page {p_idx + 1}\n\n{p_md.strip()}\n")
+                    scan_html_blocks.append(f'<div class="pdf-page-card" id="page-{p_idx + 1}">\n{p_html}\n</div>')
+
+        if scan_html_blocks and scan_md_blocks:
+            return "\n".join(scan_html_blocks), "\n\n---\n\n".join(scan_md_blocks).strip()
+    except Exception:
+        pass
+
     return "<p>PDF에서 텍스트를 추출할 수 없습니다 (스캔 이미지 또는 암호화된 PDF일 수 있습니다).</p>", "PDF에서 텍스트를 추출할 수 없습니다."
 
 
@@ -1443,16 +1557,25 @@ def _build_structured_document_parse(src_path: Path, raw_ext: str, original_file
         body_html = html_preview
         fidelity_level = "high"
     ocr_confidence = None
+    ocr_engine_label = None
     if raw_ext in IMAGE_SOURCES:
-        parser_engines = ["ImageParser", "OpenCV table detector", "local OCR backend"]
         from synthetic_engine.document_conversion.registry import parse_document, renderer_for
         doc = parse_document(src_path)
-        raw_conf = doc.metadata.custom.get("ocr_mean_confidence")
+        raw_conf = doc.metadata.custom.get("ocr_mean_confidence") or doc.metadata.custom.get("ocr_mean_confidence_p1")
         if raw_conf:
             try:
                 ocr_confidence = float(raw_conf)
             except (TypeError, ValueError):
                 ocr_confidence = None
+
+        detected_engine = doc.metadata.custom.get("ocr_engine_p1") or "local_rapidocr_korean"
+        if detected_engine == "hybrid_ai_escalated":
+            parser_engines = ["RapidOCR Korean (품질 저하 감지)", "OpenAI GPT-4o-mini Vision 자동 보정"]
+            ocr_engine_label = "AI Vision 자동 보정"
+        else:
+            parser_engines = ["RapidOCR PP-OCRv5 Korean (로컬 고정밀)", "OpenCV table detector"]
+            ocr_engine_label = "로컬 고정밀 OCR"
+
         settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=settings.OUTPUT_DIR) as tmp:
             tmp_md = Path(tmp) / f"{src_path.stem}.md"
@@ -1478,6 +1601,7 @@ def _build_structured_document_parse(src_path: Path, raw_ext: str, original_file
     structure = {
         "format": raw_ext.replace(".", "").upper(),
         "parser_engines": parser_engines,
+        "ocr_engine": ocr_engine_label or ("로컬 OCR" if raw_ext in IMAGE_SOURCES else "네이티브 문서 파서"),
         "fidelity_level": fidelity_level,
         "fidelity_target": "95%+ visual structure preservation when source contains extractable layout data",
         "pages_count": max(1, len(re.findall(r'class=["\'][^"\']*pdf-page-card', html_preview or ""))) if raw_ext == ".pdf" else 1,
@@ -2548,7 +2672,11 @@ def _execute_conversion(
                 "markdown_preview": md_text,
                 "html_preview": doc_html_preview,
                 "document_structure": doc_structure,
-                "message": f"{file.filename} 파일이 마크다운(.md)으로 성공적으로 변환되었습니다."
+                "message": (
+                    f"{file.filename} [{doc_structure.get('ocr_engine', '로컬 OCR')}] 마크다운(.md) 변환 완료."
+                    if raw_ext in IMAGE_SOURCES
+                    else f"{file.filename} 파일이 마크다운(.md)으로 성공적으로 변환되었습니다."
+                )
             }
 
         # B. Pure Text Conversion (.txt)
@@ -2601,7 +2729,11 @@ def _execute_conversion(
                 "markdown_preview": txt,
                 "html_preview": doc_html_preview,
                 "document_structure": doc_structure,
-                "message": f"{file.filename} 텍스트 추출 완료."
+                "message": (
+                    f"{file.filename} [{doc_structure.get('ocr_engine', '로컬 OCR')}] 텍스트 추출 완료."
+                    if raw_ext in IMAGE_SOURCES
+                    else f"{file.filename} 텍스트 추출 완료."
+                )
             }
 
         # C. PDF Conversion

@@ -2,10 +2,10 @@
 # =============================================================================
 # 파일명: router.py
 # 경로: apps/api/src/synthetic_api/routes/v1/router.py
-# 목적: API v1 라우터 등록 및 하위 라우트 집계를 담당함.
-# 작성자: AI Agent
+# 목적: API v1 라우터 등록 및 하위 라우트 집계를 담당함
+# 작성자: 개발팀
 # 작성일: 2026-09-13
-# 수정일: 2026-09-13
+# 수정일: 2026-09-16
 # =============================================================================
 from fastapi import APIRouter
 from .datasets import router as datasets_router
@@ -23,6 +23,7 @@ from .converter import router as converter_router
 from .survey import router as survey_router
 from .system import router as system_router
 from .document_privacy import router as document_privacy_router
+from .ai_guide import router as ai_guide_router
 
 api_router = APIRouter()
 api_router.include_router(document_privacy_router)
@@ -39,5 +40,6 @@ api_router.include_router(history_router)
 api_router.include_router(converter_router)
 api_router.include_router(survey_router)
 api_router.include_router(system_router)
+api_router.include_router(ai_guide_router, prefix="/ai-guide", tags=["ai-guide"])
 api_router.include_router(glossary_router, prefix="/glossary", tags=["glossary"])
 

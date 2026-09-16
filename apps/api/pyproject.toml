@@ -53,7 +53,7 @@ where = ["src"]
 include = ["synthetic_api*"]
 
 [tool.setuptools.package-data]
-synthetic_api = ["data/*.json"]
+synthetic_api = ["data/*.json", "data/ai_guide_template.hwpx"]
 
 [tool.uv.sources]
 synthetic-engine = { workspace = true }
