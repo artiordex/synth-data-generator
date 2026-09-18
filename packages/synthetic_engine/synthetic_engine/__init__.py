@@ -10,9 +10,14 @@
 """Public synthetic-engine exports loaded only when requested."""
 
 from importlib import import_module
+from importlib.metadata import PackageNotFoundError, version as distribution_version
 from typing import Any
 
-__version__ = "2.4.0"
+try:
+    __version__ = distribution_version("synthetic-engine")
+except PackageNotFoundError:
+    # Source checkouts are usable without an editable install.
+    __version__ = "2.1.0"
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "ColumnPlan": (".common.types", "ColumnPlan"),
@@ -68,6 +73,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "build_review_documents": (".exporters.review_documents", "build_review_documents"),
     "generate_filled_hwp": (".exporters.hwp_exporter", "generate_filled_hwp"),
     "export_pseudonymized_document": (".exporters.document_exporter", "export_pseudonymized_document"),
+    "DocumentExportError": (".exporters.errors", "DocumentExportError"),
     "make_submission_package_dirs": (".exporters.package_exporter", "make_submission_package_dirs"),
     "safe_path_part": (".exporters.package_exporter", "safe_path_part"),
     "BaseSynthesizer": (".generators.base", "BaseSynthesizer"),
@@ -75,6 +81,12 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "get_synthesizer": (".generators.registry", "get_synthesizer"),
     "list_synthesizers": (".generators.registry", "list_synthesizers"),
     "PrivacyGuardrails": (".privacy.guardrails", "PrivacyGuardrails"),
+    "escape_unique_clones": (".privacy.guardrails", "escape_unique_clones"),
+    "evaluate_subspace_dcr": (".privacy.guardrails", "evaluate_subspace_dcr"),
+    "project_domain_constraints": (".privacy.projection", "project_domain_constraints"),
+    "sample_empirical_lags": (".rules.lag_sampling", "sample_empirical_lags"),
+    "resolve_rule_dependencies_dag": (".rules.discovery", "resolve_rule_dependencies_dag"),
+    "DatasetRuleEngine": (".rules.engine", "DatasetRuleEngine"),
     "CorrelationEvaluator": (".quality.correlation", "CorrelationEvaluator"),
     "cramers_v": (".quality.correlation", "cramers_v"),
     "DomainCatalog": (".common.catalog", "DomainCatalog"),

@@ -23,12 +23,13 @@ class DifferentialPrivacyManager:
         epsilon: float = 1.0,
         delta: float = 1e-5,
         seed: int = 42,
+        public_bounds: dict[str, Any] | None = None,
     ) -> tuple[pd.DataFrame, dict[str, Any]]:
         """수치형 컬럼에 라플라스 노이즈를 적용한 결과와 통계를 반환함"""
         if epsilon <= 0:
             return df, {"enabled": False, "epsilon": epsilon, "delta": delta}
 
-        np.random.seed(seed)
+        rng = np.random.default_rng(seed)
         output = df.copy()
         n_rows = max(len(output), 1)
         noise_stats = {}
@@ -41,20 +42,26 @@ class DifferentialPrivacyManager:
             if valid.empty:
                 continue
 
-            col_min = float(valid.min())
-            col_max = float(valid.max())
-            col_range = col_max - col_min
+            bound_spec = (public_bounds or {}).get(col, {})
+            if isinstance(bound_spec, dict) and bound_spec.get("min") is not None and bound_spec.get("max") is not None:
+                col_range = float(bound_spec["max"]) - float(bound_spec["min"])
+                bound_source = "public_bound"
+            else:
+                q25, q75 = valid.quantile([0.25, 0.75]).to_numpy()
+                col_range = float(q75 - q25)
+                bound_source = "robust_scale_no_raw_bound"
             if col_range <= 0:
                 col_range = 1.0
 
             sensitivity = col_range / math.sqrt(n_rows)
             scale = max(sensitivity / max(epsilon, 0.01), 1e-6)
 
-            noise = np.random.laplace(loc=0.0, scale=scale, size=len(output))
+            noise = rng.laplace(loc=0.0, scale=scale, size=len(output))
             noise = np.where(series.isna(), np.nan, noise)
 
             perturbed = series + noise
-            perturbed = perturbed.clip(lower=col_min - 0.1 * col_range, upper=col_max + 0.1 * col_range)
+            # Do not clip to raw exact min/max here.  Domain projection is a
+            # separate post-DP stage and may only use public/schema bounds.
 
             is_integer = bool((valid % 1 == 0).all())
             if is_integer:
@@ -74,6 +81,7 @@ class DifferentialPrivacyManager:
             noise_stats[col] = {
                 "scale": round(scale, 4),
                 "sensitivity": round(sensitivity, 4),
+                "bound_source": bound_source,
                 "original_mean": round(float(valid.mean()), 4),
                 "perturbed_mean": round(float(perturbed.dropna().mean()), 4),
             }

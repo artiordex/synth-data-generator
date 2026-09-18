@@ -9,6 +9,7 @@
 # =============================================================================
 from __future__ import annotations
 from dataclasses import dataclass
+import math
 from typing import Any
 
 @dataclass
@@ -37,6 +38,10 @@ class SynthesisConfig:
     max_sampling_attempts: int = 10
     enable_gpu: bool = False
     duplicate_policy: str = 'balanced'
+    # Time-dependent derived rules use this value when supplied; otherwise
+    # they explicitly fall back to the execution date.
+    reference_date: str | None = None
+    locale: str = "ko_KR"
 
     # post init 작업을 수행함
     def __post_init__(self):
@@ -50,6 +55,11 @@ class SynthesisConfig:
             raise ValueError("seed must be between 0 and 2**32 - 1")
         if not 0 <= self.quality_threshold <= 1:
             raise ValueError("quality_threshold must be between 0 and 1")
+        if self.dp_enabled:
+            if not math.isfinite(self.dp_epsilon) or self.dp_epsilon <= 0:
+                raise ValueError("dp_epsilon must be a finite positive number")
+            if not math.isfinite(self.dp_delta) or not 0 <= self.dp_delta < 1:
+                raise ValueError("dp_delta must be finite and between 0 and 1")
 
 @dataclass
 class TableRelationship:

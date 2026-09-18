@@ -20,14 +20,16 @@ class DomainCatalog:
     _domains: list[dict[str, Any]] = []
     _domain_map: dict[str, dict[str, Any]] = {}
     _alias_map: dict[str, dict[str, Any]] = {}
+    _loaded = False
 
     # load 작업을 수행함
     @classmethod
     def _load(cls) -> None:
         """도메인 카탈로그 파일을 최초 1회 메모리에 적재함"""
-        if cls._domains:
+        if cls._loaded:
             return
         if not CATALOG_PATH.exists():
+            cls._loaded = True
             return
         with CATALOG_PATH.open("r", encoding="utf-8") as f:
             cls._domains = json.load(f)
@@ -38,6 +40,27 @@ class DomainCatalog:
             for alias in item.get("aliases", []):
                 norm = re.sub(r"[\s_\-\.\(\)]+", "", alias.lower())
                 cls._alias_map[norm] = item
+        cls._loaded = True
+
+    @classmethod
+    def _generic_domain(cls, column_name: str) -> dict[str, Any]:
+        return {
+            "id": "generic_text",
+            "name": column_name,
+            "english_name": column_name,
+            "category": "일반 문자열",
+            "data_type": "STRING",
+            "rule": {"type": "choice", "values": [
+                f"{column_name}_1", f"{column_name}_2", f"{column_name}_3"
+            ]},
+            "sample": f"{column_name}_샘플",
+        }
+
+    @classmethod
+    def _fallback_domain(cls, preferred_id: str, column_name: str) -> dict[str, Any]:
+        return cls._domain_map.get(preferred_id) or (
+            cls._domains[0] if cls._domains else cls._generic_domain(column_name)
+        )
 
     # list domains 작업을 수행함
     @classmethod
@@ -85,24 +108,16 @@ class DomainCatalog:
 
         # 3. Fallback default based on keywords
         if any(k in col_clean for k in ["금액", "가격", "비용", "price", "amount", "cost"]):
-            return cls._domain_map.get("payment_amount", cls._domains[0])
+            return cls._fallback_domain("payment_amount", column_name)
         if any(k in col_clean for k in ["일자", "일시", "날짜", "date", "time"]):
-            return cls._domain_map.get("created_datetime", cls._domains[0])
+            return cls._fallback_domain("created_datetime", column_name)
         if any(k in col_clean for k in ["수량", "건수", "개수", "count", "qty"]):
-            return cls._domain_map.get("order_quantity", cls._domains[0])
+            return cls._fallback_domain("order_quantity", column_name)
         if any(k in col_clean for k in ["번호", "id", "코드", "code"]):
-            return cls._domain_map.get("user_id", cls._domains[0])
+            return cls._fallback_domain("user_id", column_name)
 
         # Default string fallback
-        return {
-            "id": "generic_text",
-            "name": column_name,
-            "english_name": column_name,
-            "category": "일반 문자열",
-            "data_type": "STRING",
-            "rule": { "type": "choice", "values": [f"{column_name}_1", f"{column_name}_2", f"{column_name}_3"] },
-            "sample": f"{column_name}_샘플"
-        }
+        return cls._generic_domain(column_name)
 
     # templates 정보를 조회하여 반환함
     @classmethod

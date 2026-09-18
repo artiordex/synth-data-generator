@@ -9,13 +9,15 @@ import tempfile
 import shutil
 from html import escape
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
+
+from .errors import DocumentExportError
+from .format_registry import SUPPORTED_EXPORT_FORMATS, normalize_export_format
 
 
 WORD_CONTENT_COLUMN_CANDIDATES = ("문서_내용", "臾몄꽌_?댁슜")
 WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
 
 # pseudonymized document 데이터를 외부 포맷으로 내보냄
@@ -35,7 +37,7 @@ def export_pseudonymized_document(
     to preserve 100% of the original document's layout, formatting, tables, and images.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fmt = (target_fmt or "csv").lower().strip()
+    fmt = normalize_export_format(target_fmt)
 
     # Build replacement list from df or parameters if not explicitly passed
     if replacements is None:
@@ -109,6 +111,8 @@ def export_pseudonymized_document(
 
     # 4. Word Document (.docx)
     if fmt in ("docx", "doc"):
+        if fmt == "doc":
+            raise DocumentExportError("Legacy .doc output is not supported; request .docx instead")
         if original_filepath and original_filepath.exists() and original_filepath.suffix.lower() == ".docx":
             if _in_place_replace_docx(original_filepath, output_path, replacements):
                 return output_path
@@ -137,10 +141,15 @@ def export_pseudonymized_document(
                         row_cells[i].text = "" if pd.isna(val) else str(val)
 
             doc.save(output_path)
+            if not output_path.is_file() or output_path.stat().st_size == 0:
+                raise DocumentExportError(f"DOCX exporter produced no output: {output_path.name}")
             return output_path
-        except Exception:
-            output_path.write_text(df.to_string(index=False), encoding="utf-8")
-            return output_path
+        except DocumentExportError:
+            raise
+        except Exception as exc:
+            raise DocumentExportError(
+                f"DOCX export failed for {output_path.name}: {exc}"
+            ) from exc
 
     # 5. HWPX Document (.hwpx)
     if fmt == "hwpx":
@@ -170,10 +179,15 @@ def export_pseudonymized_document(
                     doc.add_paragraph(row_str)
 
             doc.save_to_path(output_path)
+            if not output_path.is_file() or output_path.stat().st_size == 0:
+                raise DocumentExportError(f"HWPX exporter produced no output: {output_path.name}")
             return output_path
-        except Exception:
-            output_path.write_text(df.to_string(index=False), encoding="utf-8")
-            return output_path
+        except DocumentExportError:
+            raise
+        except Exception as exc:
+            raise DocumentExportError(
+                f"HWPX export failed for {output_path.name}: {exc}"
+            ) from exc
 
     # 6. HWP / HWPT Document (.hwp, .hwpt)
     if fmt in ("hwp", "hwpt"):
@@ -193,11 +207,14 @@ def export_pseudonymized_document(
                 generate_filled_hwp(tmpl, output_path, hwp_replacements)
                 if output_path.exists() and output_path.stat().st_size > 0:
                     return output_path
-        except Exception:
-            pass
+        except Exception as exc:
+            raise DocumentExportError(
+                f"HWP export failed for {output_path.name}: {exc}"
+            ) from exc
 
-        output_path.write_text(df.to_string(index=False), encoding="utf-8")
-        return output_path
+        raise DocumentExportError(
+            f"HWP export requires a valid template or source document: {output_path.name}"
+        )
 
     # 7. PDF Document (.pdf)
     if fmt == "pdf":
@@ -207,65 +224,24 @@ def export_pseudonymized_document(
 
         return _generate_valid_pdf_fallback(df, output_path, title=original_filename or output_path.stem)
 
-    # Fallback to CSV for unknown formats
-    df.to_csv(output_path, index=False, encoding="utf-8-sig")
-    return output_path
+    supported = ", ".join(sorted(SUPPORTED_EXPORT_FORMATS))
+    raise DocumentExportError(
+        f"Unsupported document export format: {target_fmt!r}. Supported formats: {supported}"
+    )
 
 
 # document content 컬럼 작업을 수행함
-def _document_content_column(df: pd.DataFrame) -> Optional[str]:
-    for column in WORD_CONTENT_COLUMN_CANDIDATES:
-        if column in df.columns:
-            return column
-    return None
-
-
 # word 파일 경로 여부 및 유효성을 판별함
-def _is_word_path(path: Optional[Path]) -> bool:
-    return bool(path and Path(path).exists() and Path(path).suffix.lower() in {".docx", ".doc"})
-
-
 # word qn 작업을 수행함
 def _word_qn(local_name: str) -> str:
     return f"{{{WORD_NS}}}{local_name}"
 
 
 # rel qn 작업을 수행함
-def _rel_qn(local_name: str) -> str:
-    return f"{{{REL_NS}}}{local_name}"
-
-
 # 셀 텍스트 to HTML 웹 문서 작업을 수행함
-def _cell_text_to_html(text: str) -> str:
-    return text.replace("\n", "<br/>")
-
-
 # 마크다운 escape 셀 작업을 수행함
-def _markdown_escape_cell(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br>")
-
-
 # 마크다운 link 작업을 수행함
-def _markdown_link(label: str, url: Optional[str]) -> str:
-    if not url:
-        return label
-    safe_label = label.replace("[", "\\[").replace("]", "\\]")
-    safe_url = url.replace(")", "%29")
-    return f"[{safe_label}]({safe_url})"
-
-
 # iter word 문서 블록 items 작업을 수행함
-def _iter_word_block_items(document) -> Iterable[Tuple[str, Any]]:
-    from docx.table import Table
-    from docx.text.paragraph import Paragraph
-
-    for child in document.element.body.iterchildren():
-        if child.tag == _word_qn("p"):
-            yield "paragraph", Paragraph(child, document)
-        elif child.tag == _word_qn("tbl"):
-            yield "table", Table(child, document)
-
-
 # word document 데이터를 파일 또는 저장소에서 로드함
 def _load_word_document(input_path: Path):
     import docx
@@ -316,63 +292,9 @@ def _load_word_document(input_path: Path):
 
 
 # word relationship target 작업을 수행함
-def _word_relationship_target(paragraph, rel_id: Optional[str]) -> Optional[str]:
-    if not rel_id:
-        return None
-    for part_owner in (paragraph, getattr(paragraph, "_parent", None)):
-        part = getattr(part_owner, "part", None)
-        if part is None:
-            continue
-        rel = part.rels.get(rel_id)
-        if rel is not None:
-            return rel.target_ref
-    return None
-
-
 # word run 텍스트 작업을 수행함
-def _word_run_text(node) -> str:
-    parts: List[str] = []
-    for child in node.iter():
-        if child.tag == _word_qn("t"):
-            parts.append(child.text or "")
-        elif child.tag == _word_qn("tab"):
-            parts.append("\t")
-        elif child.tag == _word_qn("br"):
-            parts.append("\n")
-    return "".join(parts)
-
-
 # word 문단 fragments 작업을 수행함
-def _word_paragraph_fragments(paragraph, link_format: str = "markdown") -> List[str]:
-    fragments: List[str] = []
-    for child in paragraph._p:
-        if child.tag == _word_qn("r"):
-            text = _word_run_text(child)
-            fragments.append(escape(text) if link_format == "html" else text)
-        elif child.tag == _word_qn("hyperlink"):
-            label = _word_run_text(child)
-            rel_id = child.get(_rel_qn("id"))
-            anchor = child.get(_word_qn("anchor"))
-            url = _word_relationship_target(paragraph, rel_id)
-            if anchor and not url:
-                url = f"#{anchor}"
-            if link_format == "html" and url:
-                fragments.append(f'<a href="{escape(url, quote=True)}">{escape(label)}</a>')
-            elif link_format == "markdown":
-                fragments.append(_markdown_link(label, url))
-            else:
-                fragments.append(label if not url else f"{label} ({url})")
-    return fragments
-
-
 # word 문단 텍스트 작업을 수행함
-def _word_paragraph_text(paragraph, link_format: str = "markdown") -> str:
-    text = "".join(_word_paragraph_fragments(paragraph, link_format=link_format))
-    if not text and getattr(paragraph, "text", None):
-        text = paragraph.text
-    return text
-
-
 # word heading level 작업을 수행함
 def _word_heading_level(paragraph) -> Optional[int]:
     style = paragraph.style
@@ -445,20 +367,6 @@ def _word_list_info(paragraph, num_to_abstract: Dict[str, str], level_formats: D
 
 
 # word 표(테이블) 행 목록 작업을 수행함
-def _word_table_rows(table, link_format: str = "markdown") -> List[List[str]]:
-    rows: List[List[str]] = []
-    for row in table.rows:
-        values: List[str] = []
-        for cell in row.cells:
-            paragraphs = [
-                _word_paragraph_text(paragraph, link_format=link_format).strip()
-                for paragraph in cell.paragraphs
-            ]
-            values.append("\n".join(p for p in paragraphs if p))
-        rows.append(values)
-    return rows
-
-
 # valid PDF 문서 binary 여부 및 유효성을 판별함
 def _is_valid_pdf_binary(filepath: Path) -> bool:
     """Check if file starts with %PDF magic header."""
@@ -989,43 +897,8 @@ def _word_blocks(input_path: Path) -> List[Dict[str, Any]]:
 
 
 # word to 마크다운 데이터를 대상 포맷으로 변환함
-def convert_word_to_markdown(input_path: Path) -> str:
-    md: List[str] = []
-    for block in _word_blocks(Path(input_path)):
-        if block["type"] == "heading":
-            md.append("#" * int(block.get("level", 1)) + " " + block["text"])
-        elif block["type"] in {"list", "list_item"}:
-            marker = "1." if block.get("ordered") else "-"
-            prefix = "  " * int(block.get("level", 0))
-            for line in block["text"].splitlines():
-                if line.strip():
-                    md.append(f"{prefix}{marker} {line.strip()}")
-        elif block["type"] == "table":
-            rows = block["rows"]
-            width = max(sum(int(c.get("colspan", 1)) for c in row if not c.get("skip")) for row in rows)
-            matrix: List[List[str]] = []
-            for row in rows:
-                out_row: List[str] = []
-                for cell in row:
-                    if cell.get("skip"):
-                        out_row.extend([""] * int(cell.get("colspan", 1)))
-                    else:
-                        out_row.append(_markdown_escape_cell(cell.get("text", "")))
-                        out_row.extend([""] * (int(cell.get("colspan", 1)) - 1))
-                matrix.append(out_row + [""] * (width - len(out_row)))
-            if matrix:
-                md.append("| " + " | ".join(matrix[0]) + " |")
-                md.append("| " + " | ".join(["---"] * width) + " |")
-                for row in matrix[1:]:
-                    md.append("| " + " | ".join(row) + " |")
-        else:
-            md.append(block["text"])
-        md.append("")
-    return "\n".join(md).strip()
-
-
 # word to HTML 웹 문서 데이터를 대상 포맷으로 변환함
-def convert_word_to_html(input_path: Path) -> str:
+def _legacy_convert_word_to_html(input_path: Path) -> str:
     html_parts: List[str] = []
     open_lists: List[bool] = []
 
@@ -1078,7 +951,7 @@ def convert_word_to_html(input_path: Path) -> str:
 
 
 # word to 한글 표준(HWPX) 데이터를 대상 포맷으로 변환함
-def convert_word_to_hwpx(input_path: Path, output_path: Path) -> Path:
+def _legacy_convert_word_to_hwpx(input_path: Path, output_path: Path) -> Path:
     from hwpx.document import HwpxDocument
 
     doc = HwpxDocument.new()
@@ -1124,7 +997,30 @@ def convert_word_to_hwpx(input_path: Path, output_path: Path) -> Path:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save_to_path(output_path)
+    if not output_path.is_file() or output_path.stat().st_size == 0:
+        raise DocumentExportError(f"HWPX conversion produced no output: {output_path.name}")
     return output_path
+
+
+def convert_word_to_markdown(input_path: Path) -> str:
+    """Compatibility facade for the extracted Word-to-Markdown renderer."""
+    from .word_document_exporter import convert_word_to_markdown as render
+
+    return render(input_path)
+
+
+def convert_word_to_html(input_path: Path) -> str:
+    """Compatibility facade for the extracted Word-to-HTML renderer."""
+    from .word_document_exporter import convert_word_to_html as render
+
+    return render(input_path)
+
+
+def convert_word_to_hwpx(input_path: Path, output_path: Path) -> Path:
+    """Compatibility facade for the extracted Word-to-HWPX renderer."""
+    from .word_document_exporter import convert_word_to_hwpx as render
+
+    return render(input_path, output_path)
 # =============================================================================
 # 파일명: document_exporter.py
 # 경로: packages/synthetic_engine/synthetic_engine/exporters/document_exporter.py

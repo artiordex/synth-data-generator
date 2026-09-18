@@ -6,6 +6,8 @@ import zlib
 from pathlib import Path
 from typing import Any
 
+from .template_repository import default_template_dirs
+
 try:
     import olefile
 except ImportError:
@@ -254,38 +256,25 @@ def generate_filled_hwp(template_path: Path, output_path: Path, replacements: li
     output_path.write_bytes(hwp_bytes)
     return output_path
 
-# template search dirs 정보를 조회하여 반환함
-def get_template_search_dirs(user_specified_dir: Path | None = None) -> list[Path]:
-    dirs = []
-    if user_specified_dir:
-        dirs.append(Path(user_specified_dir))
-
-    # Project storage/templates
-    proj_root = Path(__file__).resolve().parent.parent.parent.parent
-    dirs.append(proj_root / "storage" / "templates")
-    dirs.append(Path.cwd() / "storage" / "templates")
-
-    # User Downloads folder
-    home_downloads = Path.home() / "Downloads"
-    dirs.append(home_downloads)
-    dirs.append(home_downloads / "심의위원회 심의자료")
-    dirs.append(Path(r"C:\Users\kasun\Downloads"))
-    dirs.append(Path(r"C:\Users\PRO\Downloads\심의위원회 심의자료"))
-
-    res = []
-    seen = set()
-    for d in dirs:
-        try:
-            resolved = str(d.resolve()) if d.exists() else str(d)
-        except Exception:
-            resolved = str(d)
-        if resolved not in seen:
-            seen.add(resolved)
-            if d.exists() and d.is_dir():
-                res.append(d)
-    return res
-
 # template 파일 대상을 탐색하여 반환함
+def get_template_search_dirs(user_specified_dir: Path | None = None) -> list[Path]:
+    """Return template directories using the shared repository resolver."""
+    dirs = [Path(user_specified_dir)] if user_specified_dir else []
+    dirs.extend(default_template_dirs(include_user_downloads=True))
+    result: list[Path] = []
+    seen: set[str] = set()
+    for directory in dirs:
+        try:
+            key = str(directory.expanduser().resolve())
+        except OSError:
+            key = str(directory.expanduser())
+        if key in seen or not directory.is_dir():
+            continue
+        seen.add(key)
+        result.append(directory)
+    return result
+
+
 def find_template_file(search_dirs: list[Path], exact_name: str, keywords: list[str]) -> Path | None:
     # 1. Try exact name match
     for d in search_dirs:
@@ -295,15 +284,16 @@ def find_template_file(search_dirs: list[Path], exact_name: str, keywords: list[
     # 2. Try keyword substring match
     for d in search_dirs:
         try:
-            for f in d.glob("*.hwp"):
-                if all(k in f.name for k in keywords):
-                    return f
-        except Exception:
+            for pattern in ("*.hwp", "*.hwpt"):
+                for f in d.glob(pattern):
+                    if all(k in f.name for k in keywords):
+                        return f
+        except OSError:
             continue
     return None
 
 # review documents 구조를 생성 및 조립함
-def build_review_documents(
+def _legacy_build_review_documents(
     dataset_name: str,
     orig_filename: str,
     orig_rows: int,
@@ -391,6 +381,11 @@ def build_review_documents(
         created_files["review_report"] = t3_dst
 
     return created_files
+
+
+# Backward-compatible alias; new callers should use review_documents.build_review_documents.
+build_review_documents = _legacy_build_review_documents
+
 # =============================================================================
 # 파일명: hwp_exporter.py
 # 경로: packages/synthetic_engine/synthetic_engine/exporters/hwp_exporter.py

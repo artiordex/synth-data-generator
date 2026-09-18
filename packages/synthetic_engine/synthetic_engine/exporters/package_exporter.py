@@ -6,6 +6,9 @@ import zipfile
 from pathlib import Path
 
 LEADING_SEQUENCE_RE = re.compile(r"^\s*(?P<number>\d+)\.\s*(?P<name>.+?)\s*$")
+WINDOWS_RESERVED_NAMES = frozenset(
+    {"con", "prn", "aux", "nul", *{f"com{i}" for i in range(1, 10)}, *{f"lpt{i}" for i in range(1, 10)}}
+)
 
 
 # 분할 leading sequence 작업을 수행함
@@ -59,15 +62,21 @@ def synthetic_data_filename(dataset_name: str, sequence: str | None = None, suff
 # safe 파일 경로 part 작업을 수행함
 def safe_path_part(value: str | None, default: str) -> str:
     text = (value or "").strip() or default
+    text = re.sub(r"[\x00-\x1f\x7f]", "_", text)
     text = re.sub(r'[\\/:*?"<>|]+', "_", text)
     text = re.sub(r"\s+", " ", text).strip(" .")
-    return text[:80] or default
+    text = text[:80] or default
+    windows_base = text.split(".", 1)[0].rstrip(" .")
+    if windows_base.casefold() in WINDOWS_RESERVED_NAMES:
+        text = f"_{text}"
+    return text
 
 # submission package dirs 객체 또는 요소를 생성함
 def make_submission_package_dirs(base_output_dir: Path, job_id: str, original_filename: str) -> dict[str, Path]:
     _, parsed_dataset_name = split_leading_sequence(Path(original_filename).stem)
     dataset_name = safe_path_part(parsed_dataset_name, "데이터")
-    package_root = base_output_dir / f"{job_id}_{dataset_name}"
+    safe_job_id = safe_path_part(job_id, "job")
+    package_root = base_output_dir / f"{safe_job_id}_{dataset_name}"
 
     dirs = {
         "root": package_root,
@@ -82,13 +91,21 @@ def make_submission_package_dirs(base_output_dir: Path, job_id: str, original_fi
 
 # package zip 데이터를 신규 생성함
 def create_package_zip(package_dir: Path, zip_output_path: Path) -> Path:
-    zip_output_path.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(zip_output_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for file_path in package_dir.rglob("*"):
-            if file_path.is_file():
-                arcname = file_path.relative_to(package_dir)
-                zipf.write(file_path, arcname)
-    return zip_output_path
+    output_path = Path(zip_output_path)
+    package_root = Path(package_dir).resolve()
+    archive_path = output_path.resolve()
+    if not package_root.is_dir():
+        raise FileNotFoundError(f"Package directory not found: {package_dir}")
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for file_path in package_root.rglob("*"):
+            if file_path.is_symlink() or not file_path.is_file():
+                continue
+            resolved_file = file_path.resolve()
+            if resolved_file == archive_path or not resolved_file.is_relative_to(package_root):
+                continue
+            zipf.write(resolved_file, resolved_file.relative_to(package_root).as_posix())
+    return output_path
 # =============================================================================
 # 파일명: package_exporter.py
 # 경로: packages/synthetic_engine/synthetic_engine/exporters/package_exporter.py

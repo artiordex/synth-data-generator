@@ -1,42 +1,68 @@
-# -*- coding: utf-8 -*-
-# =============================================================================
-# 파일명: registry.py
-# 경로: packages/synthetic_engine/synthetic_engine/generators/registry.py
-# 목적: 합성 생성기를 이름으로 등록하고 조회함
-# 작성자: 개발팀
-# 작성일: 2026-09-09
-# 수정일: 2026-09-09
-# =============================================================================
+"""Synthesizer registration and lazy built-in loading."""
 from __future__ import annotations
+
+from importlib import import_module
+from threading import Lock
 from typing import Any, Callable, Type
+
 from .base import BaseSynthesizer
 
-_SYNTHESIZER_REGISTRY: dict[str, Type[BaseSynthesizer]] = {}
 
-# synthesizer 항목을 레지스트리에 등록함
+_SYNTHESIZER_REGISTRY: dict[str, Type[BaseSynthesizer]] = {}
+_BUILTINS_LOADED = False
+_BUILTIN_LOAD_LOCK = Lock()
+_BUILTIN_MODULES = (
+    ".statistical.sampler",
+    ".ml.copula",
+    ".ml.ctgan",
+    ".ml.tvae",
+)
+_BUILTIN_NAMES = frozenset({"statistical", "gaussian_copula", "ctgan", "tvae"})
+
+
+def _ensure_builtin_synthesizers() -> None:
+    """Load built-in generators once, on the first factory call."""
+    global _BUILTINS_LOADED
+    if _BUILTINS_LOADED:
+        return
+    with _BUILTIN_LOAD_LOCK:
+        if _BUILTINS_LOADED:
+            return
+        for module_name in _BUILTIN_MODULES:
+            import_module(module_name, __package__)
+        _BUILTINS_LOADED = True
+
+
 def register_synthesizer(name: str) -> Callable[[Type[BaseSynthesizer]], Type[BaseSynthesizer]]:
-    """생성기 클래스를 전역 레지스트리에 등록하는 데코레이터를 반환함"""
-    """Decorator to register a synthesizer class in the global registry."""
-    # decorator 작업을 수행함
+    """Register a synthesizer subclass under a normalized name."""
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("synthesizer name must be a non-empty string")
+    normalized_name = name.strip().lower()
+
     def decorator(cls: Type[BaseSynthesizer]) -> Type[BaseSynthesizer]:
-        normalized_name = name.strip().lower()
+        if not isinstance(cls, type) or not issubclass(cls, BaseSynthesizer):
+            raise TypeError("registered synthesizer must inherit BaseSynthesizer")
         _SYNTHESIZER_REGISTRY[normalized_name] = cls
         return cls
+
     return decorator
 
-# synthesizer 정보를 조회하여 반환함
+
 def get_synthesizer(name: str, **kwargs: Any) -> BaseSynthesizer:
-    """이름에 해당하는 합성 생성기 인스턴스를 반환함"""
-    """Factory function to retrieve and instantiate a registered synthesizer."""
+    """Instantiate a registered synthesizer by name."""
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("synthesizer name must be a non-empty string")
+    _ensure_builtin_synthesizers()
     normalized_name = name.strip().lower()
     if normalized_name not in _SYNTHESIZER_REGISTRY:
-        available = ", ".join(sorted(_SYNTHESIZER_REGISTRY.keys()))
+        available = ", ".join(sorted(_SYNTHESIZER_REGISTRY))
         raise ValueError(f"Unknown synthesizer type '{name}'. Available: [{available}]")
-    cls = _SYNTHESIZER_REGISTRY[normalized_name]
-    return cls(**kwargs)
+    return _SYNTHESIZER_REGISTRY[normalized_name](**kwargs)
 
-# list synthesizers 작업을 수행함
+
 def list_synthesizers() -> list[str]:
-    """등록된 합성 생성기 이름 목록을 반환함"""
-    """Return a list of all registered synthesizer names."""
-    return sorted(list(_SYNTHESIZER_REGISTRY.keys()))
+    """Return registered and built-in synthesizer names without loading ML modules."""
+    return sorted(set(_SYNTHESIZER_REGISTRY) | _BUILTIN_NAMES)
+
+
+__all__ = ["register_synthesizer", "get_synthesizer", "list_synthesizers"]

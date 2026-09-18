@@ -13,6 +13,7 @@ from __future__ import annotations
 from io import BytesIO
 import os
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from PIL import Image, ImageSequence, UnidentifiedImageError
@@ -215,7 +216,15 @@ def _evaluate_local_ocr_quality(ocr: Any, image_bgr: np.ndarray | None = None) -
             if isinstance(c_conf, (int, float)) and 0.0 <= c_conf <= 1.0:
                 conf_scores.append(float(c_conf))
 
-    mean_conf = (sum(conf_scores) / len(conf_scores)) if conf_scores else 0.85
+    # OCRTextBlock intentionally keeps only layout fields, so use the page
+    # result's aggregate confidence when per-block scores are unavailable.
+    page_confidence = getattr(ocr, "mean_confidence", None)
+    if isinstance(page_confidence, (int, float)) and 0.0 <= page_confidence <= 1.0:
+        mean_conf = float(page_confidence)
+    else:
+        mean_conf = (sum(conf_scores) / len(conf_scores)) if conf_scores else 0.85
+    if bool(getattr(ocr, "requires_review", False)) and mean_conf >= 0.68:
+        return False, f"ocr_requires_review_{mean_conf:.2f}", mean_conf
     if conf_scores and mean_conf < 0.68:
         return False, f"low_confidence_{mean_conf:.2f}", mean_conf
 
@@ -230,24 +239,29 @@ def _evaluate_local_ocr_quality(ocr: Any, image_bgr: np.ndarray | None = None) -
 
     # 4. 손글씨(Handwriting) 영역 탐지 검사함
     try:
-        from synthetic_engine.exporters.handwriting_vlm import is_handwritten_region
+        # Printed glyphs can have irregular anti-aliased contours too. Only
+        # use the handwriting detector as an escalation signal when the local
+        # recognizer already reports low confidence; this prevents clean scans
+        # from incurring an unnecessary Vision request.
+        if mean_conf < 0.70:
+            from synthetic_engine.exporters.handwriting_vlm import is_handwritten_region
 
-        if image_bgr is not None and isinstance(image_bgr, np.ndarray) and image_bgr.size > 0:
-            h_img, w_img = image_bgr.shape[:2]
-            handwritten_count = 0
-            for tb in text_blocks:
-                bbox = getattr(tb, "bbox", None)
-                conf = float(getattr(tb, "confidence", 0.85) or 0.85)
-                if bbox and len(bbox) == 4:
-                    x0, y0, x1, y1 = [int(v) for v in bbox]
-                    x0, y0 = max(0, x0), max(0, y0)
-                    x1, y1 = min(w_img, x1), min(h_img, y1)
-                    if x1 > x0 + 10 and y1 > y0 + 10:
-                        crop = image_bgr[y0:y1, x0:x1]
-                        if crop.size > 0 and is_handwritten_region(crop, conf):
-                            handwritten_count += 1
-            if handwritten_count >= 1:
-                return False, f"handwriting_detected_{handwritten_count}_blocks", mean_conf
+            if image_bgr is not None and isinstance(image_bgr, np.ndarray) and image_bgr.size > 0:
+                h_img, w_img = image_bgr.shape[:2]
+                handwritten_count = 0
+                for tb in text_blocks:
+                    bbox = getattr(tb, "bbox", None)
+                    conf = float(getattr(tb, "confidence", mean_conf) or mean_conf)
+                    if bbox and len(bbox) == 4:
+                        x0, y0, x1, y1 = [int(v) for v in bbox]
+                        x0, y0 = max(0, x0), max(0, y0)
+                        x1, y1 = min(w_img, x1), min(h_img, y1)
+                        if x1 > x0 + 10 and y1 > y0 + 10:
+                            crop = image_bgr[y0:y1, x0:x1]
+                            if crop.size > 0 and is_handwritten_region(crop, conf):
+                                handwritten_count += 1
+                if handwritten_count >= 1:
+                    return False, f"handwriting_detected_{handwritten_count}_blocks", mean_conf
     except (ImportError, OSError, RuntimeError, ValueError):
         pass
 
@@ -329,8 +343,13 @@ class ImageParser:
                         document.metadata.custom[f"ocr_escalation_reason_p{page_no}"] = reason
                         document.metadata.custom[f"ocr_status_p{page_no}"] = "success"
                         document.metadata.custom[f"ocr_mean_confidence_p{page_no}"] = "0.99"
+                        document.metadata.custom[f"ocr_ai_used_p{page_no}"] = "true"
+                        document.metadata.custom[f"ocr_ai_model_p{page_no}"] = os.environ.get(
+                            "OPENAI_OCR_MODEL", "gpt-4o-mini"
+                        )
                         escalated_to_ai = True
-                except Exception:
+                except Exception as exc:
+                    document.metadata.custom[f"ocr_ai_error_p{page_no}"] = str(exc)[:500]
                     escalated_to_ai = False
 
             # 4. AI 에스컬레이션이 실행되지 않은 경우 로컬 OCR 결과를 IR 요소로 조립함
@@ -401,7 +420,7 @@ class ImageParser:
                     caption=_paragraph("이미지에서 텍스트를 추출하지 못했습니다.", ref=SourceRef("image", page_no=page_no)),
                     source_ref=SourceRef("image", page_no=page_no, object_id="source-image"),
                 ))
-            if ocr is not None and hasattr(ocr, "mean_confidence"):
+            if ocr is not None and hasattr(ocr, "mean_confidence") and not escalated_to_ai:
                 mean_confidence = float(ocr.mean_confidence)
                 document.metadata.custom[f"ocr_mean_confidence_p{page_no}"] = str(round(mean_confidence, 4))
                 document.metadata.custom[f"ocr_status_p{page_no}"] = (

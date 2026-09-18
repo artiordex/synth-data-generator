@@ -14,29 +14,22 @@ import warnings
 import numpy as np
 import pandas as pd
 from ..common.types import ColumnPlan
+from ..rules.profile_registry import default_engine_settings
 
-_DATE_NAME_PATTERN = re.compile(
-    r"(일자|날짜|일시|년월일|생년|출생|입사|퇴사|퇴직|채용|임용|"
-    r"가입|탈퇴|등록|해지|시작|종료|만료|계약|date|datetime|birth|dob|"
-    r"hire|join|start|begin|from|leave|resign|retire|end|finish|until|expire)",
-    re.IGNORECASE,
-)
-_BIRTH_PATTERN = re.compile(r"(생년|출생|birth|dob)", re.IGNORECASE)
-_DATE_VALUE_PATTERN = re.compile(
-    r"(\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{4}\s*년\s*\d{1,2}\s*월|^\d{8}$|"
-    r"\d{1,2}[-./]\d{1,2}[-./]\d{2,4})"
-)
+_ENGINE_SETTINGS = default_engine_settings()
+_TEMPORAL_SETTINGS = _ENGINE_SETTINGS.get("temporal", {})
+_LABEL_SETTINGS = _ENGINE_SETTINGS.get("labels", {})
+_DATE_PARSEABLE_RATIO = float(_TEMPORAL_SETTINGS.get("parseable_ratio", 0.6))
+_DATE_NAME_PATTERN = re.compile(str(_TEMPORAL_SETTINGS.get("date_name_pattern", "")), re.IGNORECASE)
+_BIRTH_PATTERN = re.compile(str(_TEMPORAL_SETTINGS.get("birth_pattern", "")), re.IGNORECASE)
+_DATE_VALUE_PATTERN = re.compile(str(_TEMPORAL_SETTINGS.get("date_value_pattern", "")))
 _START_PATTERNS = {
-    "employment": re.compile(r"(입사|채용|임용|근무.?시작|hire|employ)", re.IGNORECASE),
-    "membership": re.compile(r"(가입|등록|개설|join|signup|register)", re.IGNORECASE),
-    "contract": re.compile(r"(계약.?시작|계약일|contract.?start)", re.IGNORECASE),
-    "generic": re.compile(r"(시작|개시|from|start|begin)", re.IGNORECASE),
+    group: re.compile(str(pattern), re.IGNORECASE)
+    for group, pattern in (_TEMPORAL_SETTINGS.get("start_patterns", {}) or {}).items()
 }
 _END_PATTERNS = {
-    "employment": re.compile(r"(퇴사|퇴직|퇴임|resign|retire|leave)", re.IGNORECASE),
-    "membership": re.compile(r"(탈퇴|해지|withdraw|unregister|cancel)", re.IGNORECASE),
-    "contract": re.compile(r"(계약.?종료|만료|contract.?end|expire)", re.IGNORECASE),
-    "generic": re.compile(r"(종료|마감|to|end|finish|until)", re.IGNORECASE),
+    group: re.compile(str(pattern), re.IGNORECASE)
+    for group, pattern in (_TEMPORAL_SETTINGS.get("end_patterns", {}) or {}).items()
 }
 
 
@@ -59,7 +52,7 @@ def _parse_date_series(series: pd.Series) -> pd.Series:
     if pd.api.types.is_numeric_dtype(values):
         as_text = values.dropna().astype("Int64", errors="ignore").astype(str)
         compact_ratio = float(as_text.str.fullmatch(r"\d{8}").mean()) if len(as_text) else 0.0
-        if compact_ratio >= 0.6:
+        if compact_ratio >= _DATE_PARSEABLE_RATIO:
             return pd.to_datetime(values.astype("Int64", errors="ignore").astype(str), format="%Y%m%d", errors="coerce")
         return pd.to_datetime(values, errors="coerce")
 
@@ -113,7 +106,7 @@ def _format_date_like(original: Any, value: pd.Timestamp) -> Any:
 # 컬럼 date role 작업을 수행함
 def _column_date_role(column: str, series: pd.Series | None = None) -> tuple[str | None, str | None]:
     name = str(column)
-    if series is not None and not _DATE_NAME_PATTERN.search(name) and _parseable_date_ratio(series) < 0.6:
+    if series is not None and not _DATE_NAME_PATTERN.search(name) and _parseable_date_ratio(series) < _DATE_PARSEABLE_RATIO:
         return None, None
     if _BIRTH_PATTERN.search(name):
         return "birth", "person"
@@ -123,7 +116,7 @@ def _column_date_role(column: str, series: pd.Series | None = None) -> tuple[str
     for group, pattern in _END_PATTERNS.items():
         if pattern.search(name):
             return "end", group
-    if _DATE_NAME_PATTERN.search(name) or (series is not None and _parseable_date_ratio(series) >= 0.6):
+    if _DATE_NAME_PATTERN.search(name) or (series is not None and _parseable_date_ratio(series) >= _DATE_PARSEABLE_RATIO):
         return "event", "generic"
     return None, None
 
@@ -177,13 +170,17 @@ def infer_temporal_constraints(
     reference_columns = start_columns + end_columns
     for birth in birth_columns:
         for reference in reference_columns:
-            min_years = 15 if roles[reference][1] == "employment" else 0
+            min_years = int(
+                _TEMPORAL_SETTINGS.get("employment_min_years", 15)
+                if roles[reference][1] == "employment"
+                else _TEMPORAL_SETTINGS.get("default_min_years", 0)
+            )
             inferred.append({
                 "type": "age_at_least",
                 "birth_column": birth,
                 "reference_column": reference,
                 "min_years": min_years,
-                "max_years": 120,
+                "max_years": int(_TEMPORAL_SETTINGS.get("max_years", 120)),
                 "source": "auto_temporal_inference",
             })
 
@@ -345,8 +342,8 @@ def apply_constraints_before_training(df: pd.DataFrame, constraints: list[dict[s
 
         column = constraint["column"]
         indicator = constraint["indicator_column"]
-        null_label = constraint.get("null_label", "비적용")
-        not_null_label = constraint.get("not_null_label", "적용")
+        null_label = constraint.get("null_label", _LABEL_SETTINGS.get("null_indicator", "비적용"))
+        not_null_label = constraint.get("not_null_label", _LABEL_SETTINGS.get("not_null_indicator", "적용"))
 
         if column not in output.columns or column not in plan.categorical + plan.numerical:
             raise ValueError(f"결측 의미 보존 대상이 학습 컬럼에 없습니다: {column}")
@@ -417,13 +414,6 @@ def apply_constraints_after_generation(df: pd.DataFrame, constraints: list[dict[
             if if_col in output.columns and then_col in output.columns:
                 output.loc[output[if_col].astype(str) == str(if_val), then_col] = then_val
 
-    if "수축기혈압" in output.columns and "이완기혈압" in output.columns:
-        sys_bp = pd.to_numeric(output["수축기혈압"], errors="coerce")
-        dia_bp = pd.to_numeric(output["이완기혈압"], errors="coerce")
-        swap_mask = (sys_bp.notna()) & (dia_bp.notna()) & (sys_bp < dia_bp)
-        if swap_mask.any():
-            output.loc[swap_mask, ["수축기혈압", "이완기혈압"]] = output.loc[swap_mask, ["이완기혈압", "수축기혈압"]].values
-
     # Other repairs can change a null-constrained column; enforce its meaning
     # on the final candidate before it is accepted.
     for constraint in constraints:
@@ -431,8 +421,8 @@ def apply_constraints_after_generation(df: pd.DataFrame, constraints: list[dict[
             column, indicator = constraint["column"], constraint["indicator_column"]
             if column not in output or indicator not in output:
                 raise ValueError(f"결측 제약조건 컬럼이 생성 결과에 없습니다: {column}, {indicator}")
-            null_label = constraint.get("null_label", "비적용")
-            not_null_label = constraint.get("not_null_label", "적용")
+            null_label = constraint.get("null_label", _LABEL_SETTINGS.get("null_indicator", "비적용"))
+            not_null_label = constraint.get("not_null_label", _LABEL_SETTINGS.get("not_null_indicator", "적용"))
             output.loc[output[indicator] == null_label, column] = np.nan
             valid = output[indicator].isin([null_label, not_null_label])
             invalid = (output[indicator] == not_null_label) & output[column].isna()

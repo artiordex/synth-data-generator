@@ -22,9 +22,11 @@ class DummyDataGenerator:
     """High-speed dummy data generator from schema definitions without requiring raw data."""
 
     # DummyDataGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
-    def __init__(self, seed: int = 42):
+    def __init__(self, seed: int = 42, locale: str = "ko_KR", reference_date: Any = None):
         self.seed = seed
-        self.fake = Faker("ko_KR")
+        self.locale = locale
+        self.reference_date = reference_date
+        self.fake = Faker(locale)
         Faker.seed(seed)
         random.seed(seed)
         np.random.seed(seed)
@@ -69,7 +71,13 @@ class DummyDataGenerator:
                 values = []
                 # Check if generator exists in ContextAwareFaker
                 for _ in range(num_rows):
-                    val = ContextAwareFaker.faker_value_coherent(self.fake, provider, col_name, {})
+                    val = ContextAwareFaker.faker_value_coherent(
+                        self.fake,
+                        provider,
+                        col_name,
+                        {},
+                        reference_date=self.reference_date,
+                    )
                     values.append(val)
                 col_data[col_name] = values
 

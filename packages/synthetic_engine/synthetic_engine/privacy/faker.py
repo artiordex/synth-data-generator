@@ -14,8 +14,56 @@ from typing import Any
 import pandas as pd
 from faker import Faker
 from ..common.types import ColumnPlan
+from ..rules.profile_registry import default_engine_settings
 from .token_vault import project_token
 from .masker import SmartMasker
+
+
+_ENGINE_SETTINGS = default_engine_settings()
+_PRIVACY_SETTINGS = _ENGINE_SETTINGS["privacy"]
+_CONTEXT_COLUMNS = _PRIVACY_SETTINGS["context_columns"]
+_GENDER_SETTINGS = _PRIVACY_SETTINGS["gender"]
+_IDENTITY_SETTINGS = _PRIVACY_SETTINGS["identity"]
+_PHONE_SETTINGS = _PRIVACY_SETTINGS["phone"]
+_REGION_PREFIXES = {
+    str(region): str(prefix)
+    for region, prefix in _PHONE_SETTINGS["region_prefixes"].items()
+}
+
+
+def _setting_list(value: Any) -> list[str]:
+    """설정 파일의 문자열 목록을 가명 생성용 목록으로 정규화함."""
+    if isinstance(value, (list, tuple)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if value is None:
+        return []
+    return [str(value).strip()]
+
+
+def _contains_any(value: Any, tokens: list[str]) -> bool:
+    normalized = "" if value is None else str(value).strip().lower()
+    return any(token.lower() in normalized for token in tokens if token)
+
+
+def _gender_matches(value: Any, token_key: str, exact_key: str) -> bool:
+    normalized = "" if value is None else str(value).strip().lower()
+    contains = _setting_list(_GENDER_SETTINGS[token_key])
+    exact = {token.lower() for token in _setting_list(_GENDER_SETTINGS[exact_key])}
+    return _contains_any(normalized, contains) or normalized in exact
+
+
+_AGE_CONTEXT_COLUMNS = _setting_list(_CONTEXT_COLUMNS["age"])
+_GENDER_CONTEXT_COLUMNS = _setting_list(_CONTEXT_COLUMNS["gender"])
+_REGION_CONTEXT_COLUMNS = _setting_list(_CONTEXT_COLUMNS["region"])
+_MIN_AGE = int(_IDENTITY_SETTINGS["min_age"])
+_MAX_AGE = int(_IDENTITY_SETTINGS["max_age"])
+_FALLBACK_BIRTH_YEAR = int(_IDENTITY_SETTINGS["fallback_birth_year"])
+_LANDLINE_COLUMN_TOKENS = _setting_list(_PHONE_SETTINGS["landline_column_tokens"])
+_DEFAULT_LANDLINE_PREFIX = str(_PHONE_SETTINGS["default_landline_prefix"])
+_MOBILE_PREFIX = str(_PHONE_SETTINGS["mobile_prefix"])
+_PASSPORT_PREFIXES = _setting_list(_PRIVACY_SETTINGS["passport_prefixes"])
+_DRIVER_LICENSE_REGION_CODES = _setting_list(_PRIVACY_SETTINGS["driver_license_region_codes"])
+_CAR_PLATE_HANGUL = _setting_list(_PRIVACY_SETTINGS["car_plate_hangul"])
 
 
 # repeat source series 작업을 수행함
@@ -30,6 +78,15 @@ def _repeat_source_series(raw: pd.DataFrame, column: str, length: int) -> pd.Ser
 
 class ContextAwareFaker:
     """행과 컬럼 문맥을 사용해 개인정보 가명값을 생성함"""
+
+    @staticmethod
+    def _reference_year(reference_date: Any = None) -> int:
+        """기준일이 없으면 실행일을 사용하되 특정 연도를 고정하지 않는다."""
+        try:
+            return int(pd.Timestamp(reference_date).year) if reference_date is not None else int(pd.Timestamp.now().year)
+        except (TypeError, ValueError):
+            return int(pd.Timestamp.now().year)
+
     # context value 요소를 추출하여 반환함
     @staticmethod
     def extract_context_value(row: Any, target_columns: list[str]) -> Any:
@@ -48,14 +105,14 @@ class ContextAwareFaker:
 
     # coherent ssn 데이터를 생성하여 반환함
     @classmethod
-    def generate_coherent_ssn(cls, age_val: Any, gender_val: Any) -> str:
+    def generate_coherent_ssn(cls, age_val: Any, gender_val: Any, reference_date: Any = None) -> str:
         """연령·성별 문맥을 반영한 주민등록번호 형식 값을 생성함"""
-        current_year = 2026
-        birth_year = 1990
+        current_year = cls._reference_year(reference_date)
+        birth_year = _FALLBACK_BIRTH_YEAR
         if age_val is not None:
             try:
                 age_int = int(float(age_val))
-                if 0 <= age_int <= 120:
+                if _MIN_AGE <= age_int <= _MAX_AGE:
                     birth_year = current_year - age_int
             except Exception:
                 pass
@@ -67,9 +124,7 @@ class ContextAwareFaker:
 
         is_female = False
         if gender_val is not None:
-            g_str = str(gender_val).strip().lower()
-            if "여" in g_str or "female" in g_str or g_str == "f" or g_str == "2":
-                is_female = True
+            is_female = _gender_matches(gender_val, "female_tokens", "female_exact_values")
 
         gender_digit = ("2" if is_female else "1") if birth_year < 2000 else ("4" if is_female else "3")
         back_tail = f"{random.randint(100000, 999999):06d}"
@@ -80,16 +135,13 @@ class ContextAwareFaker:
     def generate_coherent_phone(cls, col_name: str, region_val: Any) -> str:
         """컬럼명과 지역 문맥을 반영한 전화번호 형식 값을 생성함"""
         region = str(region_val or "").strip()
-        if "유선" in col_name or "tel" in col_name.lower():
-            if "서울" in region: code = "02"
-            elif "경기" in region or "인천" in region: code = "031"
-            elif "부산" in region: code = "051"
-            elif "대구" in region: code = "053"
-            elif "광주" in region: code = "062"
-            elif "대전" in region: code = "042"
-            else: code = "031"
+        if _contains_any(col_name, _LANDLINE_COLUMN_TOKENS):
+            code = next(
+                (prefix for region_token, prefix in _REGION_PREFIXES.items() if region_token in region),
+                _DEFAULT_LANDLINE_PREFIX,
+            )
         else:
-            code = "010"
+            code = _MOBILE_PREFIX
 
         mid = random.randint(2000, 9999)
         last = random.randint(1000, 9999)
@@ -97,14 +149,14 @@ class ContextAwareFaker:
 
     # coherent foreigner id 데이터를 생성하여 반환함
     @classmethod
-    def generate_coherent_foreigner_id(cls, age_val: Any, gender_val: Any) -> str:
+    def generate_coherent_foreigner_id(cls, age_val: Any, gender_val: Any, reference_date: Any = None) -> str:
         """연령·성별 문맥을 반영한 외국인등록번호 형식 값을 생성함"""
-        current_year = 2026
-        birth_year = 1990
+        current_year = cls._reference_year(reference_date)
+        birth_year = _FALLBACK_BIRTH_YEAR
         if age_val is not None:
             try:
                 age_int = int(float(age_val))
-                if 0 <= age_int <= 120:
+                if _MIN_AGE <= age_int <= _MAX_AGE:
                     birth_year = current_year - age_int
             except Exception:
                 pass
@@ -116,9 +168,7 @@ class ContextAwareFaker:
 
         is_female = False
         if gender_val is not None:
-            g_str = str(gender_val).strip().lower()
-            if "여" in g_str or "female" in g_str or g_str == "f" or g_str == "2":
-                is_female = True
+            is_female = _gender_matches(gender_val, "female_tokens", "female_exact_values")
 
         gender_digit = ("6" if is_female else "5") if birth_year < 2000 else ("8" if is_female else "7")
         back_tail = f"{random.randint(100000, 999999):06d}"
@@ -128,7 +178,7 @@ class ContextAwareFaker:
     @classmethod
     def generate_passport(cls) -> str:
         """여권번호 형식의 가명값을 생성함"""
-        letter = random.choice(["M", "S", "G", "D", "R"])
+        letter = random.choice(_PASSPORT_PREFIXES)
         digits = f"{random.randint(10000000, 99999999):08d}"
         return f"{letter}{digits}"
 
@@ -136,7 +186,7 @@ class ContextAwareFaker:
     @classmethod
     def generate_driver_license(cls) -> str:
         """운전면허번호 형식의 가명값을 생성함"""
-        region_code = random.choice(["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "28"])
+        region_code = random.choice(_DRIVER_LICENSE_REGION_CODES)
         yy = f"{random.randint(0, 26):02d}"
         serial = f"{random.randint(100000, 999999):06d}"
         chk = f"{random.randint(10, 99):02d}"
@@ -174,7 +224,7 @@ class ContextAwareFaker:
     def generate_car_plate(cls) -> str:
         """차량번호 형식의 가명값을 생성함"""
         num = random.choice([f"{random.randint(10, 99):02d}", f"{random.randint(100, 999):03d}"])
-        hangeul = random.choice(["가", "나", "다", "라", "마", "거", "너", "더", "러", "머", "고", "노", "도", "로", "모", "구", "누", "두", "루", "무", "하", "허", "호"])
+        hangeul = random.choice(_CAR_PLATE_HANGUL)
         tail = f"{random.randint(1000, 9999):04d}"
         return f"{num}{hangeul} {tail}"
 
@@ -186,17 +236,24 @@ class ContextAwareFaker:
 
     # faker value coherent 작업을 수행함
     @classmethod
-    def faker_value_coherent(cls, fake: Faker, provider: str, col_name: str, row: Any) -> Any:
+    def faker_value_coherent(
+        cls,
+        fake: Faker,
+        provider: str,
+        col_name: str,
+        row: Any,
+        reference_date: Any = None,
+    ) -> Any:
         """개인정보 제공자 유형에 맞는 문맥 기반 가명값을 생성함"""
         if provider == "ssn":
-            age = cls.extract_context_value(row, ["연령", "나이", "age"])
-            gender = cls.extract_context_value(row, ["성별", "gender", "sex"])
-            return cls.generate_coherent_ssn(age, gender)
+            age = cls.extract_context_value(row, _AGE_CONTEXT_COLUMNS)
+            gender = cls.extract_context_value(row, _GENDER_CONTEXT_COLUMNS)
+            return cls.generate_coherent_ssn(age, gender, reference_date=reference_date)
 
         if provider == "foreigner_id":
-            age = cls.extract_context_value(row, ["연령", "나이", "age"])
-            gender = cls.extract_context_value(row, ["성별", "gender", "sex"])
-            return cls.generate_coherent_foreigner_id(age, gender)
+            age = cls.extract_context_value(row, _AGE_CONTEXT_COLUMNS)
+            gender = cls.extract_context_value(row, _GENDER_CONTEXT_COLUMNS)
+            return cls.generate_coherent_foreigner_id(age, gender, reference_date=reference_date)
 
         if provider == "passport":
             return cls.generate_passport()
@@ -220,15 +277,15 @@ class ContextAwareFaker:
             return cls.generate_ip_address(fake)
 
         if provider == "phone_number":
-            region = cls.extract_context_value(row, ["거주", "지역", "주소", "소재지", "시도", "region", "address"])
+            region = cls.extract_context_value(row, _REGION_CONTEXT_COLUMNS)
             return cls.generate_coherent_phone(col_name, region)
 
         if provider == "name":
-            gender = cls.extract_context_value(row, ["성별", "gender", "sex"])
+            gender = cls.extract_context_value(row, _GENDER_CONTEXT_COLUMNS)
             if gender:
-                if "여" in str(gender) or "f" in str(gender).lower():
+                if _gender_matches(gender, "female_tokens", "female_exact_values"):
                     return fake.name_female() if hasattr(fake, "name_female") else fake.name()
-                if "남" in str(gender) or "m" in str(gender).lower():
+                if _gender_matches(gender, "male_tokens", "male_exact_values"):
                     return fake.name_male() if hasattr(fake, "name_male") else fake.name()
             return fake.name()
 
@@ -238,10 +295,17 @@ class ContextAwareFaker:
         return fake.word()
 
 # apply 개인식별정보(PII) 작업을 수행함
-def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42,
-              project_id: str = "default", key_version: str = "v1") -> tuple[pd.DataFrame, dict[str, Any]]:
+def apply_pii(
+    df: pd.DataFrame,
+    plan: ColumnPlan,
+    seed: int = 42,
+    project_id: str = "default",
+    key_version: str = "v1",
+    locale: str = "ko_KR",
+    reference_date: Any = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     """컬럼별 처리 계획에 따라 입력 데이터의 개인정보를 가명화함"""
-    fake = Faker("ko_KR")
+    fake = Faker(locale)
     Faker.seed(seed)
     random.seed(seed)
     output = df.copy()
@@ -270,11 +334,13 @@ def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42,
                                "key_version": key_version, "consistent_mapping": True}
             continue
         provider = spec.get("faker", "word")
-        fake = Faker("ko_KR")
+        fake = Faker(locale)
         values = []
         for idx in range(len(output)):
             row_data = output.iloc[idx]
-            val = ContextAwareFaker.faker_value_coherent(fake, provider, column, row_data)
+            val = ContextAwareFaker.faker_value_coherent(
+                fake, provider, column, row_data, reference_date=reference_date
+            )
             values.append(val)
         output[column] = values
         summary[column] = {"action": "faker", "provider": provider}
@@ -282,9 +348,16 @@ def apply_pii(df: pd.DataFrame, plan: ColumnPlan, seed: int = 42,
     return output, summary
 
 # 개인식별정보(PII) output 구조를 생성 및 조립함
-def build_pii_output(raw: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPlan, seed: int) -> tuple[pd.DataFrame, dict[str, Any]]:
+def build_pii_output(
+    raw: pd.DataFrame,
+    synthetic: pd.DataFrame,
+    plan: ColumnPlan,
+    seed: int,
+    locale: str = "ko_KR",
+    reference_date: Any = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     """합성 결과의 개인정보 컬럼을 원본 문맥과 계획에 따라 처리함"""
-    fake = Faker("ko_KR")
+    fake = Faker(locale)
     Faker.seed(seed)
     random.seed(seed)
     output = synthetic.copy()
@@ -312,7 +385,9 @@ def build_pii_output(raw: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPla
         values = []
         for idx in range(len(output)):
             row_data = output.iloc[idx]
-            val = ContextAwareFaker.faker_value_coherent(fake, provider, column, row_data)
+            val = ContextAwareFaker.faker_value_coherent(
+                fake, provider, column, row_data, reference_date=reference_date
+            )
             values.append(val)
         output[column] = values
         summary[column] = {"action": "faker", "provider": provider, "consistent_mapping": False, "coherent_context": True}

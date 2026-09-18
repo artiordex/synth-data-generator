@@ -8,21 +8,26 @@
 # 수정일: 2026-09-13
 # =============================================================================
 from .analyzer import infer_columns, scan_pii_columns
+from ..rules.profile_registry import default_engine_settings
 
-PRESETS = [
-    ('보육교사 근무 제약', ['성별', '연령대', '학력', '근무지역', '담당 영유아와 상호작용에서의 어려움',
-       '담당 영유아 부모와의 관계에서의 어려움', '보육프로그램 운영에서의 어려움', '행정_사무 등의 업무처리에서의 어려움',
-       '보육교직원과 관계에서의 어려움', '원장과의 관계에서의 어려움'], [], 30, 64, 1, [], []),
-    ('임대주택 당첨자', ['연령대', '성별', '주택소재지_자치구', '임대주택 유형', '일반_우선_특별', '주택면적', '당첨_예비'],
-       ['가족수', '소득분위'], 50, 64, 1, ['소득분위'], []),
-    ('면세점 회원·주기 변수', ['성별', '연령대', '가입연월'], ['장바구니 품목수', '가입후_경과월수', '가입월_sin', '가입월_cos'],
-       50, 64, 1, [], ['가입월_sin', '가입월_cos']),
-    ('면세점 회원', ['성별', '연령대', '가입연월'], ['장바구니 품목수', '가입후_경과월'], 50, 64, 1, [], []),
-    ('개인 인터넷 이용행태', ['성별', '학력', '직업분류', '최근인터넷이용시기', '인터넷이용빈도', '월평균가구소득', '거주지'],
-       ['가구원연령'], 10, 200, 10, [], []),
-    ('국민임대 임대계약', ['연령대', '성별', '주택소재지(자치구)', '주거급여 수급여부', '국민임대 임대보증금액', '국민임대 월임대료'],
-       ['가족수'], 100, 64, 1, [], []),
-]
+def _load_presets() -> list[tuple[str, list[str], list[str], int, int, int, list[str], list[str]]]:
+    """YAML 레지스트리의 노트북 프리셋을 기존 튜플 API로 변환함."""
+    presets = []
+    for preset in default_engine_settings().get("notebook_presets", []):
+        presets.append((
+            str(preset["name"]),
+            list(preset.get("required_categorical", [])),
+            list(preset.get("required_numerical", [])),
+            int(preset["epochs"]),
+            int(preset["batch_size"]),
+            int(preset["pac"]),
+            list(preset.get("preserve_null_columns", [])),
+            list(preset.get("evaluation_excluded_columns", [])),
+        ))
+    return presets
+
+
+PRESETS = _load_presets()
 
 
 # notebook 설정값 작업을 수행함

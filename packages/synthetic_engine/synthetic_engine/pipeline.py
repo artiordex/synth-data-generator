@@ -29,7 +29,11 @@ from .preprocessing.transformer import (
 from .generators.registry import get_synthesizer
 from .generators.sampling import sample_valid_rows
 from .privacy.faker import apply_pii, build_pii_output
+from .privacy.guardrails import escape_unique_clones
 from .quality.assessment import evaluate
+from .rules.engine import DatasetRuleEngine
+from .rules.catalog import match_dataset_schema, resolve_column_name
+from .rules.profile_registry import default_engine_settings
 from .exporters.review_documents import build_review_documents
 from .exporters.package_exporter import make_submission_package_dirs, safe_path_part, split_leading_sequence, synthetic_data_filename
 
@@ -90,6 +94,7 @@ class SyntheticPipeline:
 
         report_progress(10, "원본 데이터 검증 및 무결성(SHA-256) 계산 중...")
         raw = read_table(input_path)
+        dataset_schema = match_dataset_schema(raw, original_filename)
         raw_hash = calculate_sha256(input_path)
         device_info = detect_system_device()
         preset = notebook_settings(raw)
@@ -119,15 +124,20 @@ class SyntheticPipeline:
             if unknown:
                 raise ValueError(f"입력 파일에 없는 컬럼입니다: {sorted(unknown)}")
 
-        user_constraints = list(constraints or [])
+        engine_defaults = default_engine_settings()
+        default_labels = engine_defaults.get("labels", {}) or {}
+        default_constraints = list(
+            (engine_defaults.get("constraints", {}) or {}).get("global", []) or []
+        )
+        user_constraints = default_constraints + list(constraints or [])
         for column in preserve_null_columns or []:
             if not column: continue
             user_constraints.append({
                 "type": "null_indicator",
                 "column": column,
-                "indicator_column": f"{column}_적용",
-                "null_label": "비적용",
-                "not_null_label": "적용",
+                "indicator_column": f"{column}{default_labels.get('null_indicator_suffix', '_적용')}",
+                "null_label": default_labels.get("null_indicator", "비적용"),
+                "not_null_label": default_labels.get("not_null_indicator", "적용"),
             })
         auto_temporal_constraints = infer_temporal_constraints(
             raw, columns=selected_scope, existing=user_constraints)
@@ -135,14 +145,22 @@ class SyntheticPipeline:
 
         plan_cfg = {"columns": columns_config, "conditions": conditions or {}, "constraints": user_constraints}
         plan = build_column_plan(plan_cfg, raw)
-        masked, masking_report = apply_pii(fit_raw, plan, self.config.seed)
+        masked, masking_report = apply_pii(
+            fit_raw,
+            plan,
+            self.config.seed,
+            locale=self.config.locale,
+            reference_date=self.config.reference_date,
+        )
 
         report_progress(32, "도메인 규칙 및 제약조건 전처리 중...")
+        masked = DatasetRuleEngine.preprocess(masked, schema=dataset_schema, dataset_name=original_filename)
         constrained, plan = apply_constraints_before_training(masked, user_constraints, plan)
         training = prepare_training_frame(constrained, plan, user_constraints)
         control = None
         if control_raw is not None:
-            control_constrained, _ = apply_constraints_before_training(control_raw, user_constraints, plan)
+            control_masked = DatasetRuleEngine.preprocess(control_raw, schema=dataset_schema, dataset_name=original_filename)
+            control_constrained, _ = apply_constraints_before_training(control_masked, user_constraints, plan)
             control = prepare_training_frame(control_constrained, plan, user_constraints, reference=constrained)
         if training.empty or not len(training.columns):
             raise ValueError("학습 가능한 행과 컬럼이 필요합니다.")
@@ -168,9 +186,57 @@ class SyntheticPipeline:
 
         gen.fit(training, plan)
         synthetic, sampling_report, duplicate_report, dp_report = sample_valid_rows(
-            gen, training, plan, self.config, user_constraints, conditions, report_progress)
+            gen,
+            training,
+            plan,
+            self.config,
+            user_constraints,
+            conditions,
+            report_progress,
+            schema=dataset_schema,
+        )
 
-        synthetic, pii_output_report = build_pii_output(raw, synthetic, plan, self.config.seed)
+        synthetic, pii_output_report = build_pii_output(
+            raw,
+            synthetic,
+            plan,
+            self.config.seed,
+            locale=self.config.locale,
+            reference_date=self.config.reference_date,
+        )
+        # 12개 데이터셋 업무규칙 후처리 (1단계 산식 -> 2단계 논리보정 -> 3단계 원본 유일 레코드 및 완전일치 엄격 필터링)
+        synthetic = DatasetRuleEngine.postprocess(
+            synthetic,
+            raw_df=raw,
+            schema=dataset_schema,
+            dataset_name=original_filename,
+            random_state=self.config.seed,
+            as_of=self.config.reference_date,
+        )
+        clone_escape_report = {"status": "NOT_EVALUATED", "reason": "스키마 QI 정보가 없습니다."}
+        if dataset_schema is not None and dataset_schema.quasi_identifiers:
+            qi_columns = [
+                resolve_column_name(synthetic, [name])
+                for name in dataset_schema.quasi_identifiers
+            ]
+            qi_columns = [column for column in qi_columns if column]
+            non_qi_columns = [
+                column for column in synthetic.columns
+                if column not in qi_columns and pd.api.types.is_numeric_dtype(synthetic[column])
+            ]
+            synthetic, clone_escape_report = escape_unique_clones(
+                raw,
+                synthetic,
+                qi_columns=qi_columns,
+                non_qi_columns=non_qi_columns,
+                random_state=self.config.seed,
+                return_report=True,
+            )
+        rule_audit_report = DatasetRuleEngine.audit_rules(
+            synthetic,
+            schema=dataset_schema,
+            dataset_name=original_filename,
+        )
         synth_hash = calculate_sha256(synthetic)
 
         report_progress(88, "다차원 품질(JSD, 2D 상관관계) 및 안전성(Anonymeter, DCR) 종합 평가 중...")
@@ -198,6 +264,10 @@ class SyntheticPipeline:
                 "threshold": 0,
             })
         evaluation['guardrails'] = duplicate_report
+        evaluation['guardrails']['clone_escape'] = clone_escape_report
+        # 심의 리포트가 안전성 지표를 한 경로에서 소비할 수 있도록
+        # 샘플링 단계의 유일·완전일치 차단 결과를 safety.unique로 연결한다.
+        evaluation.setdefault('safety', {})['unique'] = duplicate_report
 
         report_progress(94, "심의위원회 한글(HWPX) 3종 문서 생성 및 패키징 중...")
         sequence, parsed_dataset_name = split_leading_sequence(Path(original_filename).stem)
@@ -291,6 +361,7 @@ class SyntheticPipeline:
             },
             "differential_privacy": dp_report,
             "guardrails": duplicate_report,
+            "rule_audit": rule_audit_report,
             **evaluation
         }
 

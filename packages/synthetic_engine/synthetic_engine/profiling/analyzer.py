@@ -17,74 +17,41 @@ from pathlib import Path
 from typing import Any
 import pandas as pd
 from ..common.types import ColumnPlan
+from ..rules.profile_registry import default_engine_settings
 
-PII_COLUMN_PATTERNS = {
-    "name": re.compile(r"(이름|성명|name|대표자|담당자|작성자|고객명|환자명|회원명)", re.IGNORECASE),
-    "phone_number": re.compile(r"(전화|휴대|핸드폰|연락처|phone|mobile|tel|hp)", re.IGNORECASE),
-    "email": re.compile(r"(이메일|메일|email|e-mail)", re.IGNORECASE),
-    "address": re.compile(r"(주소|address|거주지|도로명|소재지|배송지)", re.IGNORECASE),
-    "ssn": re.compile(r"(주민|주민등록|rrn|ssn|resident)", re.IGNORECASE),
-    "account": re.compile(r"(계좌|account|계좌번호|환불계좌)", re.IGNORECASE),
-    "foreigner_id": re.compile(r"(외국인|외국인등록|alien|arc)", re.IGNORECASE),
-    "passport": re.compile(r"(여권|여권번호|passport)", re.IGNORECASE),
-    "driver_license": re.compile(r"(운전면허|면허번호|driver.*licen)", re.IGNORECASE),
-    "business_number": re.compile(r"(사업자|사업자등록|사업자번호|biz_no|business_number)", re.IGNORECASE),
-    "corporate_number": re.compile(r"(법인|법인등록|법인번호|corporate_number)", re.IGNORECASE),
-    "credit_card": re.compile(r"(카드|카드번호|신용카드|credit_card|card_number)", re.IGNORECASE),
-    "car_plate": re.compile(r"(차량|차량번호|자동차번호|plate|vehicle)", re.IGNORECASE),
-    "ip_address": re.compile(r"(ip|ip_address|아이피|접속ip|방문ip)", re.IGNORECASE),
-}
 
-PII_VALUE_PATTERNS = {
-    "email": re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
-    "phone_number": re.compile(r"^(01[016789]|02|0[3-6][1-5])[-\s]?\d{3,4}[-\s]?\d{4}$"),
-    "ssn": re.compile(r"^\d{6}[-\s]?[1-4]\d{6}$"),
-    "foreigner_id": re.compile(r"^\d{6}[-\s]?[5-8]\d{6}$"),
-    "passport": re.compile(r"^[a-zA-Z]\d{8}$"),
-    "driver_license": re.compile(r"^\d{2}[-\s]?\d{2}[-\s]?\d{6}[-\s]?\d{2}$"),
-    "business_number": re.compile(r"^\d{3}[-\s]?\d{2}[-\s]?\d{5}$"),
-    "corporate_number": re.compile(r"^\d{6}[-\s]?\d{7}$"),
-    "credit_card": re.compile(r"^\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}$"),
-    "car_plate": re.compile(r"^(\d{2,3}[가-힣]\s?\d{4}|[가-힣]{2}\d{2}[가-힣]\s?\d{4})$"),
-    "ip_address": re.compile(r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"),
-}
+_ENGINE_SETTINGS = default_engine_settings()
+_SEMANTIC_SETTINGS = _ENGINE_SETTINGS.get("semantic", {})
+_PROFILING_SETTINGS = _ENGINE_SETTINGS.get("profiling", {})
 
+
+def _configured_patterns(key: str, *, flags: int = 0) -> dict[str, re.Pattern[str]]:
+    return {
+        name: re.compile(str(pattern), flags)
+        for name, pattern in (_SEMANTIC_SETTINGS.get(key, {}) or {}).items()
+    }
+
+
+PII_COLUMN_PATTERNS = _configured_patterns("pii_column_patterns", flags=re.IGNORECASE)
+PII_VALUE_PATTERNS = _configured_patterns("pii_value_patterns")
 QUASI_IDENTIFIER_COLUMN_PATTERN = re.compile(
-    r"(이름|성명|name|전화|휴대|핸드폰|연락처|phone|mobile|tel|이메일|메일|email|e-mail|"
-    r"주소|거주|거주지|소재지|지역|시도|시군구|읍면동|우편|주민|주민등록|rrn|ssn|"
-    r"외국인|여권|운전면허|면허|계좌|사업자|법인|카드|차량|ip|아이피|"
-    r"성별|성별코드|연령|연령대|나이|생년|출생|학교|고등학교|대학교|학년|반|"
-    r"직위|직급|부서|소속|기관|회사|사업장|업종|직장|"
-    r"학력|최종학력|전공|졸업|소득|가구|가구원|세대|가족|혼인|결혼|국적|장애|"
-    r"질병|병력|건강|진단|회원|고객|학생|교사|담당자|작성자|대표자)",
-    re.IGNORECASE,
+    str(_SEMANTIC_SETTINGS.get("quasi_identifier_column_pattern", "")), re.IGNORECASE
 )
-
-JOB_IDENTIFIER_COLUMN_PATTERN = re.compile(r"^(현재)?(직업|직무|직종|직업명|직무명)$|^(직업|직무|직종)[_ -]?(분류|코드|유형|명)$")
-
+JOB_IDENTIFIER_COLUMN_PATTERN = re.compile(
+    str(_SEMANTIC_SETTINGS.get("job_identifier_column_pattern", "")), re.IGNORECASE
+)
 GENERAL_INFORMATION_COLUMN_PATTERN = re.compile(
-    r"(조사연도|연도|년도|월|일자|날짜|시점|기간|"
-    r"경험|참여|만족|만족도|희망|수요|인식|여부|수준|점수|평가|정도|빈도|"
-    r"의향|계획|선호|이용|사용|활용|응답|의견|관심|효과|필요|문항|"
-    r"사고|침해|피해|심각도|상담|수업|교육|학습|진로|창업|대화|소통)",
-    re.IGNORECASE,
+    str(_SEMANTIC_SETTINGS.get("general_information_column_pattern", "")), re.IGNORECASE
 )
-
-INFORMATION_TYPES = {"준식별자", "일반정보"}
-
-REGION_VALUE_PATTERN = re.compile(
-    r"^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|"
-    r"서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|"
-    r"세종특별자치시|경기도|강원도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|"
-    r"제주특별자치도|전남광주)$"
-)
-GENDER_VALUES = {"남", "여", "남성", "여성", "m", "f", "male", "female"}
-AGE_VALUE_PATTERN = re.compile(r"^(\d{1,3}\s*세|\d{1,2}\s*대|\d{1,3}\s*-\s*\d{1,3}|만\s*\d{1,3}\s*세)$")
-SCHOOL_TYPE_VALUES = {"일반고", "특성화고", "자율고", "특목고", "마이스터고", "중학교", "고등학교", "대학교", "대학원"}
-EDUCATION_VALUE_PATTERN = re.compile(r"(무학|초졸|중졸|고졸|전문대|대졸|석사|박사|재학|졸업|중퇴)")
-INCOME_VALUE_PATTERN = re.compile(r"(\d+\s*분위|소득|만원|원|상위|하위|중위|저소득|고소득)")
-HOUSEHOLD_VALUE_PATTERN = re.compile(r"^(\d+\s*인|\d+\s*명|1인가구|2인가구|3인가구|4인가구|5인이상)")
-JOB_VALUE_PATTERN = re.compile(r"(관리자|전문가|사무|서비스|판매|농림|어업|기능원|장치|기계|조립|단순노무|군인|학생|주부|무직|자영업|회사원|공무원|교사)")
+INFORMATION_TYPES = set(_SEMANTIC_SETTINGS.get("information_types", []))
+REGION_VALUE_PATTERN = re.compile(str(_SEMANTIC_SETTINGS.get("region_value_pattern", "")))
+GENDER_VALUES = set(_SEMANTIC_SETTINGS.get("gender_values", []))
+AGE_VALUE_PATTERN = re.compile(str(_SEMANTIC_SETTINGS.get("age_value_pattern", "")))
+SCHOOL_TYPE_VALUES = set(_SEMANTIC_SETTINGS.get("school_type_values", []))
+EDUCATION_VALUE_PATTERN = re.compile(str(_SEMANTIC_SETTINGS.get("education_value_pattern", "")))
+INCOME_VALUE_PATTERN = re.compile(str(_SEMANTIC_SETTINGS.get("income_value_pattern", "")))
+HOUSEHOLD_VALUE_PATTERN = re.compile(str(_SEMANTIC_SETTINGS.get("household_value_pattern", "")))
+JOB_VALUE_PATTERN = re.compile(str(_SEMANTIC_SETTINGS.get("job_value_pattern", "")))
 
 
 # information type 데이터를 표준 형식으로 정규화함
@@ -95,9 +62,9 @@ def normalize_information_type(value: Any) -> str | None:
         return None
     if text in INFORMATION_TYPES:
         return text
-    if any(keyword in text for keyword in ("식별자", "개인정보", "민감", "고유식별", "위치", "인구통계")):
+    if any(keyword in text for keyword in _SEMANTIC_SETTINGS.get("normalize_quasi_keywords", [])):
         return "준식별자"
-    if any(keyword in text for keyword in ("일반", "응답", "설문", "이용", "경험", "만족", "수요")):
+    if any(keyword in text for keyword in _SEMANTIC_SETTINGS.get("normalize_general_keywords", [])):
         return "일반정보"
     return None
 
@@ -122,17 +89,19 @@ def has_quasi_identifier_values(series: pd.Series) -> bool:
     if non_null == 0:
         return False
 
+    thresholds = _SEMANTIC_SETTINGS.get("quasi_value_thresholds", {}) or {}
     checks = [
-        (REGION_VALUE_PATTERN, 0.6),
-        (GENDER_VALUES, 0.8),
-        (AGE_VALUE_PATTERN, 0.6),
-        (SCHOOL_TYPE_VALUES, 0.6),
-        (EDUCATION_VALUE_PATTERN, 0.5),
-        (INCOME_VALUE_PATTERN, 0.5),
-        (HOUSEHOLD_VALUE_PATTERN, 0.5),
-        (JOB_VALUE_PATTERN, 0.5),
+        (REGION_VALUE_PATTERN, float(thresholds.get("region", 0.6))),
+        (GENDER_VALUES, float(thresholds.get("gender", 0.8))),
+        (AGE_VALUE_PATTERN, float(thresholds.get("age", 0.6))),
+        (SCHOOL_TYPE_VALUES, float(thresholds.get("school_type", 0.6))),
+        (EDUCATION_VALUE_PATTERN, float(thresholds.get("education", 0.5))),
+        (INCOME_VALUE_PATTERN, float(thresholds.get("income", 0.5))),
+        (HOUSEHOLD_VALUE_PATTERN, float(thresholds.get("household", 0.5))),
+        (JOB_VALUE_PATTERN, float(thresholds.get("job", 0.5))),
     ]
-    return any(value_match_ratio(series, pattern) >= threshold for pattern, threshold in checks)
+    sample_size = int(_PROFILING_SETTINGS.get("quasi_sample_size", 200))
+    return any(value_match_ratio(series, pattern, sample_size=sample_size) >= threshold for pattern, threshold in checks)
 
 
 # classify information type 작업을 수행함
@@ -158,14 +127,16 @@ def classify_information_type(column: Any, series: pd.Series | None = None, pii_
         non_null = int(series.notna().sum())
         unique = int(series.nunique(dropna=True))
         unique_ratio = unique / max(non_null, 1)
-        if non_null >= 20 and unique_ratio >= 0.8:
+        if non_null >= int(_PROFILING_SETTINGS.get("unique_identifier_min_rows", 20)) and unique_ratio >= float(
+            _PROFILING_SETTINGS.get("unique_identifier_ratio", 0.8)
+        ):
             return "준식별자"
 
     return "일반정보"
 
 
 # read 표(테이블) 작업을 수행함
-def read_table(path: Path | str, sheet_name: str | int = 0) -> pd.DataFrame:
+def _legacy_read_table(path: Path | str, sheet_name: str | int = 0) -> pd.DataFrame:
     """지원 파일 형식을 판별해 데이터프레임으로 읽음"""
     path = Path(path)
     if not path.exists():
@@ -399,6 +370,17 @@ def _read_document_as_dataframe(path: Path) -> pd.DataFrame:
 
 
 # infer 컬럼 목록 작업을 수행함
+def read_table(path: Path | str, sheet_name: str | int = 0) -> pd.DataFrame:
+    """Read an input table through the shared profiling reader boundary.
+
+    The public import path remains ``analyzer.read_table`` while
+    format-specific loading is implemented in ``table_reader``.
+    """
+    from .table_reader import read_table as _read_table
+
+    return _read_table(path, sheet_name=sheet_name)
+
+
 def infer_columns(df: pd.DataFrame, ignored: list[str]) -> tuple[list[str], list[str]]:
     """데이터프레임 컬럼을 범주형과 수치형으로 추론함"""
     categorical: list[str] = []
@@ -414,7 +396,9 @@ def infer_columns(df: pd.DataFrame, ignored: list[str]) -> tuple[list[str], list
         numeric_ratio = 0.0 if non_null == 0 else float(numeric.notna().sum() / non_null)
         unique_ratio = float(series.nunique(dropna=True) / max(non_null, 1))
 
-        if numeric_ratio >= 0.9 and unique_ratio > 0.05:
+        if numeric_ratio >= float(_PROFILING_SETTINGS.get("numeric_ratio", 0.9)) and unique_ratio > float(
+            _PROFILING_SETTINGS.get("numeric_unique_ratio", 0.05)
+        ):
             numerical.append(column)
         else:
             categorical.append(column)
@@ -437,11 +421,11 @@ def scan_pii_columns(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
         if column in detected:
             continue
 
-        sample = df[column].dropna().astype(str).head(200)
+        sample = df[column].dropna().astype(str).head(int(_PROFILING_SETTINGS.get("pii_sample_size", 200)))
         found_pure = False
         for pii_type, pattern in PII_VALUE_PATTERNS.items():
             hits = sample.map(lambda value: bool(pattern.search(value))).mean() if len(sample) else 0
-            if hits >= 0.3:
+            if hits >= float(_PROFILING_SETTINGS.get("pii_value_hit_ratio", 0.3)):
                 detected[column] = {"action": "smart_mask", "faker": pii_type, "consistent_mapping": True, "detected_by": "value_pattern"}
                 found_pure = True
                 break

@@ -24,7 +24,8 @@ from .jsd import (
     wasserstein_similarity,
 )
 from .correlation import CorrelationEvaluator
-from ..privacy.guardrails import PrivacyGuardrails
+from ..privacy.guardrails import PrivacyGuardrails, evaluate_subspace_dcr
+from .utility import evaluate_comprehensive_utility
 
 # 진행 상태 by 임계값 작업을 수행함
 def status_by_threshold(value: float | None, pass_max: float, review_max: float, lower_is_better: bool = True) -> str:
@@ -117,6 +118,9 @@ def build_auto_assessment(
     wasserstein_similarity_mean: float | None = None,
     tvd_mean: float | None = None,
     composite_quality_score: float | None = None,
+    cap_report: dict[str, Any] | None = None,
+    extended_utility_report: dict[str, Any] | None = None,
+    subspace_dcr_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """품질 평가 결과를 자동 심의 판정 구조로 변환함"""
     anon_metrics = anonymeter_report or {}
@@ -132,11 +136,45 @@ def build_auto_assessment(
 
     gr_metrics = guardrail_report or {}
     mem_risk = gr_metrics.get('memorization_risk_rate')
+    nndr_risk = gr_metrics.get('nndr_risk_rate')
     dcr_ok = not plan.numerical or (mem_risk is not None and math.isfinite(mem_risk) and mem_risk <= .05)
     jsd_quality = max(0.0, min(1.0, 1.0 - jsd_mean)) if math.isfinite(jsd_mean) else None
     distribution_quality = composite_quality_score if composite_quality_score is not None else jsd_quality
     quality_threshold = max(0.0, min(1.0, float(quality_threshold)))
     distribution_ok = distribution_quality is not None and distribution_quality >= quality_threshold
+
+    # CAP (속성 추론 위험도)
+    cap_required = cap_report is not None
+    cap_data = cap_report or {}
+    cap_measured = bool(cap_data.get('evaluated'))
+    cap_advantage = cap_data.get('inference_advantage') if cap_measured else None
+    cap_ok = (not cap_required) or (cap_measured and cap_advantage is not None and float(cap_advantage) <= 0.05)
+
+    subspace_required = subspace_dcr_report is not None
+    subspace_data = subspace_dcr_report or {}
+    subspace_measured = bool(subspace_data.get('evaluated'))
+    subspace_ok = (not subspace_required) or (subspace_measured and subspace_data.get('status') == 'PASS')
+
+    # 확장 유용성 지표는 측정된 항목만 자동 판정에 반영하고,
+    # 표본 부족으로 미측정된 항목은 기존 심의 흐름을 덮어쓰지 않는다.
+    utility_data = extended_utility_report or {}
+    pmse_data = utility_data.get("pmse_metrics") or utility_data.get("pmse") or {}
+    spearman_data = utility_data.get("spearman_metrics") or utility_data.get("spearman") or {}
+    categorical_data = utility_data.get("categorical_association_metrics") or utility_data.get("categorical_associations") or {}
+
+    pmse_ratio = pmse_data.get("pmse_ratio", pmse_data.get("pMSE_Ratio"))
+    pmse_measured = pmse_ratio is not None and math.isfinite(float(pmse_ratio))
+    pmse_ok = not pmse_measured or float(pmse_ratio) <= 3.0
+    spearman_score = spearman_data.get("spearman_score")
+    spearman_measured = spearman_score is not None and int(spearman_data.get("pairs_evaluated", 0) or 0) > 0
+    spearman_ok = not spearman_measured or float(spearman_score) >= 0.8
+    categorical_rate = categorical_data.get("significant_preservation_rate")
+    categorical_measured = (
+        categorical_rate is not None
+        and int(categorical_data.get("significant_pairs_original", 0) or 0) > 0
+    )
+    categorical_ok = not categorical_measured or float(categorical_rate) >= 0.8
+    extended_utility_ok = pmse_ok and spearman_ok and categorical_ok
 
     score = 100
     for risk in risks:
@@ -144,10 +182,15 @@ def build_auto_assessment(
     if not distribution_ok: score -= 15
     if corr_score < 0.70: score -= 10
     if mem_risk is not None and mem_risk > 0.05: score -= 10
+    if cap_measured and not cap_ok: score -= 10
+    if not subspace_ok: score -= 10
+    if pmse_measured and not pmse_ok: score -= 10
+    if spearman_measured and not spearman_ok: score -= 10
+    if categorical_measured and not categorical_ok: score -= 10
     score = max(score, 0)
 
-    privacy_ok = measured and all(value <= .05 for value in risks) and dcr_ok
-    quality_ok = distribution_ok and corr_score >= .70
+    privacy_ok = measured and all(value <= .05 for value in risks) and dcr_ok and cap_ok and subspace_ok
+    quality_ok = distribution_ok and corr_score >= .70 and extended_utility_ok
     overall_status = 'PASS' if privacy_ok and quality_ok else ('FAIL' if measured and score < 60 else 'REVIEW')
     issues: list[dict[str, Any]] = []
     if not distribution_ok:
@@ -198,6 +241,64 @@ def build_auto_assessment(
             "value": mem_risk,
             "threshold": 0.05,
         })
+    if cap_required and not cap_measured:
+        issues.append({
+            "code": "CAP_UNMEASURED",
+            "label": "CAP 평가 미측정",
+            "severity": "review",
+            "detail": cap_data.get("reason", "민감속성 추론 위험을 계산하지 못했습니다."),
+        })
+    elif not cap_ok:
+        issues.append({
+            "code": "CAP_INFERENCE_RISK",
+            "label": "CAP 속성 추론 위험 검토",
+            "severity": "review",
+            "detail": f"합성데이터를 통한 민감속성 추론 이득 {cap_advantage * 100:.2f}%가 기준 5.00%를 초과합니다.",
+            "value": cap_advantage,
+            "threshold": 0.05,
+        })
+    if subspace_required and not subspace_measured:
+        issues.append({
+            "code": "SUBSPACE_DCR_UNMEASURED",
+            "label": "QI 부분공간 DCR 미측정/실패",
+            "severity": "review",
+            "detail": subspace_data.get("reason", "QI 부분공간 안전성 평가를 완료하지 못했습니다."),
+        })
+    elif subspace_required and not subspace_ok:
+        issues.append({
+            "code": "SUBSPACE_DCR_RISK",
+            "label": "QI 부분공간 근접 복제 위험",
+            "severity": "review",
+            "detail": f"QI 부분공간 DCR 상태가 {subspace_data.get('status')}입니다.",
+            "value": subspace_data.get("dcr_p05"),
+        })
+    if pmse_measured and not pmse_ok:
+        issues.append({
+            "code": "PMSE_RATIO_HIGH",
+            "label": "pMSE Ratio 유용성 기준 초과",
+            "severity": "review",
+            "detail": f"pMSE Ratio {float(pmse_ratio):.3f}가 기준 3.000보다 높습니다.",
+            "value": float(pmse_ratio),
+            "threshold": 3.0,
+        })
+    if spearman_measured and not spearman_ok:
+        issues.append({
+            "code": "SPEARMAN_PRESERVATION_LOW",
+            "label": "Spearman 상관 보존율 낮음",
+            "severity": "review",
+            "detail": f"Spearman 보존율 {float(spearman_score) * 100:.2f}%가 기준 80.00%보다 낮습니다.",
+            "value": float(spearman_score),
+            "threshold": 0.8,
+        })
+    if categorical_measured and not categorical_ok:
+        issues.append({
+            "code": "CRAMERS_V_PRESERVATION_LOW",
+            "label": "Cramér's V 유의쌍 보존율 낮음",
+            "severity": "review",
+            "detail": f"유의 범주쌍 보존율 {float(categorical_rate) * 100:.2f}%가 기준 80.00%보다 낮습니다.",
+            "value": float(categorical_rate),
+            "threshold": 0.8,
+        })
 
     return {
         "overall_status": overall_status,
@@ -219,6 +320,11 @@ def build_auto_assessment(
             "tvd_mean": tvd_mean,
             "correlation_score": corr_score,
             "composite_quality_score": composite_quality_score,
+            "pmse_ratio": float(pmse_ratio) if pmse_measured else None,
+            "spearman_score": float(spearman_score) if spearman_measured else None,
+            "categorical_significant_preservation_rate": float(categorical_rate) if categorical_measured else None,
+            "subspace_dcr_status": subspace_data.get("status"),
+            "subspace_dcr_safe": subspace_data.get("safe") if subspace_measured else None,
         },
         "note": "자동 점검 결과이며 미측정·오류가 있으면 통과로 판정하지 않습니다. " + anon_metrics.get('reason', ''),
     }
@@ -425,8 +531,26 @@ def evaluate(
         float(correlation_metrics.get("overall_correlation_score", math.nan)),
     )
 
-    # DCR (Distance to Closest Record) memorization check
+    # DCR (Distance to Closest Record) and NNDR memorization check
     dcr_metrics = PrivacyGuardrails.evaluate_dcr(original_eval, synthetic_eval, plan)
+
+    # CAP (Correct Attribution Probability) attribute inference check
+    cap_metrics = PrivacyGuardrails.evaluate_cap(original_eval, synthetic_eval, plan)
+
+    qi_candidates = [
+        column for column in plan.categorical + plan.numerical
+        if column in original_eval.columns and column in synthetic_eval.columns
+    ][:3]
+    subspace_dcr_metrics = evaluate_subspace_dcr(
+        original_eval,
+        synthetic_eval,
+        qi_candidates,
+        raw_holdout=control,
+        random_state=42,
+    )
+
+    # Extended Comprehensive utility (pMSE, Spearman, Cramér's V significance preservation)
+    extended_utility = evaluate_comprehensive_utility(original_eval, synthetic_eval, plan)
 
     # Detailed Column Distributions for interactive visual comparison
     column_distributions = compute_column_distributions(original_eval, synthetic_eval, plan, n_bins=qbins)
@@ -438,6 +562,9 @@ def evaluate(
         wasserstein_similarity_mean=distribution_metrics["wasserstein_similarity_mean"],
         tvd_mean=distribution_metrics["tvd_mean"],
         composite_quality_score=composite_quality_score,
+        cap_report=cap_metrics,
+        extended_utility_report=extended_utility,
+        subspace_dcr_report=subspace_dcr_metrics,
     )
 
     return {
@@ -446,6 +573,8 @@ def evaluate(
             "qbins": qbins,
             "anonymeter": anonymeter_metrics,
             "dcr": dcr_metrics,
+            "cap": cap_metrics,
+            "subspace_dcr": subspace_dcr_metrics,
         },
         "utility": {
             "jsd_mean": jsd_mean,
@@ -459,6 +588,9 @@ def evaluate(
             "composite_quality_score": composite_quality_score,
             "correlation": correlation_metrics,
             "column_distributions": column_distributions,
+            "pmse": extended_utility.get("pmse_metrics"),
+            "spearman": extended_utility.get("spearman_metrics"),
+            "categorical_associations": extended_utility.get("categorical_association_metrics"),
         },
         "column_distributions": column_distributions,
         "assessment": assessment,

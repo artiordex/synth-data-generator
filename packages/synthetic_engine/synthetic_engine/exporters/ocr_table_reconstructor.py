@@ -24,6 +24,7 @@ import cv2
 import numpy as np
 import pymupdf
 from ocr.text.korean_quality import korean_quality_score, special_character_ratio
+from ocr.structure.reconstruction_models import ReconstructionOCRWord as OCRWord
 from PIL import Image
 from synthetic_engine.exporters.ocr_image_preprocessing import (
     _estimate_text_line_height,
@@ -79,18 +80,6 @@ def get_ocr_backend():
 
         _OCR_BACKEND = build_local_ocr_backend(Path.cwd())
     return _OCR_BACKEND
-
-
-@dataclass
-class OCRWord:
-    text: str
-    bbox: Tuple[int, int, int, int]
-    confidence: float
-
-    # center 작업을 수행함
-    @property
-    def center(self) -> Tuple[float, float]:
-        return ((self.bbox[0] + self.bbox[2]) / 2.0, (self.bbox[1] + self.bbox[3]) / 2.0)
 
 
 # vertical overlap ratio 작업을 수행함

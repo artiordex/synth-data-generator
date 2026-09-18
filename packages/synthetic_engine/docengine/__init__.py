@@ -14,7 +14,10 @@ universal-document-engine scaffold. No second IR class hierarchy is created.
 """
 from pathlib import Path
 
-__version__ = '0.1.0'
+try:
+    from synthetic_engine import __version__
+except ImportError:  # pragma: no cover - standalone source checkout
+    __version__ = '2.1.0'
 __all__ = ['__version__', 'convert_document']
 
 

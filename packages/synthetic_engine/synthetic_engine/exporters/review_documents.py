@@ -14,6 +14,7 @@ from ..profiling.analyzer import classify_information_type, normalize_informatio
 from .openai_text import env_bool, polish_column_description
 from .package_exporter import review_document_filename, split_leading_sequence
 from .template_binding import write_template
+from .template_repository import resolve_template_dir
 
 PENDING = "담당자 확인 필요"
 ACTIONS = {"drop": "삭제", "mask": "마스킹", "hash": "SHA-256 해시 변환", "faker": "가상 값 생성"}
@@ -277,7 +278,7 @@ def build_review_documents(*, raw: pd.DataFrame, synthetic: pd.DataFrame,
                            metadata: dict[str, Any] | None = None,
                            template_dir: Path | None = None) -> dict[str, Path]:
     context = build_review_context(raw, synthetic, plan, original_filename, model_type, metrics, department_name, project_purpose, metadata)
-    template_dir = template_dir or Path(__file__).resolve().parents[4] / "storage" / "templates"
+    template_dir = resolve_template_dir(template_dir)
     outputs = {}
     sources = {}
     for kind, title in [("original_spec", "원본데이터 명세서"), ("synthetic_spec", "합성데이터 명세서"), ("review_report", "합성데이터 안전성 및 유용성 측정결과서")]:
