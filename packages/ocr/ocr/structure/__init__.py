@@ -10,5 +10,20 @@
 """Document structure recovery primitives."""
 
 from .models import OCRCell, OCRTable
+from .reconstruction_models import (
+    OCRFigureBlock,
+    OCRPageResult,
+    OCRTableCell,
+    OCRTextBlock,
+    ReconstructionOCRWord,
+)
 
-__all__ = ["OCRCell", "OCRTable"]
+__all__ = [
+    "OCRCell",
+    "OCRTable",
+    "OCRFigureBlock",
+    "OCRPageResult",
+    "OCRTableCell",
+    "OCRTextBlock",
+    "ReconstructionOCRWord",
+]

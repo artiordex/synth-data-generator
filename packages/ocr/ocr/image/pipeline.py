@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 from ..engine.base import OCRBackend
-from ..engine.tesseract import TesseractBackend
+from ..engine.factory import build_local_ocr_backend
 from ..evaluation.metrics import evaluate_ocr_page
 from ..pipeline.models import ErrorCode, FileType, OCRAttempt, OCRDocumentResult, OCRPageResult, OCRStatus
 from ..preprocessing.opencv import preprocess_image
@@ -32,16 +32,28 @@ def run_image_ocr(
     source: str | Path,
     *,
     backend: OCRBackend | None = None,
+    workspace_root: str | Path | None = None,
     ground_truth: str | None = None,
     max_attempts: int = 7,
     target_accuracy: float = 0.95,
     min_quality_score: float = 0.90,
 ) -> OCRDocumentResult:
-    """Run Image -> Inspection -> OpenCV -> OCR -> Evaluation -> Best Result."""
+    """Run Image -> Inspection -> OpenCV -> local OCR -> Evaluation.
+
+    The default backend is the configured local ensemble (RapidOCR, optional
+    EasyOCR and Tesseract tie-breaker).  Callers may still inject a backend for
+    tests or a controlled deployment.  ``workspace_root`` is forwarded to the
+    local backend factory so model files resolve consistently when the caller
+    is running outside the repository root.
+    """
 
     path = Path(source)
     inspection = inspect_image(path)
-    engine = backend if backend is not None else TesseractBackend()
+    engine = (
+        backend
+        if backend is not None
+        else build_local_ocr_backend(workspace_root)
+    )
     attempts: list[OCRAttempt] = []
 
     for attempt_no, config in enumerate(build_attempt_plan(inspection, max_attempts=max_attempts), start=1):

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+import ocr.image.pipeline as image_pipeline
 from ocr.engine.fake import FakeOCRBackend
 from ocr.image.pipeline import run_image_ocr
 from ocr.pipeline.models import OCRStatus, PreprocessingProfile
@@ -22,6 +23,30 @@ def _write_text_image(path: Path, *, dpi=(300, 300), fill="white"):
     draw = ImageDraw.Draw(image)
     draw.text((80, 120), "식약처 OCR 123", fill="black", font=ImageFont.load_default())
     image.save(path, dpi=dpi)
+
+
+# 기본 이미지 진입점이 로컬 앙상블 팩토리를 사용하는지 검증함
+def test_image_pipeline_uses_local_backend_factory_by_default(tmp_path, monkeypatch):
+    source = tmp_path / "factory.png"
+    _write_text_image(source)
+    factory_calls: list[Path | None] = []
+
+    def factory(workspace_root=None):
+        factory_calls.append(workspace_root)
+        return FakeOCRBackend(lambda image: ("local result", 0.95))
+
+    monkeypatch.setattr(image_pipeline, "build_local_ocr_backend", factory)
+
+    result = run_image_ocr(
+        source,
+        workspace_root=tmp_path,
+        max_attempts=1,
+        min_quality_score=0.1,
+    )
+
+    assert factory_calls == [tmp_path]
+    assert result.engine == "fake"
+    assert result.pages[0].raw_text == "local result"
 
 
 # 이미지 pipeline retries and selects best attempt 기능의 정상 동작 및 제약조건을 테스트함
