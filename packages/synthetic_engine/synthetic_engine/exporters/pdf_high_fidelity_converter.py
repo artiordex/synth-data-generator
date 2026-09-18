@@ -217,6 +217,10 @@ class HighFidelityPdfDoc:
 
     # HighFidelityPdfDoc 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, pdf_path: Path):
+        """
+            @description HighFidelityPdfDoc 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {pdf_path} - 메서드 입력값임
+        """
         self.pdf_path = Path(pdf_path).resolve()
         self.doc = pymupdf.open(str(self.pdf_path))
         self.pages: List[Dict[str, Any]] = []
@@ -224,11 +228,17 @@ class HighFidelityPdfDoc:
 
     # close 작업을 수행함
     def close(self):
+        """
+            @description 문서 리소스를 닫고 임시 상태를 정리함
+        """
         if self.doc and not self.doc.is_closed:
             self.doc.close()
 
     # parse 작업을 수행함
     def _parse(self):
+        """
+            @description parse 작업을 수행함
+        """
         plumber_tables_by_page = self._extract_pdfplumber_tables()
 
         for p_idx, page in enumerate(self.doc):
@@ -457,6 +467,9 @@ class HighFidelityPdfDoc:
 
             # flush current 표(테이블) 행 목록 작업을 수행함
             def _flush_current_table_rows():
+                """
+                    @description flush current 표(테이블) 행 목록 작업을 수행함
+                """
                 nonlocal current_table_rows, current_table_meta
                 if not current_table_rows:
                     return
@@ -572,6 +585,11 @@ class HighFidelityPdfDoc:
     # reading order key 작업을 수행함
     @staticmethod
     def _reading_order_key(item: Dict[str, Any]) -> Tuple[int, float, int]:
+        """
+            @description PDF 항목의 읽기 순서 정렬 키를 계산함
+            @param {item} - 메서드 입력값임
+            @returns {Tuple[int, float, int]} - 메서드 실행 결과를 반환함
+        """
         bbox = item.get("bbox") or item.get("rect") or (item.get("x0", 0), item.get("y0", 0), 0, 0)
         y0 = float(item.get("y0", bbox[1]))
         x0 = float(item.get("x0", bbox[0]))
@@ -738,6 +756,10 @@ class HighFidelityPdfDoc:
 
     # pdfplumber 표 목록 요소를 추출하여 반환함
     def _extract_pdfplumber_tables(self) -> Dict[int, List[Dict[str, Any]]]:
+        """
+            @description pdfplumber 표 목록 요소를 추출하여 반환함
+            @returns {Dict[int, List[Dict[str, Any]]]} - 메서드 실행 결과를 반환함
+        """
         tables_by_page = {}
         try:
             with pdfplumber.open(str(self.pdf_path)) as document:
@@ -810,6 +832,13 @@ class HighFidelityPdfDoc:
         matched_blocks: set,
         page_width: float,
     ) -> List[Dict[str, Any]]:
+        """
+            @description 감지 표(테이블) 행 목록 from 텍스트 작업을 수행함
+            @param {structured_blocks} - 메서드 입력값임
+            @param {matched_blocks} - 메서드 입력값임
+            @param {page_width} - 메서드 입력값임
+            @returns {List[Dict[str, Any]]} - 메서드 실행 결과를 반환함
+        """
         line_items: List[Dict[str, Any]] = []
         for b_idx, block in enumerate(structured_blocks):
             if b_idx in matched_blocks:
@@ -945,6 +974,12 @@ class HighFidelityPdfDoc:
     # similar 컬럼 signature 작업을 수행함
     @staticmethod
     def _similar_column_signature(left: Tuple[float, ...], right: Tuple[float, ...]) -> bool:
+        """
+            @description 열 서명의 유사도를 계산함
+            @param {left} - 메서드 입력값임
+            @param {right} - 메서드 입력값임
+            @returns {bool} - 메서드 실행 결과를 반환함
+        """
         if abs(len(left) - len(right)) > 1:
             return False
         shared = min(len(left), len(right))
@@ -955,6 +990,11 @@ class HighFidelityPdfDoc:
     # cluster line items as 셀 목록 작업을 수행함
     @staticmethod
     def _cluster_line_items_as_cells(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+            @description 선형 항목을 셀 단위로 군집화함
+            @param {items} - 메서드 입력값임
+            @returns {List[Dict[str, Any]]} - 메서드 실행 결과를 반환함
+        """
         cells: List[Dict[str, Any]] = []
         for item in items:
             if not cells:
@@ -976,6 +1016,12 @@ class HighFidelityPdfDoc:
 
     # 표(테이블) 행 목록 데이터를 표준 형식으로 정규화함
     def _normalize_table_rows(self, raw_rows: List[List[Any]], *, preserve_newlines: bool = True) -> List[Dict[str, Any]]:
+        """
+            @description 표(테이블) 행 목록 데이터를 표준 형식으로 정규화함
+            @param {raw_rows} - 메서드 입력값임
+            @param {preserve_newlines} - 메서드 입력값임
+            @returns {List[Dict[str, Any]]} - 메서드 실행 결과를 반환함
+        """
         rows = []
         for raw_row in raw_rows:
             cells = [dict(c) if isinstance(c, dict) else {"text": "" if c is None else str(c)} for c in raw_row]
@@ -988,6 +1034,12 @@ class HighFidelityPdfDoc:
 
     # 셀 목록 to 표(테이블) 행 작업을 수행함
     def _cells_to_table_row(self, cells: List[Any], page_width: Optional[float] = None) -> Optional[Dict[str, Any]]:
+        """
+            @description 셀 목록 to 표(테이블) 행 작업을 수행함
+            @param {cells} - 메서드 입력값임
+            @param {page_width} - 메서드 입력값임
+            @returns {Optional[Dict[str, Any]]} - 메서드 실행 결과를 반환함
+        """
         if not cells:
             return None
         values = []
@@ -1002,6 +1054,13 @@ class HighFidelityPdfDoc:
     def _parse_table_row_spans(self, block: Dict[str, Any], page_width: Optional[float] = None,
                                *, col_edges: Optional[List[float]] = None) -> Optional[Dict[str, Any]]:
         # 여러 줄로 구성된 일반 문단 텍스트는 단일 table_row로 오인 분할되지 않도록 보호함
+        """
+            @description 표(테이블) 행 스팬 목록 데이터를 분석하여 파싱함
+            @param {block} - 메서드 입력값임
+            @param {page_width} - 메서드 입력값임
+            @param {col_edges} - 메서드 입력값임
+            @returns {Optional[Dict[str, Any]]} - 메서드 실행 결과를 반환함
+        """
         if len(block.get("lines", [])) > 1 and not col_edges and not block.get("col_edges"):
             return None
 

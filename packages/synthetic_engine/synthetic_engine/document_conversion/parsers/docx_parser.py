@@ -231,6 +231,13 @@ def _fields(items, document, ref):
 class DocxParser:
     # Word DOCX 문서를 구문 분석하여 DocumentIR 트리를 생성함
     def parse(self, path, *, _part='word/document.xml', _root_tag='document', _package=None):
+        """
+            @description 입력 문서를 파싱하여 중간 표현을 생성함
+            @param {path} - 메서드 입력값임
+            @param {_part} - 메서드 입력값임
+            @param {_root_tag} - 메서드 입력값임
+            @param {_package} - 메서드 입력값임
+        """
         document = DocumentIR(source_format='docx', source_path=str(path), sections=[SectionIR()])
         with (DocumentPackage(path) if _package is None else nullcontext(_package)) as package:
             root = package.xml(_part)
@@ -455,6 +462,16 @@ class DocxParser:
 
     # 구역별 머리글 및 바닥글 속성을 구문 분석하여 섹션에 바인딩함
     def _section_properties(self, section, properties, relationships, package, path, document, part):
+        """
+            @description 구역별 머리글 및 바닥글 속성을 구문 분석하여 섹션에 바인딩함
+            @param {section} - 메서드 입력값임
+            @param {properties} - 메서드 입력값임
+            @param {relationships} - 메서드 입력값임
+            @param {package} - 메서드 입력값임
+            @param {path} - 메서드 입력값임
+            @param {document} - 메서드 입력값임
+            @param {part} - 메서드 입력값임
+        """
         for kind, root_tag in [('header', 'hdr'), ('footer', 'ftr')]:
             references = properties.findall(f'{{{W}}}{kind}Reference')
             for reference in references:

@@ -35,6 +35,9 @@ class TargetCapabilities:
 
     # post init 작업을 수행함
     def __post_init__(self) -> None:
+        """
+            @description post init 작업을 수행함
+        """
         for definition in fields(self):
             if not isinstance(getattr(self, definition.name), bool):
                 raise TypeError(f"{definition.name} must be a boolean.")

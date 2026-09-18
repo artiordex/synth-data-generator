@@ -66,6 +66,9 @@ class LineBreakIR:
 
     # 줄바꿈 종류 유효성을 검증함
     def __post_init__(self) -> None:
+        """
+            @description 줄바꿈 종류 유효성을 검증함
+        """
         if self.kind not in ("soft", "hard"):
             raise ValueError("Line break kind must be soft or hard")
 
@@ -102,6 +105,9 @@ class MathIR:
 
     # 수식 데이터 필드 및 신뢰도 유효성을 검증함
     def __post_init__(self) -> None:
+        """
+            @description 수식 데이터 필드 및 신뢰도 유효성을 검증함
+        """
         if self.display_mode not in ("inline", "display"):
             raise ValueError("Math display mode must be inline or display")
         _validate_confidence(self.confidence)
@@ -205,6 +211,9 @@ class TableCellIR:
 
     # 셀 신뢰도 유효성을 검증함
     def __post_init__(self) -> None:
+        """
+            @description 셀 신뢰도 유효성을 검증함
+        """
         _validate_confidence(self.cell_confidence)
 
 
@@ -228,6 +237,9 @@ class TableIR:
 
     # 표 신뢰도 유효성을 검증함
     def __post_init__(self) -> None:
+        """
+            @description 표 신뢰도 유효성을 검증함
+        """
         _validate_confidence(self.table_confidence)
 
 
@@ -252,6 +264,9 @@ class ImageIR:
 
     # 이미지 바이너리 데이터 유효성을 검증함
     def __post_init__(self) -> None:
+        """
+            @description 이미지 바이너리 데이터 유효성을 검증함
+        """
         if not isinstance(self.image_bytes, bytes):
             raise TypeError("Image data must be immutable bytes")
         if not all(_is_finite_number(v) and v >= 0 for v in (self.width_pt, self.height_pt)):
@@ -359,6 +374,9 @@ class DocumentIR:
 
     # 문서 생성 후 리소스 내부 캐시를 동기화함
     def __post_init__(self) -> None:
+        """
+            @description 문서 생성 후 리소스 내부 캐시를 동기화함
+        """
         self.intern_resources()
 
     # 순환 참조 없이 문서 내 블록 요소를 순회함

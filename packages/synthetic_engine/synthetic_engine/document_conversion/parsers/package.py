@@ -18,6 +18,10 @@ from ..exceptions import DocumentConversionError
 class DocumentPackage:
     # DocumentPackage 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, path):
+        """
+            @description DocumentPackage 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {path} - 메서드 입력값임
+        """
         self.archive = ZipFile(path)
         try:
             entries = self.archive.infolist()
@@ -45,14 +49,25 @@ class DocumentPackage:
 
     # 컨텍스트 매니저 진입 처리를 수행함
     def __enter__(self):
+        """
+            @description 컨텍스트 매니저 진입 처리를 수행함
+        """
         return self
 
     # 컨텍스트 매니저 종료 및 리소스 정리를 수행함
     def __exit__(self, *args):
+        """
+            @description 컨텍스트 매니저 종료 및 리소스 정리를 수행함
+            @param {args} - 메서드 입력값임
+        """
         self.archive.close()
 
     # read 작업을 수행함
     def read(self, name):
+        """
+            @description read 작업을 수행함
+            @param {name} - 메서드 입력값임
+        """
         if name not in self.names:
             raise DocumentConversionError('Package member is missing')
         return self.archive.read(name)
@@ -83,6 +98,10 @@ class DocumentPackage:
 
     # xml 작업을 수행함
     def xml(self, name):
+        """
+            @description xml 작업을 수행함
+            @param {name} - 메서드 입력값임
+        """
         data = self.read(name)
         if b'<!DOCTYPE' in data.upper() or b'<!ENTITY' in data.upper():
             raise DocumentConversionError('Document XML entities are not supported')

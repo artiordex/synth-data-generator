@@ -27,6 +27,9 @@ class SourceRef:
 
     # post init 작업을 수행함
     def __post_init__(self) -> None:
+        """
+            @description post init 작업을 수행함
+        """
         for name in ("page_no", "section_no"):
             value = getattr(self, name)
             if value is not None:
@@ -48,6 +51,9 @@ class BoundingBoxIR:
 
     # post init 작업을 수행함
     def __post_init__(self) -> None:
+        """
+            @description post init 작업을 수행함
+        """
         if not all(_is_finite_number(v) for v in (self.x0, self.y0, self.x1, self.y1)):
             raise ValueError("Bounding box coordinates must be finite")
         if self.x1 < self.x0 or self.y1 < self.y0:

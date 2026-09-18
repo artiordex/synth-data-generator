@@ -608,6 +608,13 @@ class SmartMasker:
     # 마스킹 full 텍스트 작업을 수행함
     @classmethod
     def mask_full_text(cls, text: str, mask_char: str = "*", *, ignored=()) -> str:
+        """
+            @description 마스킹 full 텍스트 작업을 수행함
+            @param {text} - 메서드 입력값임
+            @param {mask_char} - 메서드 입력값임
+            @param {ignored} - 메서드 입력값임
+            @returns {str} - 메서드 실행 결과를 반환함
+        """
         if not isinstance(text, str) or not text.strip():
             return text
         excluded = exclusions(ignored)

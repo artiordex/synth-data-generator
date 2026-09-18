@@ -108,6 +108,10 @@ def _run_options(node, inherited, css):
 class HtmlParser:
     # parse 작업을 수행함
     def parse(self, path):
+        """
+            @description 입력 문서를 파싱하여 중간 표현을 생성함
+            @param {path} - 메서드 입력값임
+        """
         return self.parse_content(path.read_bytes(), source_path=str(path))
 
     # content 데이터를 분석하여 파싱함

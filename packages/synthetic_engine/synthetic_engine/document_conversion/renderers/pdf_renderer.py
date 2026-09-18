@@ -19,6 +19,11 @@ class PdfRenderer:
 
     # render 작업을 수행함
     def render(self, document, output_path):
+        """
+            @description 문서 중간 표현을 대상 포맷으로 렌더링함
+            @param {document} - 메서드 입력값임
+            @param {output_path} - 메서드 입력값임
+        """
         import pymupdf as fitz
         with tempfile.TemporaryDirectory(dir=Path(output_path).parent) as directory:
             html_path = Path(directory) / 'document.html'

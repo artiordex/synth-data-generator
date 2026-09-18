@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: template_binding.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/template_binding.py
+# 목적: 한컴 변환 템플릿에 데이터와 개인정보 예시를 바인딩함
+# 작성자: 개발팀
+# 작성일: 2026-09-18
+# 수정일: 2026-09-18
+# =============================================================================
 """Edit copies of Hancom-converted templates; never rebuild their style tables."""
 from __future__ import annotations
 

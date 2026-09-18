@@ -20,6 +20,12 @@ class TVAEGenerator(BaseSynthesizer):
     """변분 오토인코더 기반 합성 데이터 생성기임"""
     # TVAEGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, epochs: int = 30, batch_size: int = 64, enable_gpu: bool = False):
+        """
+            @description TVAEGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {epochs} - 메서드 입력값임
+            @param {batch_size} - 메서드 입력값임
+            @param {enable_gpu} - 메서드 입력값임
+        """
         self.epochs = max(1, epochs)
         self.batch_size = batch_size
         self.enable_gpu = enable_gpu
@@ -34,6 +40,13 @@ class TVAEGenerator(BaseSynthesizer):
 
     # fit 작업을 수행함
     def fit(self, training: pd.DataFrame, plan: ColumnPlan, **kwargs: Any) -> None:
+        """
+            @description 입력 데이터로 합성 모델을 학습함
+            @param {training} - 메서드 입력값임
+            @param {plan} - 메서드 입력값임
+            @param {kwargs} - 메서드 입력값임
+            @returns {None} - 메서드 실행 결과를 반환함
+        """
         from sdv.metadata import SingleTableMetadata
         from sdv.single_table import TVAESynthesizer
 
@@ -62,6 +75,12 @@ class TVAEGenerator(BaseSynthesizer):
 
     # sample 작업을 수행함
     def sample(self, num_rows: int, conditions: dict[str, Any] | None = None) -> pd.DataFrame:
+        """
+            @description 학습된 합성 모델에서 데이터를 샘플링함
+            @param {num_rows} - 메서드 입력값임
+            @param {conditions} - 메서드 입력값임
+            @returns {pd.DataFrame} - 메서드 실행 결과를 반환함
+        """
         if self.synthesizer is None:
             raise RuntimeError("Model is not fitted.")
         from sdv.sampling import Condition

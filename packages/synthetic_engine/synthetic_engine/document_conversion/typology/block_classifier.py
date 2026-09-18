@@ -32,6 +32,10 @@ class BlockClassifier:
 
     # BlockClassifier 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, tokens: DocumentDesignTokens):
+        """
+            @description BlockClassifier 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {tokens} - 메서드 입력값임
+        """
         self.tokens = tokens
 
         self._table_caption_re = re.compile(r"^\s*<\s*(?:표|Table)\s*\d+[^>]*>", re.IGNORECASE)

@@ -38,6 +38,10 @@ class RecognizedWord:
     # center 작업을 수행함
     @property
     def center(self) -> tuple[float, float]:
+        """
+            @description center 작업을 수행함
+            @returns {tuple[float, float]} - 메서드 실행 결과를 반환함
+        """
         return ((self.bbox[0] + self.bbox[2]) / 2.0, (self.bbox[1] + self.bbox[3]) / 2.0)
 
 

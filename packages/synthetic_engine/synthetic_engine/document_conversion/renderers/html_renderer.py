@@ -306,6 +306,11 @@ class HtmlRenderer:
 
     # DocumentIR 문서를 완전한 독립형 HTML 파일로 렌더링 출력함
     def render(self, document, output_path):
+        """
+            @description 문서 중간 표현을 대상 포맷으로 렌더링함
+            @param {document} - 메서드 입력값임
+            @param {output_path} - 메서드 입력값임
+        """
         result = ['<!doctype html><html><head><meta charset="utf-8"><style>'
                   'html,body{max-width:100%;overflow-x:hidden}body{margin:0;min-width:0}'
                   'section,section>div{min-width:0;max-width:100%}'

@@ -117,6 +117,11 @@ def _parse_eqedit_math(payload: bytes, ref: SourceRef, resources) -> MathIR:
 class Hwp5Parser:
     # HWP 5 바이너리 문서를 분석하여 DocumentIR 트리를 생성함
     def parse(self, path: Path) -> DocumentIR:
+        """
+            @description 입력 문서를 파싱하여 중간 표현을 생성함
+            @param {path} - 메서드 입력값임
+            @returns {DocumentIR} - 메서드 실행 결과를 반환함
+        """
         import olefile
         document = DocumentIR(source_format='hwp', source_path=str(path))
         with olefile.OleFileIO(path) as archive:

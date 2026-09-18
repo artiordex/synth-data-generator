@@ -57,6 +57,10 @@ class DocumentStyleLearner:
 
     # DocumentStyleLearner 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, doc: pymupdf.Document):
+        """
+            @description DocumentStyleLearner 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {doc} - 메서드 입력값임
+        """
         self.doc = doc
 
     # learn 작업을 수행함

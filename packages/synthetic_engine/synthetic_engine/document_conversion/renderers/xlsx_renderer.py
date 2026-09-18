@@ -19,6 +19,11 @@ class XlsxRenderer:
 
     # render 작업을 수행함
     def render(self, document, output_path):
+        """
+            @description 문서 중간 표현을 대상 포맷으로 렌더링함
+            @param {document} - 메서드 입력값임
+            @param {output_path} - 메서드 입력값임
+        """
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
         from openpyxl.utils import get_column_letter

@@ -18,6 +18,12 @@ class RuleEngine:
     # weighted choice 작업을 수행함
     @staticmethod
     def weighted_choice(values: list[Any], weights: list[float] | None = None) -> Any:
+        """
+            @description 가중치에 따라 규칙 후보를 선택함
+            @param {values} - 메서드 입력값임
+            @param {weights} - 메서드 입력값임
+            @returns {Any} - 메서드 실행 결과를 반환함
+        """
         if not values:
             return None
         if not weights:
@@ -34,6 +40,12 @@ class RuleEngine:
     # apply 변환 규칙 컬럼 작업을 수행함
     @classmethod
     def apply_rule_column(cls, row_count: int, spec: dict[str, Any]) -> list[Any]:
+        """
+            @description 컬럼에 규칙 기반 변환을 적용함
+            @param {row_count} - 메서드 입력값임
+            @param {spec} - 메서드 입력값임
+            @returns {list[Any]} - 메서드 실행 결과를 반환함
+        """
         rule_type = spec.get("type")
         if rule_type == "choice":
             values = list(spec.get("values", []))
@@ -82,6 +94,12 @@ class RuleEngine:
     # apply 규칙 목록 작업을 수행함
     @classmethod
     def apply_rules(cls, df: pd.DataFrame, plan: ColumnPlan) -> pd.DataFrame:
+        """
+            @description 데이터셋 컬럼별 규칙을 일괄 적용함
+            @param {df} - 메서드 입력값임
+            @param {plan} - 메서드 입력값임
+            @returns {pd.DataFrame} - 메서드 실행 결과를 반환함
+        """
         output = df.copy()
         for column, spec in plan.rules.items():
             output[column] = cls.apply_rule_column(len(output), spec)

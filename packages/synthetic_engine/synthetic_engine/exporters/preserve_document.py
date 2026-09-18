@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: preserve_document.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/preserve_document.py
+# 목적: 원본 문서 보존형 치환과 레이아웃 무결성 검증을 수행함
+# 작성자: 개발팀
+# 작성일: 2026-09-18
+# 수정일: 2026-09-18
+# =============================================================================
 """Direct editing and fail-closed layout verification for selected text targets."""
 import json
 import os

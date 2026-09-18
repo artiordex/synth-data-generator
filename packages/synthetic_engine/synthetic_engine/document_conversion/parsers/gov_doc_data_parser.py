@@ -145,6 +145,10 @@ class SimpleTable:
 
     # 표 데이터를 마크다운 표 형식 문자열로 직렬화함
     def to_markdown(self) -> str:
+        """
+            @description 표 데이터를 마크다운 표 형식 문자열로 직렬화함
+            @returns {str} - 메서드 실행 결과를 반환함
+        """
         lines = []
         if self.title:
             lines.append(f"### {self.title}\n")
@@ -191,6 +195,10 @@ class DocumentParseResult:
 
     # 문서 내 모든 추출 표 목록을 단일 리스트로 병합 반환함
     def all_tables(self) -> List[SimpleTable]:
+        """
+            @description 문서 내 모든 추출 표 목록을 단일 리스트로 병합 반환함
+            @returns {List[SimpleTable]} - 메서드 실행 결과를 반환함
+        """
         all_t = []
         all_t.extend(self.overview_tables)
         all_t.extend(self.operation_tables)
@@ -203,6 +211,10 @@ class DocumentParseResult:
 
     # 문서 전체 파싱 결과를 마크다운 보고서로 변환함
     def to_markdown(self) -> str:
+        """
+            @description 문서 전체 파싱 결과를 마크다운 보고서로 변환함
+            @returns {str} - 메서드 실행 결과를 반환함
+        """
         md = [
             f"# [문서 파싱 결과 보고서] {self.title}",
             f"- **파일명**: `{self.filename}` (형식: {self.format.upper()})",
@@ -250,6 +262,10 @@ class DocumentParseResult:
 
     # 파싱 결과를 딕셔너리 구조로 변환함
     def to_dict(self) -> Dict[str, Any]:
+        """
+            @description 파싱 결과를 딕셔너리 구조로 변환함
+            @returns {Dict[str, Any]} - 메서드 실행 결과를 반환함
+        """
         return {
             "filename": self.filename,
             "format": self.format,
@@ -408,6 +424,10 @@ class GovDocDataParser:
         elif isinstance(data, dict):
             # JSON 객체 내 데이터 레코드 및 헤더 메타데이터를 재귀 탐색함
             def search_container(obj: Any):
+                """
+                    @description JSON 객체 내 데이터 레코드 및 헤더 메타데이터를 재귀 탐색함
+                    @param {obj} - 메서드 입력값임
+                """
                 nonlocal records, header_meta
                 if isinstance(obj, dict):
                     for k, v in obj.items():

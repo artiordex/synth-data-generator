@@ -39,6 +39,9 @@ class OcrCellResult:
 
     # post init 작업을 수행함
     def __post_init__(self) -> None:
+        """
+            @description post init 작업을 수행함
+        """
         if self.source not in {"printed_ocr", "local_recognizer", "heuristic_fallback"}:
             raise ValueError("지원하지 않는 OCR 결과 출처입니다.")
         if not math.isfinite(self.confidence) or not 0.0 <= self.confidence <= 1.0:
@@ -57,6 +60,9 @@ class LocalRecognitionCandidate:
 
     # post init 작업을 수행함
     def __post_init__(self) -> None:
+        """
+            @description post init 작업을 수행함
+        """
         if not self.text.strip():
             raise ValueError("candidate text must not be empty")
         try:
@@ -82,6 +88,10 @@ class LocalRecognitionDecision:
 
     # as dict 작업을 수행함
     def as_dict(self) -> dict[str, Any]:
+        """
+            @description 인식 결과를 직렬화 가능한 딕셔너리로 변환함
+            @returns {dict[str, Any]} - 메서드 실행 결과를 반환함
+        """
         return {
             "text": self.text,
             "confidence": self.confidence,
@@ -122,6 +132,11 @@ class CallableOCRAdapter:
         name: str,
         recognizer: Callable[[np.ndarray, Dict[str, Any]], Any],
     ) -> None:
+        """
+            @description CallableOCRAdapter 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {name} - 메서드 입력값임
+            @param {recognizer} - 메서드 입력값임
+        """
         self.name = name
         self._recognizer = recognizer
 
@@ -129,6 +144,12 @@ class CallableOCRAdapter:
     def recognize(
         self, crop_img: np.ndarray, context: Dict[str, Any]
     ) -> Iterable[LocalRecognitionCandidate]:
+        """
+            @description OCR 입력 영역을 인식하여 결과를 반환함
+            @param {crop_img} - 메서드 입력값임
+            @param {context} - 메서드 입력값임
+            @returns {Iterable[LocalRecognitionCandidate]} - 메서드 실행 결과를 반환함
+        """
         parsed = _parse_recognizer_payload(self._recognizer(crop_img, context), self.name)
         return (parsed,) if parsed else ()
 
@@ -138,6 +159,11 @@ class OCRBackendAdapter:
 
     # OCRBackendAdapter 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, name: str, backend_factory: Callable[[], Any]) -> None:
+        """
+            @description OCRBackendAdapter 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {name} - 메서드 입력값임
+            @param {backend_factory} - 메서드 입력값임
+        """
         self.name = name
         self._backend_factory = backend_factory
         self._backend: Any = None
@@ -147,6 +173,12 @@ class OCRBackendAdapter:
     def recognize(
         self, crop_img: np.ndarray, context: Dict[str, Any]
     ) -> Iterable[LocalRecognitionCandidate]:
+        """
+            @description OCR 입력 영역을 인식하여 결과를 반환함
+            @param {crop_img} - 메서드 입력값임
+            @param {context} - 메서드 입력값임
+            @returns {Iterable[LocalRecognitionCandidate]} - 메서드 실행 결과를 반환함
+        """
         if not self._available:
             return ()
         try:
@@ -164,6 +196,10 @@ class OCRBackendAdapter:
 
     # backend 정보를 조회하여 반환함
     def _get_backend(self) -> Any:
+        """
+            @description backend 정보를 조회하여 반환함
+            @returns {Any} - 메서드 실행 결과를 반환함
+        """
         if self._backend is None:
             try:
                 self._backend = self._backend_factory()
@@ -184,6 +220,12 @@ class LocalHandwritingRecognizer:
         review_threshold: float = 0.85,
         structured_agreement_count: int = 2,
     ) -> None:
+        """
+            @description LocalHandwritingRecognizer 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {adapters} - 메서드 입력값임
+            @param {review_threshold} - 메서드 입력값임
+            @param {structured_agreement_count} - 메서드 입력값임
+        """
         self.adapters = (
             tuple(build_default_handwriting_adapters())
             if adapters is None
@@ -194,6 +236,12 @@ class LocalHandwritingRecognizer:
 
     # LocalHandwritingRecognizer 인스턴스를 호출하여 작업을 실행함
     def __call__(self, crop_img: np.ndarray, context: Dict[str, Any]) -> dict[str, Any] | None:
+        """
+            @description LocalHandwritingRecognizer 인스턴스를 호출하여 작업을 실행함
+            @param {crop_img} - 메서드 입력값임
+            @param {context} - 메서드 입력값임
+            @returns {dict[str, Any] | None} - 메서드 실행 결과를 반환함
+        """
         decision = self.recognize(crop_img, context)
         return decision.as_dict() if decision else None
 
@@ -201,6 +249,12 @@ class LocalHandwritingRecognizer:
     def recognize(
         self, crop_img: np.ndarray, context: Dict[str, Any]
     ) -> LocalRecognitionDecision | None:
+        """
+            @description OCR 입력 영역을 인식하여 결과를 반환함
+            @param {crop_img} - 메서드 입력값임
+            @param {context} - 메서드 입력값임
+            @returns {LocalRecognitionDecision | None} - 메서드 실행 결과를 반환함
+        """
         candidates: list[LocalRecognitionCandidate] = []
         for adapter in self.adapters:
             try:

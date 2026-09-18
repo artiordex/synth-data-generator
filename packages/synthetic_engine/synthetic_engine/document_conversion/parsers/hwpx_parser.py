@@ -88,6 +88,11 @@ def _hwpx_equation(node, ref, document, package, binaries, source_resource_id):
 class HwpxParser:
     # 대상 파일이 유효한 HWPX 패키지 구조인지 검증함
     def can_parse(self, path: Path) -> bool:
+        """
+            @description 대상 파일이 지원 포맷인지 판별함
+            @param {path} - 메서드 입력값임
+            @returns {bool} - 메서드 실행 결과를 반환함
+        """
         try:
             with DocumentPackage(path) as package:
                 return 'Contents/header.xml' in package.names and any(
@@ -97,6 +102,11 @@ class HwpxParser:
 
     # HWPX 표준 문서를 구문 분석하여 DocumentIR 트리를 생성함
     def parse(self, path: Path) -> DocumentIR:
+        """
+            @description 입력 문서를 파싱하여 중간 표현을 생성함
+            @param {path} - 메서드 입력값임
+            @returns {DocumentIR} - 메서드 실행 결과를 반환함
+        """
         document = DocumentIR(source_format='hwpx', source_path=str(path))
         with DocumentPackage(path) as package:
             header = package.xml('Contents/header.xml')

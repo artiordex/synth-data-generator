@@ -50,6 +50,11 @@ class MarkdownRenderer:
 
     # DocumentIR 문서를 마크다운 형식으로 변환하여 파일로 출력함
     def render(self, document, output_path):
+        """
+            @description 문서 중간 표현을 대상 포맷으로 렌더링함
+            @param {document} - 메서드 입력값임
+            @param {output_path} - 메서드 입력값임
+        """
         chunks = []
         for section in document.sections:
             for block in section.elements:

@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: native_hancom.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/native_hancom.py
+# 목적: 한컴 네이티브 렌더링과 문서 편집을 실행함
+# 작성자: 개발팀
+# 작성일: 2026-09-18
+# 수정일: 2026-09-18
+# =============================================================================
 """Isolated native Hancom renderer/editor. No security-dialog bypass or reflow conversion."""
 import json
 import sys

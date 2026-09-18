@@ -17,11 +17,23 @@ import pandas as pd
 class PanelTimeSeriesSynthesizer:
     # PanelTimeSeriesSynthesizer 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, seed: int = 42):
+        """
+            @description PanelTimeSeriesSynthesizer 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {seed} - 메서드 입력값임
+        """
         self.seed = seed
 
     # sample 작업을 수행함
     def sample(self, frame: pd.DataFrame, *, entity_column: str, time_column: str,
                target_entities: int | None = None) -> pd.DataFrame:
+        """
+            @description 학습된 합성 모델에서 데이터를 샘플링함
+            @param {frame} - 메서드 입력값임
+            @param {entity_column} - 메서드 입력값임
+            @param {time_column} - 메서드 입력값임
+            @param {target_entities} - 메서드 입력값임
+            @returns {pd.DataFrame} - 메서드 실행 결과를 반환함
+        """
         if entity_column not in frame or time_column not in frame:
             raise ValueError("개체키와 시간 컬럼을 확인하세요.")
         working = frame.copy()

@@ -64,6 +64,13 @@ class CorrelationEvaluator:
         synthetic: pd.DataFrame,
         plan: ColumnPlan
     ) -> dict[str, Any]:
+        """
+            @description 컬럼 간 상관관계를 평가하여 품질 지표를 반환함
+            @param {original} - 메서드 입력값임
+            @param {synthetic} - 메서드 입력값임
+            @param {plan} - 메서드 입력값임
+            @returns {dict[str, Any]} - 메서드 실행 결과를 반환함
+        """
         result = {
             "numerical_correlation_score": 1.0,
             "categorical_association_score": 1.0,

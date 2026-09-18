@@ -16,6 +16,10 @@ from ..core.ir import ConversionWarning
 class MarkdownParser:
     # parse 작업을 수행함
     def parse(self, path: Path):
+        """
+            @description 입력 문서를 파싱하여 중간 표현을 생성함
+            @param {path} - 메서드 입력값임
+        """
         import markdown
         source = path.read_text(encoding='utf-8')
         html = markdown.markdown(source, extensions=['tables', 'fenced_code', 'sane_lists'])

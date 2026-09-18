@@ -19,11 +19,21 @@ class GaussianCopulaGenerator(BaseSynthesizer):
     """컬럼 분포와 상관관계를 보존하는 Gaussian Copula 생성기임"""
     # GaussianCopulaGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self):
+        """
+            @description GaussianCopulaGenerator 인스턴스 멤버 변수 및 초기 설정을 구성함
+        """
         self.synthesizer = None
         self.plan = None
 
     # fit 작업을 수행함
     def fit(self, training: pd.DataFrame, plan: ColumnPlan, **kwargs: Any) -> None:
+        """
+            @description 입력 데이터로 합성 모델을 학습함
+            @param {training} - 메서드 입력값임
+            @param {plan} - 메서드 입력값임
+            @param {kwargs} - 메서드 입력값임
+            @returns {None} - 메서드 실행 결과를 반환함
+        """
         from sdv.metadata import SingleTableMetadata
         from sdv.single_table import GaussianCopulaSynthesizer
 
@@ -46,6 +56,12 @@ class GaussianCopulaGenerator(BaseSynthesizer):
 
     # sample 작업을 수행함
     def sample(self, num_rows: int, conditions: dict[str, Any] | None = None) -> pd.DataFrame:
+        """
+            @description 학습된 합성 모델에서 데이터를 샘플링함
+            @param {num_rows} - 메서드 입력값임
+            @param {conditions} - 메서드 입력값임
+            @returns {pd.DataFrame} - 메서드 실행 결과를 반환함
+        """
         if self.synthesizer is None:
             raise RuntimeError("Model is not fitted.")
         from sdv.sampling import Condition

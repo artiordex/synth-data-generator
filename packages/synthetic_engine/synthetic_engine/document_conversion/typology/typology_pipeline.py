@@ -40,6 +40,11 @@ class DocumentTypologyPipeline:
 
     # DocumentTypologyPipeline 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, doc: pymupdf.Document, pdf_path: Optional[Path] = None):
+        """
+            @description DocumentTypologyPipeline 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {doc} - 메서드 입력값임
+            @param {pdf_path} - 메서드 입력값임
+        """
         self.doc = doc
         self.pdf_path = pdf_path
         self.learner = DocumentStyleLearner(doc)

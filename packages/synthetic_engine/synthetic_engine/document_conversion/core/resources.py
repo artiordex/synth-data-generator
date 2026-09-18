@@ -36,6 +36,9 @@ class ResourceStore:
 
     # ResourceStore 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self) -> None:
+        """
+            @description ResourceStore 인스턴스 멤버 변수 및 초기 설정을 구성함
+        """
         self._data: dict[str, bytes] = {}
         self._mime_types: dict[str, set[str]] = {}
 
@@ -88,8 +91,17 @@ class ResourceStore:
 
     # 포함된 요소의 전체 개수를 반환함
     def __len__(self) -> int:
+        """
+            @description 저장된 요소의 개수를 반환함
+            @returns {int} - 메서드 실행 결과를 반환함
+        """
         return len(self._data)
 
     # contains 작업을 수행함
     def __contains__(self, digest: object) -> bool:
+        """
+            @description 지정한 요소의 포함 여부를 확인함
+            @param {digest} - 메서드 입력값임
+            @returns {bool} - 메서드 실행 결과를 반환함
+        """
         return digest in self._data

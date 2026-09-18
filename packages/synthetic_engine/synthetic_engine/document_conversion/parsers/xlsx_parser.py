@@ -17,6 +17,10 @@ from ..core.source_ref import SourceRef
 class XlsxParser:
     # parse 작업을 수행함
     def parse(self, path: Path):
+        """
+            @description 입력 문서를 파싱하여 중간 표현을 생성함
+            @param {path} - 메서드 입력값임
+        """
         from openpyxl import load_workbook
         from openpyxl.cell.cell import MergedCell
         with DocumentPackage(path) as package:

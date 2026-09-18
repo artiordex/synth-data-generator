@@ -64,6 +64,11 @@ class SurveyFusionEngine:
     # inspect modules 작업을 수행함
     @staticmethod
     def inspect_modules(tables: Dict[str, pd.DataFrame]) -> SurveyInspectionResult:
+        """
+            @description 설문 모듈 구성을 점검함
+            @param {tables} - 메서드 입력값임
+            @returns {SurveyInspectionResult} - 메서드 실행 결과를 반환함
+        """
         if not tables:
             raise ValueError("검사할 설문 데이터 테이블이 없습니다.")
 
@@ -150,6 +155,12 @@ class SurveyFusionEngine:
         tables: Dict[str, pd.DataFrame],
         common_keys: Optional[List[str]] = None
     ) -> Tuple[pd.DataFrame, List[SurveyModuleMeta]]:
+        """
+            @description 설문 표를 키 기준으로 결합함
+            @param {tables} - 메서드 입력값임
+            @param {common_keys} - 메서드 입력값임
+            @returns {Tuple[pd.DataFrame, List[SurveyModuleMeta]]} - 메서드 실행 결과를 반환함
+        """
         if not tables:
             raise ValueError("통합할 테이블이 없습니다.")
 
@@ -219,6 +230,11 @@ class SurveyFusionEngine:
         """
         # 분석 리포트 작업을 수행함
         def report(pct: int, msg: str):
+            """
+                @description 분석 리포트 작업을 수행함
+                @param {pct} - 메서드 입력값임
+                @param {msg} - 메서드 입력값임
+            """
             if progress_callback:
                 progress_callback(pct, msg)
 
@@ -305,6 +321,12 @@ class SurveyFusionEngine:
         fused_synthetic_df: pd.DataFrame,
         modules: List[SurveyModuleMeta]
     ) -> Dict[str, pd.DataFrame]:
+        """
+            @description 합성 설문 데이터를 모듈별로 분할함
+            @param {fused_synthetic_df} - 메서드 입력값임
+            @param {modules} - 메서드 입력값임
+            @returns {Dict[str, pd.DataFrame]} - 메서드 실행 결과를 반환함
+        """
         split_results: Dict[str, pd.DataFrame] = {}
         for meta in modules:
             valid_cols = [c for c in meta.columns if c in fused_synthetic_df.columns]
@@ -320,6 +342,14 @@ class SurveyFusionEngine:
         common_keys: Optional[List[str]] = None,
         rules: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
+        """
+            @description 설문조사 synthesis 품질 및 지표를 평가함
+            @param {fused_raw} - 메서드 입력값임
+            @param {fused_syn} - 메서드 입력값임
+            @param {common_keys} - 메서드 입력값임
+            @param {rules} - 메서드 입력값임
+            @returns {Dict[str, Any]} - 메서드 실행 결과를 반환함
+        """
         plan = build_column_plan({}, fused_raw)
         eval_result = evaluate(fused_raw, fused_syn, plan, run_anonymeter_eval=False)
 
@@ -375,6 +405,10 @@ class SurveyFusionEngine:
             k_data = eval_metrics.get("k_anonymity", {})
             # percentage 작업을 수행함
             def percentage(value):
+                """
+                    @description percentage 작업을 수행함
+                    @param {value} - 메서드 입력값임
+                """
                 return f'{value * 100:.1f}%' if isinstance(value, (int, float)) and math.isfinite(value) else '미측정'
 
             logic_measured = bool(logic_data.get('total_applicable_rows', 0))

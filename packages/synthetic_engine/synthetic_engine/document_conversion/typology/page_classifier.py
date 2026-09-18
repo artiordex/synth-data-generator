@@ -32,6 +32,10 @@ class PageClassifier:
 
     # PageClassifier 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, tokens: DocumentDesignTokens):
+        """
+            @description PageClassifier 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {tokens} - 메서드 입력값임
+        """
         self.tokens = tokens
 
         self._toc_keywords = (

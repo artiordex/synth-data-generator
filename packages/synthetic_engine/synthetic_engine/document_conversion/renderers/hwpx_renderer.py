@@ -20,11 +20,22 @@ class HwpxRenderer:
 
     # render 작업을 수행함
     def render(self, document, output_path):
+        """
+            @description 문서 중간 표현을 대상 포맷으로 렌더링함
+            @param {document} - 메서드 입력값임
+            @param {output_path} - 메서드 입력값임
+        """
         from hwpx.document import HwpxDocument
         output = HwpxDocument.new()
 
         # 이미지 항목을 목록에 추가함
         def add_image(container, image: ImageIR) -> None:
+            """
+                @description 이미지 리소스를 렌더링 대상 목록에 추가함
+                @param {container} - 메서드 입력값임
+                @param {image} - 메서드 입력값임
+                @returns {None} - 메서드 실행 결과를 반환함
+            """
             if image.placement != ImagePlacement.INLINE or image.opacity != 1 or image.rotation_deg != 0:
                 document.warnings.append(ConversionWarning(
                     'HWPX_UNMAPPED_CONTENT',

@@ -31,6 +31,15 @@ class AnonymeterValidator:
     @staticmethod
     def evaluate_risks(original: pd.DataFrame, synthetic: pd.DataFrame, plan: ColumnPlan,
                        n_attacks: int = 50, control: pd.DataFrame | None = None) -> dict[str, Any]:
+        """
+            @description 익명화 데이터의 개인정보 노출 위험을 평가함
+            @param {original} - 메서드 입력값임
+            @param {synthetic} - 메서드 입력값임
+            @param {plan} - 메서드 입력값임
+            @param {n_attacks} - 메서드 입력값임
+            @param {control} - 메서드 입력값임
+            @returns {dict[str, Any]} - 메서드 실행 결과를 반환함
+        """
         cols = [c for c in plan.categorical + plan.numerical if c in original and c in synthetic]
         if control is None or any(c not in control for c in cols):
             return unavailable('학습에서 제외한 독립 대조 데이터가 없습니다.')

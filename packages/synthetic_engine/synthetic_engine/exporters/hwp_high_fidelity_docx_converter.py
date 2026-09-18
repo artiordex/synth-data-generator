@@ -199,6 +199,12 @@ class HwpHtmlToDocxBuilder:
 
     # HwpHtmlToDocxBuilder 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, html_path: Path, css_path: Optional[Path], media_dir: Optional[Path]):
+        """
+            @description HwpHtmlToDocxBuilder 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {html_path} - 메서드 입력값임
+            @param {css_path} - 메서드 입력값임
+            @param {media_dir} - 메서드 입력값임
+        """
         self.html_path = html_path
         self.css_path = css_path
         self.media_dir = media_dir
@@ -225,6 +231,11 @@ class HwpHtmlToDocxBuilder:
 
     # classes props 정보를 조회하여 반환함
     def _get_classes_props(self, el: Tag) -> Dict[str, str]:
+        """
+            @description classes props 정보를 조회하여 반환함
+            @param {el} - 메서드 입력값임
+            @returns {Dict[str, str]} - 메서드 실행 결과를 반환함
+        """
         if getattr(self, '_style_rule_count', None) != len(self.css_rules):
             self._style_cache = {}
             self._style_rule_count = len(self.css_rules)
@@ -653,6 +664,13 @@ class HwpHtmlToDocxBuilder:
     # 워드(DOCX) runs 요소를 뒤에 덧붙임
     def _append_docx_runs(self, element: Tag, paragraph: Any, *, is_header: bool = False) -> None:
         # Walk leaves once: find_all() duplicates nested spans and drops adjacent plain text.
+        """
+            @description 워드(DOCX) runs 요소를 뒤에 덧붙임
+            @param {element} - 메서드 입력값임
+            @param {paragraph} - 메서드 입력값임
+            @param {is_header} - 메서드 입력값임
+            @returns {None} - 메서드 실행 결과를 반환함
+        """
         stack = list(reversed(list(element.children)))
         while stack:
             child = stack.pop()

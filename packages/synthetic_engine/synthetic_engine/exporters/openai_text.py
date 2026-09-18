@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# 파일명: openai_text.py
+# 경로: packages/synthetic_engine/synthetic_engine/exporters/openai_text.py
+# 목적: OpenAI 기반 검토 문서 항목 설명 보정과 응답 캐시를 관리함
+# 작성자: 개발팀
+# 작성일: 2026-09-18
+# 수정일: 2026-09-18
+# =============================================================================
 """Optional OpenAI text polishing for review-document field descriptions."""
 from __future__ import annotations
 

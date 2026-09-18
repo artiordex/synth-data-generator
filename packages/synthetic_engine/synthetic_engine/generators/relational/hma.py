@@ -17,6 +17,10 @@ class HMARelationalSynthesizer:
 
     # HMARelationalSynthesizer 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, verbose: bool = False):
+        """
+            @description HMARelationalSynthesizer 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {verbose} - 메서드 입력값임
+        """
         self.verbose = verbose
         self.synthesizer = None
         self.metadata = None
@@ -30,6 +34,14 @@ class HMARelationalSynthesizer:
         primary_keys: dict[str, str] | None = None,
         **kwargs: Any
     ) -> None:
+        """
+            @description 입력 데이터로 합성 모델을 학습함
+            @param {tables} - 메서드 입력값임
+            @param {relationships} - 메서드 입력값임
+            @param {primary_keys} - 메서드 입력값임
+            @param {kwargs} - 메서드 입력값임
+            @returns {None} - 메서드 실행 결과를 반환함
+        """
         from sdv.metadata import MultiTableMetadata
         from sdv.multi_table import HMASynthesizer
 
@@ -71,6 +83,11 @@ class HMARelationalSynthesizer:
 
     # sample 작업을 수행함
     def sample(self, scale: float = 1.0) -> dict[str, pd.DataFrame]:
+        """
+            @description 학습된 합성 모델에서 데이터를 샘플링함
+            @param {scale} - 메서드 입력값임
+            @returns {dict[str, pd.DataFrame]} - 메서드 실행 결과를 반환함
+        """
         if self.synthesizer is None:
             raise RuntimeError("HMARelationalSynthesizer is not fitted.")
         return self.synthesizer.sample(scale=scale)

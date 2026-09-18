@@ -38,6 +38,9 @@ class GridCell:
 
     # post init 작업을 수행함
     def __post_init__(self) -> None:
+        """
+            @description post init 작업을 수행함
+        """
         if self.row_start < 0 or self.col_start < 0:
             raise ValueError("cell coordinates must be non-negative")
         if self.row_end <= self.row_start or self.col_end <= self.col_start:
@@ -49,11 +52,19 @@ class GridCell:
     # rowspan 작업을 수행함
     @property
     def rowspan(self) -> int:
+        """
+            @description rowspan 작업을 수행함
+            @returns {int} - 메서드 실행 결과를 반환함
+        """
         return self.row_end - self.row_start
 
     # colspan 작업을 수행함
     @property
     def colspan(self) -> int:
+        """
+            @description colspan 작업을 수행함
+            @returns {int} - 메서드 실행 결과를 반환함
+        """
         return self.col_end - self.col_start
 
 
@@ -84,11 +95,20 @@ class LineSegment:
 class _DisjointSet:
     # _DisjointSet 인스턴스 멤버 변수 및 초기 설정을 구성함
     def __init__(self, size: int) -> None:
+        """
+            @description _DisjointSet 인스턴스 멤버 변수 및 초기 설정을 구성함
+            @param {size} - 메서드 입력값임
+        """
         self.parent = list(range(size))
         self.members = [{index} for index in range(size)]
 
     # find 작업을 수행함
     def find(self, item: int) -> int:
+        """
+            @description find 작업을 수행함
+            @param {item} - 메서드 입력값임
+            @returns {int} - 메서드 실행 결과를 반환함
+        """
         while self.parent[item] != item:
             self.parent[item] = self.parent[self.parent[item]]
             item = self.parent[item]
@@ -96,6 +116,13 @@ class _DisjointSet:
 
     # union if rectangular 작업을 수행함
     def union_if_rectangular(self, left: int, right: int, cols: int) -> bool:
+        """
+            @description union if rectangular 작업을 수행함
+            @param {left} - 메서드 입력값임
+            @param {right} - 메서드 입력값임
+            @param {cols} - 메서드 입력값임
+            @returns {bool} - 메서드 실행 결과를 반환함
+        """
         left_root, right_root = self.find(left), self.find(right)
         if left_root == right_root:
             return True
