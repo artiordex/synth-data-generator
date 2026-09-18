@@ -64,7 +64,7 @@ export const SystemDocsView: React.FC<SystemDocsViewProps> = ({
     { id: '프로젝트안내.md', path: '프로젝트안내.md', name: '플랫폼 안내', title: '범용 AI 합성데이터 생성 및 심의 패키지 플랫폼 안내', category: '시스템 문서', size_bytes: 2560, updated_at: '2026-09-09' },
     { id: '저장소작업지침.md', path: '저장소작업지침.md', name: '저장소 작업 지침', title: '저장소 작업 지침', category: '시스템 문서', size_bytes: 1800, updated_at: '2026-09-09' },
     { id: 'docs/화면설계지침.md', path: 'docs/화면설계지침.md', name: '화면 설계 지침', title: '화면 설계 지침', category: '기술 가이드', size_bytes: 4200, updated_at: '2026-09-09' },
-    { id: 'docs/코드주석작성지침.md', path: 'docs/코드주석작성지침.md', name: '코드 주석 작성 지침', title: '코드 주석 작성 지침', category: '기술 가이드', size_bytes: 3200, updated_at: '2026-09-09' },
+    { id: 'docs/코드주석작성지침.md', path: 'docs/코드주석작성지침.md', name: '코드 주석 작성 지침', title: '코드 주석 작성 지침', category: '기술 가이드', size_bytes: 7073, updated_at: '2026-09-18' },
     { id: 'docs/일괄처리.md', path: 'docs/일괄처리.md', name: '최대 20개 파일 일괄 처리', title: '최대 20개 파일 일괄 처리', category: '기술 가이드', size_bytes: 3500, updated_at: '2026-09-09' },
     { id: 'docs/사내망Nginx운영.md', path: 'docs/사내망Nginx운영.md', name: '사내망 Nginx 운영', title: '사내망 Nginx 운영', category: '기술 가이드', size_bytes: 2900, updated_at: '2026-09-09' },
     { id: 'docs/노트북연동.md', path: 'docs/노트북연동.md', name: '노트북 기능 반영', title: '노트북 기능 반영', category: '기술 가이드', size_bytes: 3100, updated_at: '2026-09-09' },

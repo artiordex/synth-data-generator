@@ -115,30 +115,49 @@ EXCLUDED_MARKDOWN_FILES = {"README.md", "AGENTS.md"}
 
 DOCUMENT_DISPLAY_NAMES: Dict[str, str] = {
     "저장소작업지침.md": "저장소 작업 지침",
+    "docs/저장소작업지침.md": "저장소 작업 지침",
     "개발이력.md": "시스템 개발 이력",
+    "docs/개발이력.md": "시스템 개발 이력",
     "라이브러리목록.md": "프로젝트 사용 라이브러리 및 오픈소스 목록",
+    "docs/라이브러리목록.md": "프로젝트 사용 라이브러리 및 오픈소스 목록",
     "프로젝트안내.md": "범용 AI 합성데이터 생성 및 심의 패키지 플랫폼 안내",
-    "apps/api/백엔드API안내.md": "백엔드 API 패키지 안내",
-    "packages/synthetic_engine/합성엔진안내.md": "합성 엔진 패키지 안내",
+    "docs/프로젝트안내.md": "범용 AI 합성데이터 생성 및 심의 패키지 플랫폼 안내",
+    "깃 커밋 조건.md": "깃(Git) 커밋 및 푸시 사전 검증 가이드",
+    "docs/깃 커밋 조건.md": "깃(Git) 커밋 및 푸시 사전 검증 가이드",
     "docs/코드주석작성지침.md": "코드 주석 작성 지침",
     "docs/화면설계지침.md": "화면 설계 지침",
+    "docs/AI_READY_GUIDE_SPEC.md": "공공데이터 AI 친화도 가이드 기술 명세",
+    "docs/문서_가명처리_세부규칙.md": "문서 가명처리 및 PII 마스킹 세부 규칙",
     "docs/architecture/아키텍처.md": "프로젝트 아키텍처",
+    "docs/architecture/document-conversion.md": "행정문서 표 파싱 및 서식 변환 아키텍처",
+    "docs/architecture/contextual-pii.md": "문맥 인식 기반 스마트 비식별화 설계",
     "docs/architecture/공통모듈화계획.md": "공통 모듈화 및 도메인 분리 계획",
     "docs/architecture/개선작업목록.md": "기능 개선 작업 목록",
+    "docs/api/conversion_rules.md": "문서 및 데이터 변환 규칙 명세",
     "docs/일괄처리.md": "최대 20개 파일 일괄 처리",
     "docs/사내망Nginx운영.md": "사내망 Nginx 운영",
     "docs/노트북연동.md": "노트북 기능 반영",
     "docs/심의자료생성및배포.md": "심의자료 자동 생성과 모노레포 운영",
     "docs/세종교육데이터명세.md": "세종 교육데이터 합성 데이터 명세서",
+    "docs/ocr-quality-measurement.md": "OCR 품질 측정 및 서식 복원 정량 지표",
+    "docs/ocr-sample-standardization.md": "OCR 표준 샘플 구성 및 검증 체계",
     "docs/문서목록.md": "프로젝트 Markdown 문서 목록",
-    "docs/설문_합성데이터_최종산출물/설문_전국3대지역_합성결과_요약보고서.md": "전국 3대 지역 설문 합성 결과 요약보고서",
+    "apps/api/백엔드API안내.md": "백엔드 API 패키지 안내",
+    "packages/synthetic_engine/합성엔진안내.md": "합성 엔진 패키지 안내",
 }
 
 DOCUMENT_PATH_ALIASES = {
-    "AGENTS.md": "저장소작업지침.md",
-    "CHANGELOG.md": "개발이력.md",
-    "LIBRARIES.md": "라이브러리목록.md",
-    "README.md": "프로젝트안내.md",
+    "AGENTS.md": "docs/저장소작업지침.md",
+    "CHANGELOG.md": "docs/개발이력.md",
+    "LIBRARIES.md": "docs/라이브러리목록.md",
+    "README.md": "README.md",
+    "저장소작업지침.md": "docs/저장소작업지침.md",
+    "개발이력.md": "docs/개발이력.md",
+    "라이브러리목록.md": "docs/라이브러리목록.md",
+    "프로젝트안내.md": "docs/프로젝트안내.md",
+    "깃 커밋 조건.md": "docs/깃 커밋 조건.md",
+    "주석.md": "docs/코드주석작성지침.md",
+    "코드주석작성지침.md": "docs/코드주석작성지침.md",
     "apps/api/README.md": "apps/api/백엔드API안내.md",
     "packages/synthetic_engine/README.md": "packages/synthetic_engine/합성엔진안내.md",
 }
@@ -232,7 +251,8 @@ def sync_and_generate_libraries_markdown() -> str:
 
     # 라이브러리목록.md 저장
     try:
-        (root / "라이브러리목록.md").write_text(final_content, encoding="utf-8")
+        target_lib = (root / "docs" / "라이브러리목록.md") if (root / "docs").exists() else (root / "라이브러리목록.md")
+        target_lib.write_text(final_content, encoding="utf-8")
     except Exception:
         pass
 
@@ -245,6 +265,15 @@ def scan_all_markdown_docs():
 
     # 라이브러리목록.md 동기화
     sync_and_generate_libraries_markdown()
+
+    core_doc_ids = {
+        "개발이력.md", "docs/개발이력.md",
+        "라이브러리목록.md", "docs/라이브러리목록.md",
+        "프로젝트안내.md", "docs/프로젝트안내.md",
+        "저장소작업지침.md", "docs/저장소작업지침.md",
+        "깃 커밋 조건.md", "docs/깃 커밋 조건.md",
+        "코드주석작성지침.md", "docs/코드주석작성지침.md",
+    }
 
     for p in root.rglob("*.md"):
         try:
@@ -267,10 +296,16 @@ def scan_all_markdown_docs():
                     break
 
             # Categorization
-            if rel_posix.startswith("docs/"):
-                category = "[기술 가이드] docs/ 기술 가이드 및 산출물"
-            elif rel_posix in ["개발이력.md", "라이브러리목록.md", "프로젝트안내.md", "저장소작업지침.md"]:
+            if rel_posix in core_doc_ids:
                 category = "[핵심 문서] 핵심 시스템 문서"
+            elif rel_posix.startswith("docs/adr/"):
+                category = "[설계 결정] ADR 아키텍처 결정 기록"
+            elif rel_posix.startswith("docs/agents/"):
+                category = "[에이전트] 멀티에이전트 협업 규격"
+            elif rel_posix.startswith("docs/architecture/"):
+                category = "[아키텍처] 시스템 구조 및 모듈화"
+            elif rel_posix.startswith("docs/"):
+                category = "[기술 가이드] docs/ 기술 가이드 및 산출물"
             elif "apps/" in rel_posix or "packages/" in rel_posix:
                 category = "[패키지] 패키지 및 모듈"
             else:
@@ -283,8 +318,9 @@ def scan_all_markdown_docs():
                 rel_posix,
                 rel_posix if (rel_posix != p.name and p.name.lower() == "readme.md") else p.name,
             )
+            doc_id = p.name if rel_posix in core_doc_ids else rel_posix
             docs.append({
-                "id": rel_posix,
+                "id": doc_id,
                 "path": rel_posix,
                 "name": display_name,
                 "title": title,
@@ -299,17 +335,21 @@ def scan_all_markdown_docs():
 # 문서 목록의 정렬 순서를 결정하는 키 값을 반환함
     def sort_key(d):
         priority = {
-            "개발이력.md": 1,
-            "라이브러리목록.md": 2,
-            "프로젝트안내.md": 3,
-            "저장소작업지침.md": 4
+            "개발이력.md": 1, "docs/개발이력.md": 1,
+            "라이브러리목록.md": 2, "docs/라이브러리목록.md": 2,
+            "프로젝트안내.md": 3, "docs/프로젝트안내.md": 3,
+            "저장소작업지침.md": 4, "docs/저장소작업지침.md": 4,
+            "깃 커밋 조건.md": 5, "docs/깃 커밋 조건.md": 5,
+            "코드주석작성지침.md": 6, "docs/코드주석작성지침.md": 6,
         }
-        # Put core docs first, then docs/ folder, then packages, then other
         cat_priority = {
             "[핵심 문서] 핵심 시스템 문서": 1,
             "[기술 가이드] docs/ 기술 가이드 및 산출물": 2,
-            "[패키지] 패키지 및 모듈": 3,
-            "[기타 문서] 기타 문서": 4
+            "[아키텍처] 시스템 구조 및 모듈화": 3,
+            "[설계 결정] ADR 아키텍처 결정 기록": 4,
+            "[에이전트] 멀티에이전트 협업 규격": 5,
+            "[패키지] 패키지 및 모듈": 6,
+            "[기타 문서] 기타 문서": 7
         }
         return (priority.get(d["id"], 99), cat_priority.get(d["category"], 99), d["path"])
 
@@ -329,10 +369,14 @@ async def get_doc(path: str = Query(..., description="조회할 마크다운 파
     root = settings.ROOT_DIR.resolve()
 
     path = DOCUMENT_PATH_ALIASES.get(path, path)
-    if path == "라이브러리목록.md":
+    if path in ("라이브러리목록.md", "docs/라이브러리목록.md"):
         sync_and_generate_libraries_markdown()
 
     target = (root / path).resolve()
+    if not target.is_file():
+        fallback_target = (root / "docs" / path).resolve()
+        if fallback_target.is_file():
+            target = fallback_target
 
     # Directory traversal prevention
     try:
