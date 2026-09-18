@@ -5,7 +5,7 @@
 # 목적: 로컬 우선 OCR 품질 진단 게이트 및 스마트 AI 에스컬레이션 로직을 검증함
 # 작성자: 개발팀
 # 작성일: 2026-09-16
-# 수정일: 2026-09-16
+# 수정일: 2026-09-18
 # =============================================================================
 """Unit tests for intelligent local-first OCR quality gate and escalation."""
 from __future__ import annotations
@@ -58,6 +58,7 @@ def test_evaluate_local_ocr_quality_success() -> None:
     mock_block.confidence = 0.92
     mock_ocr.text_blocks = [mock_block]
     mock_ocr.tables = []
+    mock_ocr.requires_review = False
     acceptable, reason, conf = _evaluate_local_ocr_quality(mock_ocr)
     assert acceptable is True
     assert reason == "acceptable_quality"
@@ -76,6 +77,7 @@ def test_evaluate_local_ocr_quality_korean_gibberish_rejected() -> None:
     ]
     mock_ocr.text_blocks = [MagicMock(text=t, confidence=0.88, bbox=[10, 10, 200, 30]) for t in gibberish_texts]
     mock_ocr.tables = []
+    mock_ocr.requires_review = False
     acceptable, reason, _ = _evaluate_local_ocr_quality(mock_ocr)
     assert acceptable is False
     assert "low_korean_quality" in reason
@@ -94,10 +96,12 @@ def test_evaluate_local_ocr_quality_handwriting_detected(monkeypatch) -> None:
     mock_ocr = MagicMock()
     mock_block = MagicMock()
     mock_block.text = "원두 10kg 확인 완료"
-    mock_block.confidence = 0.82
+    # 0.68 이상 0.70 미만에서 저신뢰도 필기 감지 분기를 검증함
+    mock_block.confidence = 0.69
     mock_block.bbox = [10, 10, 80, 50]
     mock_ocr.text_blocks = [mock_block]
     mock_ocr.tables = []
+    mock_ocr.requires_review = False
 
     dummy_image = np.zeros((100, 100, 3), dtype=np.uint8)
     acceptable, reason, _ = _evaluate_local_ocr_quality(mock_ocr, image_bgr=dummy_image)
