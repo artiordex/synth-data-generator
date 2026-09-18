@@ -54,16 +54,20 @@
 - **반환 산출물**: `canonical_metadata`, `json_rule` (동일 모델 직렬화), `json_ld` (DCAT 어휘), `metadata_xml`, `markdown_guide`.
 - **범주 결정**: `data_category`는 서버가 입력 포맷에 따라 파일(`file`) 또는 API(`api`)로 강제 결정한다.
 
+`POST /api/v1/ai-guide/generate-documents`는 구조 분석 이후 화면에서 입력한 `user_metadata`와 `field_annotations`를 먼저 `USER_CONFIRMED`로 반영하고, 그 다음 서버의 `OPENAI_API_KEY`와 `OPENAI_GUIDE_MODEL`(기본 `gpt-4o-mini`)로 비어 있는 설명·활용 초안만 추론한다. JSON·XML·JSON-LD는 항상 생성하며, 사람용 산출물은 `human_format=md|hwpx|odt|docx` 중 한 형식을 선택한다. 네 사람용 형식은 `apps/api/src/synthetic_api/data/ai_guide/templates/`의 `ai_ready_public_data_guide_template.md|docx|hwpx|odt` 통합 템플릿과 `file`/`api` 분기를 공유한다.
+
 ### 3.2 Canonical Metadata Schema v2 구조
 
 API의 분석 응답은 `format`, `data_category`, `sha256`, `byte_size`, `root_type`, `traits`, `namespaces`, `fields`, `record_sets`, `tables`, `quality_metrics`, `warnings`, `review_required`를 포함한다. 이 응답을 문서·교환용 Canonical Metadata로 승격할 때는 다음 기계 판독 자산의 공통 계약을 적용한다.
 
-- `docs/adr/AI친화_메타데이터_템플릿.json`: 전체 Canonical 계층과 바인딩·상태 정책의 기준
-- `docs/adr/AI친화_메타데이터_템플릿.jsonld`: DCAT·DCT·DQV·RAI 등 의미 어휘 투영
-- `docs/adr/AI친화_메타데이터_템플릿.xml`: 행정 연계용 XML 표현 템플릿
-- `docs/adr/AI친화_메타데이터_스키마.xsd`: 바인딩 완료 XML의 구조·자료형 검증 계약
+- `apps/api/src/synthetic_api/data/ai_guide/templates/schemas/canonical-metadata.schema.json`: Canonical Metadata의 최상위 JSON Schema 계약. 필수 블록·타입·상태 코드의 유일한 구조 기준
+- `apps/api/src/synthetic_api/data/ai_guide/templates/ai_ready_metadata_template.json`: JSON Schema에 맞는 초기 모델과 렌더러 별칭·반복 바인딩을 위한 구현 템플릿. 독립적인 진실 원천이나 JSON Schema 문서가 아님
+- `apps/api/src/synthetic_api/data/ai_guide/templates/ai_ready_metadata_template.jsonld`: DCAT·DCT·DQV·RAI 등 의미 어휘 투영
+- `apps/api/src/synthetic_api/data/ai_guide/templates/ai_ready_metadata_template.xml`: 행정 연계용 XML 표현 템플릿
+- `apps/api/src/synthetic_api/data/ai_guide/templates/ai_ready_metadata_schema.xsd`: 바인딩 완료 XML의 구조·자료형 검증 계약
+- `apps/api/src/synthetic_api/data/ai_guide/templates/ontology.ttl`: JSON-LD와 RDF 도구가 공유하는 프로젝트 확장 온톨로지. Schema.org·DCAT·DCT·DQV 등의 공식 어휘를 대체하지 않음
 
-네 자산의 공통 상위 영역은 `document`, `dataset`, `modality`, `responsible_ai`, `structure`, `fields`, `pipeline`, `statistics`, `quality`, `ai`, `interoperability`, `usage`, `lineage`, `governance`, `artifacts`, `fair`, `reviewRequired`, `provenance`, `analysis`, `canonicalItems`, `references`이다. JSON의 `modality_specifications`와 XML의 `modalitySpecifications`, JSON의 `responsible_ai`와 XML의 `responsibleAi`처럼 포맷 관례에 따른 이름 차이는 허용하지만 의미와 값은 같아야 한다.
+Canonical JSON Schema의 공통 상위 영역은 `document`, `dataset`, `modality_specifications`, `responsible_ai`, `structure`, `fields`, `pipeline`, `statistics`, `quality`, `ai`, `interoperability`, `usage`, `lineage`, `governance`, `artifacts`, `fair`, `reviewRequired`, `provenance`, `analysis`, `canonicalItems`, `references`이다. JSON의 `modality_specifications`와 XML의 `modalitySpecifications`, JSON의 `responsible_ai`와 XML의 `responsibleAi`처럼 포맷 관례에 따른 이름 차이는 허용하지만 의미와 값은 같아야 한다. 바인딩 템플릿은 이 계약을 구현하기 위한 보조 자산이며 Canonical JSON Schema의 제약을 완화하거나 독자적인 필드를 정의할 수 없다.
 
 Markdown 템플릿은 이 계약의 별도 진실 원천이 아니다. 파일데이터와 OpenAPI Markdown은 각각의 표현 프로파일이며, 새 필드·상태·수치 또는 API 계약을 독자적으로 만들 수 없다. 템플릿 플레이스홀더를 포함한 XML은 완성 인스턴스가 아니므로 XSD 검증 대상이 아니며, 모든 플레이스홀더를 실제 자료형으로 바인딩한 결과 XML을 XSD로 검증한다.
 

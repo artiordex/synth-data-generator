@@ -9,7 +9,7 @@
 
 ## 1. 배경 (Context)
 
-AI 친화 공공데이터 가이드 시스템은 HWPX(공문서 보고서), JSON(기계 판독형 메타데이터), XML(행정 연계), JSON-LD(시맨틱 웹) 등 복수의 출력 포맷을 동시에 제공해야 한다.
+AI 친화 공공데이터 가이드 시스템은 HWPX/DOCX/Markdown(사람이 읽는 AI 친화 데이터 가이드), JSON(기계 판독형 메타데이터), XML(행정 연계), JSON-LD(시맨틱 웹) 등 복수의 출력 포맷을 동시에 제공해야 한다.
 
 만약 각 출력 포맷의 생성기가 원천 데이터를 개별적으로 분석하거나 자체적인 변환 규칙을 둘 경우, 다음과 같은 치명적인 데이터 불일치(Data Discrepancy)가 발생한다:
 1. **문서 간 수치 불일치**: 동일한 데이터셋임에도 HWPX의 레코드 수나 결측률과 JSON/XML의 수치가 달라지는 현상.
@@ -17,6 +17,11 @@ AI 친화 공공데이터 가이드 시스템은 HWPX(공문서 보고서), JSON
 3. **법적 검토 누락**: 개인정보, 라이선스, 관련 법령 등 사람이 직접 확인해야 할 항목이 임의로 확정 처리되어 배포되는 위험.
 
 따라서 모든 파생 문서와 API 응답이 참조하는 **단일 진실 원천(Single Source of Truth, SSOT)**으로서 표준화된 **Canonical Metadata Model**과 **엄격한 상태 코드(Status Code) 체계**를 도입한다.
+
+이 결정에서 Canonical의 구조적 최상위 기준은
+`apps/api/src/synthetic_api/data/ai_guide/templates/schemas/canonical-metadata.schema.json`으로 한다.
+JSON 템플릿, XML/XSD, JSON-LD, Markdown 및 HWPX/DOCX는 이 JSON Schema에 맞는
+Canonical 인스턴스의 초기화·직렬화·표현·검증을 담당하는 하위 자산이다.
 
 ---
 
@@ -49,8 +54,8 @@ AI 친화 공공데이터 가이드 시스템은 HWPX(공문서 보고서), JSON
                 │
    ┌────────────┼────────────┬────────────┐
    ▼            ▼            ▼            ▼
-[HWPX]       [JSON]        [XML]      [JSON-LD]
-(공문서)    (기계판독형)   (행정연계)  (시맨틱DCAT)
+[HWPX/DOCX]  [JSON]        [XML]      [JSON-LD]
+(사람용 가이드) (기계판독형) (행정연계)  (시맨틱DCAT)
 ```
 
 1. **출력기의 재분석 절대 금지**: HWPX, JSON, XML, JSON-LD 렌더러는 원천 데이터를 직접 파싱하거나 재계산하지 않으며, 오직 확정된 `Canonical Metadata`만을 읽어 렌더링한다.
@@ -59,6 +64,17 @@ AI 친화 공공데이터 가이드 시스템은 HWPX(공문서 보고서), JSON
 ---
 
 ### 3.2 Canonical Metadata Schema v2 구조
+
+`canonical-metadata.schema.json`은 다음을 규정하는 최상위 구조 계약이다.
+
+- Canonical 최상위 블록 및 필수 구조
+- 데이터셋·필드·분석·품질·계보·검토 항목의 JSON 자료형
+- 5단계 항목 상태 코드와 문서 검토 상태
+- Canonical JSON 인스턴스가 갖춰야 할 최소 식별자·출처·검증 필드
+
+`ai_ready_metadata_template.json`은 JSON Schema를 대체하지 않는다. 해당 파일은
+플레이스홀더, 별칭, 반복 바인딩을 보존해야 하는 기존 렌더링 구현의 초기 모델
+템플릿으로만 사용하며, 생성 직후 JSON Schema 검증을 통과해야 한다.
 
 Canonical Metadata의 모든 항목은 값(Value)과 함께 **출처 유형(Source Type)**, **신뢰도(Confidence)**, 그리고 **검토 상태(Status)**를 함께 유지한다.
 

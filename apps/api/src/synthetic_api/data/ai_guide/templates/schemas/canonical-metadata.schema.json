@@ -1,0 +1,1309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:synthetic-data:ai-ready:v2:canonical-metadata.schema.json",
+  "title": "AI-Ready Public Data Canonical Metadata",
+  "description": "Canonical JSON contract for every AI-Ready public-data guide projection. Rendering templates and format-specific schemas are subordinate to this contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "templateVersion",
+    "document",
+    "dataset",
+    "modality_specifications",
+    "responsible_ai",
+    "structure",
+    "processing",
+    "fields",
+    "pipeline",
+    "statistics",
+    "quality",
+    "ai",
+    "interoperability",
+    "usage",
+    "lineage",
+    "governance",
+    "artifacts",
+    "fair",
+    "reviewRequired",
+    "provenance",
+    "analysis",
+    "canonicalItems",
+    "references"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "templateVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "document": {
+      "$ref": "#/$defs/document"
+    },
+    "dataset": {
+      "$ref": "#/$defs/dataset"
+    },
+    "modality_specifications": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "responsible_ai": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "structure": {
+      "$ref": "#/$defs/structure"
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "pipeline": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pipelineStep"
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ai": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "recommended_features": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {}
+        },
+        "target_candidates": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {}
+        },
+        "time_series_characteristics": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "spatial_characteristics": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "bias": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "representativeness": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "quality_flag_usage": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "imputed_data_usage": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "usage_risks": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {}
+        }
+      }
+    },
+    "interoperability": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "fair": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "reviewRequired": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reviewItem"
+      }
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "analysis": {
+      "$ref": "#/$defs/analysis"
+    },
+    "canonicalItems": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/canonicalItem"
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "processing": {
+      "$ref": "#/$defs/processing"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nullableInteger": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "nullableNumber": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "nullableBoolean": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "generated_utc",
+        "doc_type",
+        "specification_version",
+        "review_status",
+        "is_draft",
+        "review_notice"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/itemStatus"
+        },
+        "generated_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "doc_type": {
+          "enum": [
+            "file_dataset",
+            "api_dataset",
+            "hybrid_dataset"
+          ]
+        },
+        "specification_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_status": {
+          "enum": [
+            "INCOMPLETE_REVIEW",
+            "INFERRED_DRAFT",
+            "COMPLETE_REVIEW"
+          ]
+        },
+        "is_draft": {
+          "type": "boolean"
+        },
+        "review_notice": {
+          "type": "string"
+        }
+      }
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "identifier",
+        "title",
+        "description",
+        "purpose",
+        "legal_references",
+        "publisher",
+        "creator",
+        "landing_page",
+        "access_url",
+        "update_frequency",
+        "theme",
+        "keywords",
+        "contact_point",
+        "language",
+        "byte_size",
+        "media_type",
+        "temporal",
+        "spatial",
+        "relations",
+        "version_info",
+        "uri_or_id",
+        "theme_label"
+      ],
+      "properties": {
+        "identifier": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "purpose": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "legal_references": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "publisher": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "creator": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "landing_page": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "access_url": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "update_frequency": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "theme": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contact_point": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "name",
+            "email",
+            "phone"
+          ],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/nullableString"
+            },
+            "email": {
+              "$ref": "#/$defs/nullableString"
+            },
+            "phone": {
+              "$ref": "#/$defs/nullableString"
+            }
+          }
+        },
+        "language": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "byte_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "media_type": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "temporal": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/nullableString"
+            },
+            "end": {
+              "$ref": "#/$defs/nullableString"
+            }
+          }
+        },
+        "spatial": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "version_info": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "version",
+            "issued",
+            "modified",
+            "version_notes"
+          ],
+          "properties": {
+            "version": {
+              "$ref": "#/$defs/nullableString"
+            },
+            "issued": {
+              "$ref": "#/$defs/nullableString"
+            },
+            "modified": {
+              "$ref": "#/$defs/nullableString"
+            },
+            "version_notes": {
+              "$ref": "#/$defs/nullableString"
+            }
+          }
+        },
+        "uri_or_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "theme_label": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "structure": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "data_category",
+        "has_file_data",
+        "has_api_data",
+        "root_type",
+        "is_large_dataset",
+        "distribution",
+        "api_specification",
+        "traits"
+      ],
+      "properties": {
+        "data_category": {
+          "enum": [
+            "file",
+            "api",
+            "hybrid"
+          ]
+        },
+        "has_file_data": {
+          "type": "boolean"
+        },
+        "has_api_data": {
+          "type": "boolean"
+        },
+        "root_type": {
+          "type": "string"
+        },
+        "is_large_dataset": {
+          "type": "boolean"
+        },
+        "distribution": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "api_specification": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "traits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "field_id",
+        "path",
+        "name",
+        "name_ko",
+        "order",
+        "data_type",
+        "required",
+        "is_pk",
+        "statistics",
+        "sample_values",
+        "path_syntax",
+        "source",
+        "source_category"
+      ],
+      "properties": {
+        "field_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name_ko": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "data_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "$ref": "#/$defs/nullableBoolean"
+        },
+        "is_pk": {
+          "$ref": "#/$defs/nullableBoolean"
+        },
+        "statistics": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "sample_values": {
+          "type": "array"
+        },
+        "path_syntax": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_category": {
+          "enum": [
+            "file",
+            "api"
+          ]
+        },
+        "value_origin": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "observed",
+            "derived",
+            "calculated",
+            "imputed",
+            "estimated",
+            "modeled",
+            null
+          ]
+        },
+        "source_dataset_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "source_field": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "derived": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "derivation_ref": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "missing_processing_ref": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "quality_flag_ref": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "pipelineStep": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "step",
+        "name",
+        "input",
+        "rules",
+        "parameters",
+        "output",
+        "quality_gate",
+        "executed_at",
+        "agent"
+      ],
+      "properties": {
+        "step": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "input": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "rules": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "parameters": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "output": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "quality_gate": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "executed_at": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "agent": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "itemStatus": {
+      "enum": [
+        "AUTO_CONFIRMED",
+        "AUTO_INFERRED",
+        "USER_CONFIRMED",
+        "REVIEW_REQUIRED",
+        "NOT_APPLICABLE"
+      ]
+    },
+    "canonicalItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "bindingPath",
+        "label",
+        "property",
+        "namespace",
+        "value",
+        "valueType",
+        "sourceType",
+        "status",
+        "confidence",
+        "reason",
+        "updatedAt",
+        "sourceReference"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bindingPath": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "property": {
+          "type": "string",
+          "minLength": 1
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {},
+        "valueType": {
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "object",
+            "array",
+            "null"
+          ]
+        },
+        "sourceType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "$ref": "#/$defs/itemStatus"
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "updatedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceReference": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "reviewItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "category",
+        "label",
+        "reason",
+        "action",
+        "status",
+        "bindingPath",
+        "sourceType",
+        "confidence",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "const": "REVIEW_REQUIRED"
+        },
+        "bindingPath": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "sourceType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "updatedAt": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "generator_name",
+        "generator_version",
+        "source_file_sha256",
+        "generated_utc"
+      ],
+      "properties": {
+        "generator_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generator_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_file_sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "generated_utc": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "scope",
+        "sample_size",
+        "population_size",
+        "sampling_method",
+        "record_boundary_preserved",
+        "limitations",
+        "analyzed_at"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "FULL",
+            "SAMPLE"
+          ]
+        },
+        "sample_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "population_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "sampling_method": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "record_boundary_preserved": {
+          "type": "boolean"
+        },
+        "limitations": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "analyzed_at": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "processing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "integration": {
+          "$ref": "#/$defs/processingIntegration"
+        },
+        "derived_fields": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/derivedField"
+          }
+        },
+        "transformations": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/transformationRule"
+          }
+        },
+        "missing_value_processing": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/missingValueRule"
+          }
+        },
+        "outlier_processing": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/outlierRule"
+          }
+        },
+        "quality_flags": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/qualityFlag"
+          }
+        }
+      }
+    },
+    "processingIntegration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "is_integrated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "description": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "method": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "join_type": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "join_keys": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "temporal_alignment": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "spatial_alignment": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "source_dataset_ids": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "external_sources": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {}
+        },
+        "output_description": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "limitations": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "derivedField": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "field_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "field_name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "derivation_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "observed",
+            "calculated",
+            "derived",
+            "aggregated",
+            "interpolated",
+            "estimated",
+            "modeled",
+            "mapped",
+            "imputed",
+            "normalized",
+            "encoded",
+            "other",
+            null
+          ]
+        },
+        "source_fields": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "method": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "formula_or_rule": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "aggregation": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "window": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "unit": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "parameters": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "fallback_rule": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "reproducible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "notes": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "transformationRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "target_field_ids": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "method": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "description": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "parameters": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "reversible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "limitations": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "missingValueRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_field_ids": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "detected_missing_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "detected_missing_ratio": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "none",
+            "drop",
+            "constant",
+            "forward_fill",
+            "backward_fill",
+            "linear_interpolation",
+            "mean",
+            "median",
+            "group_mean",
+            "temporal_mean",
+            "regression",
+            "physical_formula",
+            "model_based",
+            "custom",
+            null
+          ]
+        },
+        "method_description": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "steps": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/ruleStep"
+          }
+        },
+        "grouping_keys": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "temporal_window": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "parameters": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "fallback_method": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "clipping_rule": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "affected_record_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "quality_flag_field": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "original_value_preserved": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "limitations": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "outlierRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_field_ids": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "detection_method": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "threshold": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ]
+        },
+        "rule": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "action": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "affected_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "replacement_method": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "quality_flag_field": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "qualityFlag": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flag_field": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "description": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "target_fields": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "values": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/qualityFlagValue"
+          }
+        },
+        "meaning": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "ruleStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "step": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "rule": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "qualityFlagValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "meaning": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "value_origin": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "observed",
+            "derived",
+            "calculated",
+            "imputed",
+            "estimated",
+            "modeled",
+            null
+          ]
+        }
+      }
+    }
+  }
+}

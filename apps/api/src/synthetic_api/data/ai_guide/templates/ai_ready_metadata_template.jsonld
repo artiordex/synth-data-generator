@@ -1,0 +1,1258 @@
+{
+  "@context": {
+    "adms": "http://www.w3.org/ns/adms#",
+    "dcat": "http://www.w3.org/ns/dcat#",
+    "dct": "http://purl.org/dc/terms/",
+    "foaf": "http://xmlns.com/foaf/0.1/",
+    "odrl": "http://www.w3.org/ns/odrl/2/",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "spdx": "http://spdx.org/rdf/terms#",
+    "vcard": "http://www.w3.org/2006/vcard/ns#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "schema": "http://schema.org/",
+    "exif": "http://www.w3.org/2003/12/exif/ns#",
+    "rai": "http://mlcommons.org/croissant/RAI/",
+    "cr": "http://mlcommons.org/croissant/",
+    "dqv": "http://www.w3.org/ns/dqv#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "api": "urn:synthetic-data:openapi:v1:",
+    "title": "dct:title",
+    "description": "dct:description",
+    "identifier": "dct:identifier",
+    "references": "dct:references",
+    "publisher": {
+      "@id": "dct:publisher",
+      "@type": "@id"
+    },
+    "creator": "dct:creator",
+    "issued": {
+      "@id": "dct:issued",
+      "@type": "xsd:date"
+    },
+    "modified": {
+      "@id": "dct:modified",
+      "@type": "xsd:date"
+    },
+    "language": "dct:language",
+    "license": {
+      "@id": "dct:license",
+      "@type": "@id"
+    },
+    "rights": "dct:rights",
+    "accrualPeriodicity": "dct:accrualPeriodicity",
+    "spatial": "dct:spatial",
+    "temporal": "dct:temporal",
+    "theme": {
+      "@id": "dcat:theme",
+      "@type": "@id"
+    },
+    "keyword": "dcat:keyword",
+    "contactPoint": "dcat:contactPoint",
+    "landingPage": {
+      "@id": "dcat:landingPage",
+      "@type": "@id"
+    },
+    "distribution": {
+      "@id": "dcat:distribution",
+      "@type": "@id"
+    },
+    "byteSize": {
+      "@id": "dcat:byteSize",
+      "@type": "xsd:nonNegativeInteger"
+    },
+    "mediaType": "dcat:mediaType",
+    "accessURL": {
+      "@id": "dcat:accessURL",
+      "@type": "@id"
+    },
+    "versionInfo": "owl:versionInfo",
+    "versionNotes": "adms:versionNotes",
+    "wasGeneratedBy": {
+      "@id": "prov:wasGeneratedBy",
+      "@type": "@id"
+    },
+    "@version": 1.1,
+    "ai": "urn:synthetic-data:ai-ready:v2:",
+    "ontologyDocument": {
+      "@id": "ai:ontologyDocument",
+      "@type": "@id"
+    },
+    "hasQualityMeasurement": {
+      "@id": "dqv:hasQualityMeasurement",
+      "@type": "@id"
+    },
+    "aig": "urn:synthetic-data:ai-ready:v2:",
+    "processing": "aig:processing",
+    "integration": "aig:integration",
+    "derived_fields": "aig:derivedFields",
+    "missing_value_processing": "aig:missingValueProcessing",
+    "quality_flags": "aig:qualityFlags",
+    "value_origin": "aig:valueOrigin",
+    "derivation_type": "aig:derivationType",
+    "source_field": "aig:sourceField",
+    "imputation_method": "aig:imputationMethod",
+    "quality_flag_field": "aig:qualityFlagField",
+    "flag_value_meaning": "aig:flagValueMeaning"
+  },
+  "@graph": [
+    {
+      "@id": "{{dataset.uri_or_id}}",
+      "ai:schemaVersion": "2.0",
+      "ai:templateVersion": "2.3",
+      "ai:reviewPolicy": {
+        "rdfs:comment": "항목별 5-state 검토 상태. 신뢰도는 승인 상태를 대체하지 않는다. 미확정은 null, 비해당은 null/NOT_APPLICABLE과 사유를 보존한다.",
+        "ai:statusCodes": [
+          "AUTO_CONFIRMED",
+          "AUTO_INFERRED",
+          "USER_CONFIRMED",
+          "REVIEW_REQUIRED",
+          "NOT_APPLICABLE"
+        ],
+        "ai:requiredReviewPolicy": "법령·라이선스·개인정보·담당자·API 계약은 기관 승인 전 REVIEW_REQUIRED. 잔여 시 document.review_status=INCOMPLETE_REVIEW 및 임시 검토본 표시."
+      },
+      "@type": [
+        "ai:CanonicalMetadata",
+        "dcat:Dataset",
+        "schema:Dataset"
+      ],
+      "ontologyDocument": "urn:synthetic-data:ai-ready:v2:ontology",
+      "rdfs:comment": "REF-01 표 7~16 및 ADR-001~005를 참조한 JSON-LD 1.1 템플릿. ai:/api:는 프로젝트 확장이다. 국가 프로파일/Croissant 완전 적합성 인증을 주장하지 않는다. 모든 값은 ai:canonicalItems의 ai:bindingPath와 연결한다. 반복·타입·검토본 계약은 ai_ready_metadata_template.json의 _template 참조.",
+      "title": "{{dataset.title}}",
+      "description": "{{dataset.description}}",
+      "identifier": "{{dataset.identifier}}",
+      "references": "{{dataset.legal_references}}",
+      "publisher": {
+        "@type": "foaf:Organization",
+        "foaf:name": "{{dataset.publisher}}",
+        "schema:department": {
+          "@type": "schema:Organization",
+          "schema:name": "{{dataset.creator}}"
+        }
+      },
+      "creator": "{{dataset.creator}}",
+      "theme": "{{dataset.theme}}",
+      "keyword": [
+        "{{#dataset.keywords}}",
+        "{{keyword}}",
+        "{{/dataset.keywords}}"
+      ],
+      "contactPoint": {
+        "@type": "vcard:Individual",
+        "vcard:fn": "{{dataset.contact.name}}",
+        "vcard:hasEmail": "{{dataset.contact.email}}",
+        "vcard:hasTelephone": "{{dataset.contact.phone}}"
+      },
+      "license": "{{usage.license}}",
+      "rights": "{{usage.rights}}",
+      "accrualPeriodicity": "{{dataset.update_frequency}}",
+      "temporal": {
+        "@type": "dct:PeriodOfTime",
+        "schema:startDate": "{{dataset.temporal.start}}",
+        "schema:endDate": "{{dataset.temporal.end}}"
+      },
+      "spatial": "{{dataset.spatial}}",
+      "landingPage": "{{dataset.landing_page}}",
+      "versionInfo": "{{dataset.version.current}}",
+      "issued": "{{dataset.version.issued}}",
+      "modified": "{{dataset.version.modified}}",
+      "versionNotes": "{{dataset.version.notes}}",
+      "distribution": [
+        {
+          "@id": "{{dataset.uri_or_id}}#distribution",
+          "@type": "dcat:Distribution",
+          "title": "{{dataset.title}} 원천 배포",
+          "accessURL": "{{dataset.access_url}}",
+          "mediaType": "{{dataset.media_type}}",
+          "byteSize": "{{dataset.byte_size}}"
+        }
+      ],
+      "rai:dataBiases": "{{responsible_ai.data_biases}}",
+      "rai:knownLimitations": "{{responsible_ai.known_limitations}}",
+      "rai:dataCollectionMissingData": "{{responsible_ai.missing_data_info}}",
+      "schema:image": {
+        "@type": "schema:ImageObject",
+        "schema:width": "{{modality.image.width}}",
+        "schema:height": "{{modality.image.height}}",
+        "exif:make": "{{modality.image.exif_make}}",
+        "exif:model": "{{modality.image.exif_model}}",
+        "schema:encodingFormat": "{{modality.image.media_type}}",
+        "ai:is_applicable": "{{modality.image.is_applicable}}",
+        "ai:resource_id": "{{modality.image.resource_id}}",
+        "schema:additionalProperty": [
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "color_space",
+            "schema:value": "{{modality.image.color_space}}",
+            "schema:description": "색 공간 (RGB, Grayscale, CMYK)"
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "resolution_dpi",
+            "schema:value": "{{modality.image.dpi}}",
+            "schema:description": "해상도 DPI (예: 300)"
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "bit_depth",
+            "schema:value": "{{modality.image.bit_depth}}",
+            "schema:description": "채널당 비트 수(bit), 정수."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "capture_datetime",
+            "schema:value": "{{modality.image.capture_datetime}}",
+            "schema:description": "촬영 시각(ISO 8601, 시간대 포함). EXIF에 시간대가 없으면 임의 보완 금지."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "capture_environment",
+            "schema:value": "{{modality.image.capture_environment}}",
+            "schema:description": "촬영 환경·조명·장비 배치 설명. 선택적 프로젝트 확장; 관측/기관 확인 근거 기록."
+          }
+        ],
+        "rdfs:comment": "REF-01 표 14~16에 명시된 기본 속성 및 조건부 프로젝트 확장. 해당 없음은 ai:is_applicable=false와 NOT_APPLICABLE 레코드로 표현."
+      },
+      "schema:video": {
+        "@type": "schema:VideoObject",
+        "schema:width": "{{modality.video.width}}",
+        "schema:height": "{{modality.video.height}}",
+        "schema:duration": "{{modality.video.duration}}",
+        "schema:frameRate": "{{modality.video.frame_rate}}",
+        "schema:encodingFormat": "{{modality.video.media_type}}",
+        "ai:is_applicable": "{{modality.video.is_applicable}}",
+        "ai:resource_id": "{{modality.video.resource_id}}",
+        "schema:additionalProperty": [
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "codec",
+            "schema:value": "{{modality.video.codec}}",
+            "schema:description": "비디오 코덱명 (schema:additionalProperty codec, 선택, 예: MPEG-4 Part 2, H.264, HEVC)"
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "bitrate",
+            "schema:value": "{{modality.video.bitrate}}",
+            "schema:description": "초당 비트 수(bps), 숫자. kbps 등 표시 문자열을 혼용하지 않는다."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "frame_count",
+            "schema:value": "{{modality.video.frame_count}}",
+            "schema:description": "총 프레임 수, 정수. 길이×FPS 추정값과 직접 측정값의 상태를 구분."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "capture_start",
+            "schema:value": "{{modality.video.capture_start}}",
+            "schema:description": "촬영 시작 시각(ISO 8601, 시간대 포함)."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "capture_end",
+            "schema:value": "{{modality.video.capture_end}}",
+            "schema:description": "촬영 종료 시각(ISO 8601, 시간대 포함)."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "camera_id",
+            "schema:value": "{{modality.video.camera_id}}",
+            "schema:description": "카메라의 비식별 리소스 ID. 특정 기관 CCTV 필드명을 강제하지 않는다."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "capture_environment",
+            "schema:value": "{{modality.video.capture_environment}}",
+            "schema:description": "설치 위치 범주·시점·조명·날씨 등 관측 환경. 공개 범위 기관 확인."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "time_base",
+            "schema:value": "{{modality.video.time_base}}",
+            "schema:description": "프레임 타임스탬프 단위/시간 기준. 가변 FPS에서는 프레임별 시각을 사용."
+          }
+        ],
+        "rdfs:comment": "REF-01 표 14~16에 명시된 기본 속성 및 조건부 프로젝트 확장. 해당 없음은 ai:is_applicable=false와 NOT_APPLICABLE 레코드로 표현."
+      },
+      "schema:audio": {
+        "@type": "schema:AudioObject",
+        "schema:duration": "{{modality.audio.duration}}",
+        "schema:encodingFormat": "{{modality.audio.media_type}}",
+        "ai:is_applicable": "{{modality.audio.is_applicable}}",
+        "ai:resource_id": "{{modality.audio.resource_id}}",
+        "schema:additionalProperty": [
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "sampleRate",
+            "schema:value": "{{modality.audio.sample_rate}}",
+            "schema:description": "샘플레이트 (schema:additionalProperty sampleRate, 권장, 초당 샘플링 디지털 신호 Hz, 예: 16000, 44100)"
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "channels",
+            "schema:value": "{{modality.audio.channels}}",
+            "schema:description": "채널 수 (schema:additionalProperty channels, 선택, 1: mono, 2: stereo)"
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "bit_depth",
+            "schema:value": "{{modality.audio.bit_depth}}",
+            "schema:description": "샘플당 비트 수(bit), 정수. 적용되지 않는 압축 형식은 NOT_APPLICABLE."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "codec",
+            "schema:value": "{{modality.audio.codec}}",
+            "schema:description": "오디오 부호화 코덱(PCM, FLAC, MP3, AAC 등). WAV 같은 컨테이너/MIME은 media_type으로 구분."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "language",
+            "schema:value": "{{modality.audio.language}}",
+            "schema:description": "발화 언어 코드. 무발화 음향 데이터는 NOT_APPLICABLE."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "transcript_uri",
+            "schema:value": "{{modality.audio.transcript_uri}}",
+            "schema:description": "전사 파일/리소스 IRI. 전사 미제공과 해당 없음을 구분."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "speaker_count",
+            "schema:value": "{{modality.audio.speaker_count}}",
+            "schema:description": "비식별 화자 수, 정수. 음성에서 추론 시 AUTO_INFERRED."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "recording_environment",
+            "schema:value": "{{modality.audio.recording_environment}}",
+            "schema:description": "녹음 장비·장소 범주·잡음 등 수집 환경 설명."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "segment_time_unit",
+            "schema:value": "{{modality.audio.segment_time_unit}}",
+            "schema:description": "전사/발화 구간의 시간 단위(예: s)."
+          },
+          {
+            "@type": "schema:PropertyValue",
+            "schema:name": "snr_db",
+            "schema:value": "{{modality.audio.snr_db}}",
+            "schema:description": "측정된 신호 대 잡음비(dB), 숫자. 산출 방법·범위는 canonicalItems.reason에 기록."
+          }
+        ],
+        "rdfs:comment": "REF-01 표 14~16에 명시된 기본 속성 및 조건부 프로젝트 확장. 해당 없음은 ai:is_applicable=false와 NOT_APPLICABLE 레코드로 표현."
+      },
+      "cr:recordSet": {
+        "@id": "{{modality.tabular.record_set_id}}",
+        "@type": "cr:RecordSet",
+        "cr:field": [
+          "{{#fields}}",
+          {
+            "@id": "{{field.id}}",
+            "@type": "cr:Field",
+            "schema:name": "{{field.name}}",
+            "schema:description": "{{field.description}}",
+            "cr:dataType": {
+              "@id": "{{field.dataType}}"
+            }
+          },
+          "{{/fields}}"
+        ],
+        "ai:is_applicable": "{{modality.tabular.is_applicable}}",
+        "ai:field_pattern": "{{modality.tabular.field_pattern}}"
+      },
+      "api:specification": {
+        "@type": "api:ServiceSpecification",
+        "rdfs:comment": "Track 2 API 계약. ADR-002/003 및 REF-01 데이터 카드 접근 사양 기준. 특정 기관 양식은 범용 근거로 사용하지 않는다.",
+        "api:base_url": "{{structure.api_base_url}}",
+        "api:service_name": "{{structure.api_service_name}}",
+        "api:interface_type": "{{structure.api_interface_type}}",
+        "api:http_methods": {
+          "@value": "{{structure.api_http_methods}}",
+          "@type": "@json"
+        },
+        "api:mime_types": {
+          "@value": "{{structure.api_mime_types}}",
+          "@type": "@json"
+        },
+        "api:character_encoding": "{{structure.api_character_encoding}}",
+        "api:https": "{{structure.api_https}}",
+        "api:access_rights": "{{structure.api_access_rights}}",
+        "api:service_start": "{{structure.api_service_start}}",
+        "api:last_modified": "{{structure.api_last_modified}}",
+        "api:auth_type": "{{structure.api_auth_type}}",
+        "api:contract_status": "{{structure.api_contract_status}}",
+        "api:operations": [
+          "{{#structure.api_operations}}",
+          {
+            "rdfs:comment": "개별 상세 기능(오퍼레이션) 명세",
+            "api:operation_id": "{{operation.id}}",
+            "api:operation_name": "{{operation.name}}",
+            "api:operation_type": "{{operation.type}}",
+            "api:description": "{{operation.description}}",
+            "api:endpoint_path": "{{operation.endpoint_path}}",
+            "api:http_method": "{{operation.http_method}}",
+            "api:data_formats": [
+              "{{#operation.formats}}",
+              "{{format}}",
+              "{{/operation.formats}}"
+            ],
+            "api:request_parameters": [
+              "{{#operation.request_parameters}}",
+              {
+                "rdfs:comment": "요청(Request) 파라미터 규격",
+                "api:param_name": "{{param.name}}",
+                "api:name_ko": "{{param.name_ko}}",
+                "api:location": "{{param.location}}",
+                "api:data_type": "{{param.data_type}}",
+                "api:length": "{{param.length}}",
+                "api:required": "{{param.required}}",
+                "api:sample_value": "{{param.sample_value}}",
+                "api:allowed_values": {
+                  "@value": "{{param.allowed_values}}",
+                  "@type": "@json"
+                },
+                "api:default_value": {
+                  "@value": "{{param.default_value}}",
+                  "@type": "@json"
+                },
+                "api:description": "{{param.description}}"
+              },
+              "{{/operation.request_parameters}}"
+            ],
+            "api:response_parameters": [
+              "{{#operation.response_parameters}}",
+              {
+                "rdfs:comment": "응답(Response) 파라미터 규격",
+                "api:param_name": "{{param.name}}",
+                "api:name_ko": "{{param.name_ko}}",
+                "api:path": "{{param.path}}",
+                "api:data_type": "{{param.data_type}}",
+                "api:cardinality": "{{param.cardinality}}",
+                "api:required": "{{param.required}}",
+                "api:sample_value": "{{param.sample_value}}",
+                "api:allowed_values": {
+                  "@value": "{{param.allowed_values}}",
+                  "@type": "@json"
+                },
+                "api:description": "{{param.description}}"
+              },
+              "{{/operation.response_parameters}}"
+            ],
+            "api:sample_messages": {
+              "rdfs:comment": "실제 호출 시 반환되는 응답 메시지 예시",
+              "api:xml_sample": "{{operation.sample_xml}}",
+              "api:json_sample": "{{operation.sample_json}}"
+            }
+          },
+          "{{/structure.api_operations}}"
+        ],
+        "api:error_codes": [
+          "{{#structure.api_error_codes}}",
+          {
+            "rdfs:comment": "API 호출 오류 코드 및 HTTP 상태코드 정의",
+            "api:code": "{{error.code}}",
+            "api:message": "{{error.message}}",
+            "api:http_status": "{{error.http_status}}",
+            "api:description": "{{error.description}}"
+          },
+          "{{/structure.api_error_codes}}"
+        ],
+        "api:specification_url": "{{structure.api_specification_url}}",
+        "api:version": "{{structure.api_version}}",
+        "api:rate_limit": {
+          "@value": "{{structure.api_rate_limit}}",
+          "@type": "@json"
+        },
+        "api:authentication_description": "{{structure.api_auth_type_desc}}",
+        "api:pagination": {
+          "@value": "{{structure.api_pagination}}",
+          "@type": "@json"
+        },
+        "api:payload_path": "{{structure.api_payload_path}}",
+        "api:path_syntax": "{{structure.api_path_syntax}}",
+        "api:namespaces": {
+          "@value": "{{structure.namespaces}}",
+          "@type": "@json"
+        }
+      },
+      "wasGeneratedBy": {
+        "@type": "prov:Activity",
+        "prov:startedAtTime": "{{document.generated_utc}}",
+        "prov:wasAssociatedWith": {
+          "@type": "prov:SoftwareAgent",
+          "rdfs:label": "SynthData Studio AI-Ready Engine",
+          "schema:softwareVersion": "{{provenance.generator_version}}"
+        }
+      },
+      "language": "{{dataset.language}}",
+      "dct:relation": [
+        "{{#dataset.relations}}",
+        "{{relation}}",
+        "{{/dataset.relations}}"
+      ],
+      "schema:about": {
+        "@type": "schema:Thing",
+        "schema:name": "{{dataset.theme_label}}"
+      },
+      "ai:purpose": "{{dataset.purpose}}",
+      "hasQualityMeasurement": [
+        {
+          "@type": "dqv:QualityMeasurement",
+          "dqv:isMeasurementOf": {
+            "@id": "urn:synthetic-data:ai-ready:v2:completenessMetric"
+          },
+          "dqv:value": "{{quality.completeness.score}}",
+          "rdfs:comment": "{{quality.completeness.evidence}}",
+          "dqv:computedOn": {
+            "@id": "{{dataset.uri_or_id}}"
+          },
+          "ai:status": "{{quality.completeness.status}}",
+          "ai:scope": "{{quality.completeness.scope}}",
+          "ai:reason": "{{quality.completeness.reason}}"
+        },
+        {
+          "@type": "dqv:QualityMeasurement",
+          "dqv:isMeasurementOf": {
+            "@id": "urn:synthetic-data:ai-ready:v2:validityMetric"
+          },
+          "dqv:value": "{{quality.validity.score}}",
+          "rdfs:comment": "{{quality.validity.evidence}}",
+          "dqv:computedOn": {
+            "@id": "{{dataset.uri_or_id}}"
+          },
+          "ai:status": "{{quality.validity.status}}",
+          "ai:scope": "{{quality.validity.scope}}",
+          "ai:reason": "{{quality.validity.reason}}"
+        },
+        {
+          "@type": "dqv:QualityMeasurement",
+          "dqv:isMeasurementOf": {
+            "@id": "urn:synthetic-data:ai-ready:v2:consistencyMetric"
+          },
+          "dqv:value": "{{quality.consistency.score}}",
+          "rdfs:comment": "{{quality.consistency.evidence}}",
+          "dqv:computedOn": {
+            "@id": "{{dataset.uri_or_id}}"
+          },
+          "ai:status": "{{quality.consistency.status}}",
+          "ai:scope": "{{quality.consistency.scope}}",
+          "ai:reason": "{{quality.consistency.reason}}"
+        },
+        {
+          "@type": "dqv:QualityMeasurement",
+          "dqv:isMeasurementOf": {
+            "@id": "urn:synthetic-data:ai-ready:v2:accuracyMetric"
+          },
+          "dqv:value": "{{quality.accuracy.score}}",
+          "rdfs:comment": "{{quality.accuracy.evidence}}",
+          "dqv:computedOn": {
+            "@id": "{{dataset.uri_or_id}}"
+          },
+          "ai:status": "{{quality.accuracy.status}}",
+          "ai:scope": "{{quality.accuracy.scope}}",
+          "ai:reason": "{{quality.accuracy.reason}}"
+        },
+        {
+          "@type": "dqv:QualityMeasurement",
+          "dqv:isMeasurementOf": {
+            "@id": "urn:synthetic-data:ai-ready:v2:uniquenessMetric"
+          },
+          "dqv:value": "{{quality.uniqueness.score}}",
+          "rdfs:comment": "{{quality.uniqueness.evidence}}",
+          "dqv:computedOn": {
+            "@id": "{{dataset.uri_or_id}}"
+          },
+          "ai:status": "{{quality.uniqueness.status}}",
+          "ai:scope": "{{quality.uniqueness.scope}}",
+          "ai:reason": "{{quality.uniqueness.reason}}"
+        },
+        {
+          "@type": "dqv:QualityMeasurement",
+          "dqv:isMeasurementOf": {
+            "@id": "urn:synthetic-data:ai-ready:v2:timelinessMetric"
+          },
+          "dqv:value": "{{quality.timeliness.score}}",
+          "rdfs:comment": "{{quality.timeliness.evidence}}",
+          "dqv:computedOn": {
+            "@id": "{{dataset.uri_or_id}}"
+          },
+          "ai:status": "{{quality.timeliness.status}}",
+          "ai:scope": "{{quality.timeliness.scope}}",
+          "ai:reason": "{{quality.timeliness.reason}}"
+        }
+      ],
+      "dqv:hasQualityAnnotation": {
+        "@type": "dqv:QualityAnnotation",
+        "rdfs:comment": "{{responsible_ai.quality_annotation}}"
+      },
+      "ai:spatialSensorMetadata": {
+        "@type": "ai:SpatialSensorMetadata",
+        "rdfs:comment": "3D·센서·로봇 티칭 조건부 확장. REF-01의 수집/단위/라벨/재현성 원칙을 구체화한 프로젝트 속성으로 국가 필수 속성명이나 특정 로봇 규격을 주장하지 않는다.",
+        "ai:is_applicable": "{{modality.spatial_sensor.is_applicable}}",
+        "ai:resource_id": "{{modality.spatial_sensor.resource_id}}",
+        "ai:representation": "{{modality.spatial_sensor.representation}}",
+        "ai:media_type": "{{modality.spatial_sensor.media_type}}",
+        "ai:coordinate_system": "{{modality.spatial_sensor.coordinate_system}}",
+        "ai:length_unit": "{{modality.spatial_sensor.length_unit}}",
+        "ai:angle_unit": "{{modality.spatial_sensor.angle_unit}}",
+        "ai:rotation_representation": "{{modality.spatial_sensor.rotation_representation}}",
+        "ai:sampling_rate_hz": "{{modality.spatial_sensor.sampling_rate_hz}}",
+        "ai:timestamp_field": "{{modality.spatial_sensor.timestamp_field}}",
+        "ai:time_unit": "{{modality.spatial_sensor.time_unit}}",
+        "ai:time_reference": "{{modality.spatial_sensor.time_reference}}",
+        "ai:sensor_type": "{{modality.spatial_sensor.sensor_type}}",
+        "ai:sensor_model": "{{modality.spatial_sensor.sensor_model}}",
+        "ai:calibration_uri": "{{modality.spatial_sensor.calibration_uri}}",
+        "ai:synchronization_method": "{{modality.spatial_sensor.synchronization_method}}",
+        "ai:point_count": "{{modality.spatial_sensor.point_count}}",
+        "ai:robot_model": "{{modality.spatial_sensor.robot_model}}",
+        "ai:joint_names": {
+          "@value": "{{modality.spatial_sensor.joint_names}}",
+          "@type": "@json"
+        },
+        "ai:joint_units": {
+          "@value": "{{modality.spatial_sensor.joint_units}}",
+          "@type": "@json"
+        },
+        "ai:end_effector_frame": "{{modality.spatial_sensor.end_effector_frame}}",
+        "ai:trajectory_fields": {
+          "@value": "{{modality.spatial_sensor.trajectory_fields}}",
+          "@type": "@json"
+        },
+        "ai:episode_id_field": "{{modality.spatial_sensor.episode_id_field}}",
+        "ai:teaching_method": "{{modality.spatial_sensor.teaching_method}}",
+        "ai:task_description": "{{modality.spatial_sensor.task_description}}"
+      },
+      "ai:annotations": [
+        "{{#modality.annotations}}",
+        {
+          "rdfs:comment": "이미지·영상·음성·3D 공통 라벨링 명세. REF-01 데이터 카드의 라벨 정의/지침/검수 요구를 구체화. 실제 라벨 인스턴스는 annotation_uri로 연결.",
+          "ai:resource_id": "{{annotation.resource_id}}",
+          "ai:annotation_uri": "{{annotation.annotation_uri}}",
+          "ai:annotation_type": "{{annotation.annotation_type}}",
+          "ai:schema_uri": "{{annotation.schema_uri}}",
+          "ai:label_vocabulary": {
+            "@value": "{{annotation.label_vocabulary}}",
+            "@type": "@json"
+          },
+          "ai:coordinate_convention": "{{annotation.coordinate_convention}}",
+          "ai:temporal_alignment": "{{annotation.temporal_alignment}}",
+          "ai:guideline_uri": "{{annotation.guideline_uri}}",
+          "ai:validation_method": "{{annotation.validation_method}}"
+        },
+        "{{/modality.annotations}}"
+      ],
+      "ai:document": {
+        "rdfs:comment": "문서 생성 상태 및 공공 데이터 거버넌스 메타 정보",
+        "ai:status": "{{document.status}}",
+        "ai:generated_utc": "{{document.generated_utc}}",
+        "ai:doc_type": "{{document.doc_type}}",
+        "ai:specification_version": "2.2",
+        "ai:review_status": "{{document.review_status}}",
+        "ai:is_draft": "{{document.is_draft}}",
+        "ai:review_notice": "{{document.review_notice}}"
+      },
+      "ai:structure": {
+        "rdfs:comment": "데이터 구조 및 배포 방식 명세 (2-Track: 파일데이터 vs 오픈API)",
+        "ai:data_category": "{{structure.data_category}}",
+        "ai:has_file_data": "{{structure.has_file_data}}",
+        "ai:has_api_data": "{{structure.has_api_data}}",
+        "ai:root_type": "{{structure.root_type}}",
+        "ai:is_large_dataset": "{{structure.is_large_dataset}}",
+        "ai:distribution": {
+          "rdfs:comment": "[Track 1: 파일데이터 배포 명세] CSV, JSON, Parquet 등 정적 파일 제공 시 기술 속성",
+          "ai:format": "{{structure.format}}",
+          "ai:encoding": "{{structure.encoding}}",
+          "ai:delimiter": "{{structure.delimiter}}",
+          "ai:compression": "{{structure.compression}}",
+          "ai:folder_structure": "{{structure.folder_structure}}"
+        },
+        "ai:traits": {
+          "@value": "{{structure.traits}}",
+          "@type": "@json"
+        }
+      },
+      "ai:fields": [
+        "{{#fields}}",
+        {
+          "rdfs:comment": "데이터 사전 (cr:Field 표준 기반 컬럼 정의서)",
+          "ai:field_id": "{{field.id}}",
+          "ai:path": "{{field.path}}",
+          "ai:name": "{{field.name}}",
+          "ai:name_ko": "{{field.name_ko}}",
+          "ai:order": "{{field.order}}",
+          "ai:data_type": "{{field.dataType}}",
+          "ai:inferred_type": "{{field.inferredType}}",
+          "ai:required": "{{field.required}}",
+          "ai:is_pk": "{{field.is_pk}}",
+          "ai:description": "{{field.description}}",
+          "ai:unit": "{{field.unit}}",
+          "ai:code_list": {
+            "@value": "{{field.codeList}}",
+            "@type": "@json"
+          },
+          "ai:constraints": {
+            "@value": "{{field.constraints}}",
+            "@type": "@json"
+          },
+          "ai:statistics": {
+            "rdfs:comment": "필드별 결정론적 프로파일링 통계치",
+            "ai:null_count": "{{field.null_count}}",
+            "ai:empty_count": "{{field.empty_count}}",
+            "ai:distinct_count": "{{field.distinct_count}}",
+            "ai:min_value": "{{field.min_value}}",
+            "ai:max_value": "{{field.max_value}}"
+          },
+          "ai:sample_values": [
+            "{{#field.samples}}",
+            "{{sample_value}}",
+            "{{/field.samples}}"
+          ],
+          "ai:path_syntax": "{{field.path_syntax}}",
+          "ai:source": "{{field.source}}",
+          "ai:source_category": "{{field.source_category}}"
+        },
+        "{{/fields}}"
+      ],
+      "processing": {
+        "@id": "{{dataset.uri_or_id}}#processing",
+        "@type": "aig:Processing",
+        "integration": {
+          "@type": "aig:Processing",
+          "is_integrated": "{{processing.integration.is_integrated}}",
+          "description": "{{processing.integration.description}}",
+          "method": "{{processing.integration.method}}",
+          "join_type": "{{processing.integration.join_type}}",
+          "join_keys": [
+            "{{#processing.integration.join_keys}}",
+            "{{join_key}}",
+            "{{/processing.integration.join_keys}}"
+          ],
+          "temporal_alignment": "{{processing.integration.temporal_alignment}}",
+          "spatial_alignment": "{{processing.integration.spatial_alignment}}",
+          "source_dataset_ids": [
+            "{{#processing.integration.source_dataset_ids}}",
+            "{{source_dataset_id}}",
+            "{{/processing.integration.source_dataset_ids}}"
+          ],
+          "external_sources": [
+            "{{#processing.integration.external_sources}}",
+            "{{external_source}}",
+            "{{/processing.integration.external_sources}}"
+          ],
+          "output_description": "{{processing.integration.output_description}}",
+          "limitations": "{{processing.integration.limitations}}"
+        },
+        "derived_fields": [
+          "{{#processing.derived_fields}}",
+          {
+            "@type": "aig:DerivedField",
+            "field_id": "{{derived.field_id}}",
+            "field_name": "{{derived.field_name}}",
+            "derivation_type": "{{derived.derivation_type}}",
+            "source_fields": [
+              "{{#derived.source_fields}}",
+              "{{source_field}}",
+              "{{/derived.source_fields}}"
+            ],
+            "description": "{{derived.description}}",
+            "method": "{{derived.method}}",
+            "formula_or_rule": "{{derived.formula_or_rule}}",
+            "aggregation": "{{derived.aggregation}}",
+            "window": "{{derived.window}}",
+            "unit": "{{derived.unit}}",
+            "parameters": "{{derived.parameters}}",
+            "fallback_rule": "{{derived.fallback_rule}}",
+            "reproducible": "{{derived.reproducible}}",
+            "confidence": "{{derived.confidence}}",
+            "notes": "{{derived.notes}}"
+          },
+          "{{/processing.derived_fields}}"
+        ],
+        "transformations": [
+          "{{#processing.transformations}}",
+          {
+            "name": "{{name}}",
+            "target_field_ids": [
+              "{{#transformation.target_field_ids}}",
+              "{{target_field_id}}",
+              "{{/transformation.target_field_ids}}"
+            ],
+            "method": "{{method}}",
+            "description": "{{description}}",
+            "parameters": "{{parameters}}",
+            "reversible": "{{reversible}}",
+            "limitations": "{{limitations}}"
+          },
+          "{{/processing.transformations}}"
+        ],
+        "missing_value_processing": [
+          "{{#processing.missing_value_processing}}",
+          {
+            "@type": "aig:MissingValueProcessing",
+            "target_field_ids": [
+              "{{#missing_rule.target_field_ids}}",
+              "{{target_field_id}}",
+              "{{/missing_rule.target_field_ids}}"
+            ],
+            "detected_missing_count": "{{missing_rule.detected_missing_count}}",
+            "detected_missing_ratio": "{{missing_rule.detected_missing_ratio}}",
+            "method": "{{missing_rule.method}}",
+            "imputation_method": "{{missing_rule.method}}",
+            "method_description": "{{missing_rule.method_description}}",
+            "steps": [
+              "{{#missing_rule.steps}}",
+              {
+                "step": "{{step}}",
+                "name": "{{name}}",
+                "rule": "{{rule}}"
+              },
+              "{{/missing_rule.steps}}"
+            ],
+            "grouping_keys": [
+              "{{#missing_rule.grouping_keys}}",
+              "{{grouping_key}}",
+              "{{/missing_rule.grouping_keys}}"
+            ],
+            "temporal_window": "{{missing_rule.temporal_window}}",
+            "parameters": "{{missing_rule.parameters}}",
+            "fallback_method": "{{missing_rule.fallback_method}}",
+            "clipping_rule": "{{missing_rule.clipping_rule}}",
+            "affected_record_count": "{{missing_rule.affected_record_count}}",
+            "quality_flag_field": "{{missing_rule.quality_flag_field}}",
+            "original_value_preserved": "{{missing_rule.original_value_preserved}}",
+            "limitations": "{{missing_rule.limitations}}"
+          },
+          "{{/processing.missing_value_processing}}"
+        ],
+        "outlier_processing": [
+          "{{#processing.outlier_processing}}",
+          {
+            "@type": "aig:Processing",
+            "target_field_ids": [
+              "{{#outlier_rule.target_field_ids}}",
+              "{{target_field_id}}",
+              "{{/outlier_rule.target_field_ids}}"
+            ],
+            "detection_method": "{{outlier_rule.detection_method}}",
+            "threshold": "{{outlier_rule.threshold}}",
+            "rule": "{{outlier_rule.rule}}",
+            "action": "{{outlier_rule.action}}",
+            "affected_count": "{{outlier_rule.affected_count}}",
+            "replacement_method": "{{outlier_rule.replacement_method}}",
+            "quality_flag_field": "{{outlier_rule.quality_flag_field}}",
+            "notes": "{{outlier_rule.notes}}"
+          },
+          "{{/processing.outlier_processing}}"
+        ],
+        "quality_flags": [
+          "{{#processing.quality_flags}}",
+          {
+            "@type": "aig:QualityFlag",
+            "flag_field": "{{quality_flag.flag_field}}",
+            "description": "{{quality_flag.description}}",
+            "target_fields": [
+              "{{#quality_flag.target_fields}}",
+              "{{target_field}}",
+              "{{/quality_flag.target_fields}}"
+            ],
+            "values": [
+              "{{#quality_flag.values}}",
+              {
+                "code": "{{code}}",
+                "name": "{{name}}",
+                "meaning": "{{meaning}}",
+                "value_origin": "{{value_origin}}"
+              },
+              "{{/quality_flag.values}}"
+            ],
+            "meaning": "{{quality_flag.meaning}}"
+          },
+          "{{/processing.quality_flags}}"
+        ]
+      },
+      "ai:pipeline": [
+        "{{#pipeline}}",
+        {
+          "rdfs:comment": "데이터 처리 및 정제 파이프라인 단계",
+          "ai:step": "{{pipeline.step}}",
+          "ai:name": "{{pipeline.name}}",
+          "ai:rules": "{{pipeline.rules}}",
+          "ai:output": "{{pipeline.output}}"
+        },
+        "{{/pipeline}}"
+      ],
+      "ai:statistics": {
+        "rdfs:comment": "데이터셋 전체 레코드 및 셀 단위 물리적 집계 통계",
+        "ai:total_records": "{{statistics.total_records}}",
+        "ai:total_fields": "{{statistics.total_fields}}",
+        "ai:total_bytes": "{{statistics.total_bytes}}",
+        "ai:missing_cells_total": "{{statistics.missing_cells_total}}",
+        "ai:duplicate_rows_total": "{{statistics.duplicate_rows_total}}"
+      },
+      "ai:quality": {
+        "rdfs:comment": "공통 6대 품질진단. DQV 측정값은 dqv:hasQualityMeasurement로 연결하며 분석 범위와 검토 상태를 별도로 보존.",
+        "ai:overall_score": "{{quality.overall_score}}",
+        "ai:metrics": {
+          "ai:completeness": {
+            "rdfs:comment": "입력값 채움률: 업로드 데이터에서 관측된 셀·리프값 중 null·빈 문자열이 아닌 값의 비율. 대표성·정확성·필수 필드 충족 여부를 뜻하지 않는다.",
+            "ai:score": "{{quality.completeness.score}}",
+            "ai:status": "{{quality.completeness.status}}",
+            "ai:null_rate": "{{quality.completeness.null_rate}}",
+            "ai:evidence": "{{quality.completeness.evidence}}",
+            "ai:scope": "{{quality.completeness.scope}}",
+            "ai:reason": "{{quality.completeness.reason}}"
+          },
+          "ai:validity": {
+            "rdfs:comment": "유효성: 데이터 도메인, 형식(포맷), 정규식 규칙 준수 정도",
+            "ai:score": "{{quality.validity.score}}",
+            "ai:status": "{{quality.validity.status}}",
+            "ai:violation_count": "{{quality.validity.violation_count}}",
+            "ai:evidence": "{{quality.validity.evidence}}",
+            "ai:scope": "{{quality.validity.scope}}",
+            "ai:reason": "{{quality.validity.reason}}"
+          },
+          "ai:consistency": {
+            "rdfs:comment": "일관성: 날짜/시간 ISO 8601 포맷, 코드체계 및 단위 표현의 일치 정도",
+            "ai:score": "{{quality.consistency.score}}",
+            "ai:status": "{{quality.consistency.status}}",
+            "ai:evidence": "{{quality.consistency.evidence}}",
+            "ai:scope": "{{quality.consistency.scope}}",
+            "ai:reason": "{{quality.consistency.reason}}"
+          },
+          "ai:accuracy": {
+            "rdfs:comment": "도메인 기준/이상치 검사 결과. 통계적 이상치가 없다는 사실만으로 실세계 의미 정확성을 보증하지 않는다.",
+            "ai:score": "{{quality.accuracy.score}}",
+            "ai:status": "{{quality.accuracy.status}}",
+            "ai:outlier_count": "{{quality.accuracy.outlier_count}}",
+            "ai:evidence": "{{quality.accuracy.evidence}}",
+            "ai:scope": "{{quality.accuracy.scope}}",
+            "ai:reason": "{{quality.accuracy.reason}}"
+          },
+          "ai:uniqueness": {
+            "rdfs:comment": "유일성: 기본키(PK) 또는 고유 레코드의 비중복 준수 정도",
+            "ai:score": "{{quality.uniqueness.score}}",
+            "ai:status": "{{quality.uniqueness.status}}",
+            "ai:duplicate_count": "{{quality.uniqueness.duplicate_count}}",
+            "ai:candidate_key": "{{quality.uniqueness.candidate_key}}",
+            "ai:evidence": "{{quality.uniqueness.evidence}}",
+            "ai:scope": "{{quality.uniqueness.scope}}",
+            "ai:reason": "{{quality.uniqueness.reason}}"
+          },
+          "ai:timeliness": {
+            "rdfs:comment": "적시성: 최신 갱신주기 준수 및 데이터 수집·반영 시점의 시의성",
+            "ai:score": "{{quality.timeliness.score}}",
+            "ai:status": "{{quality.timeliness.status}}",
+            "ai:evidence": "{{quality.timeliness.evidence}}",
+            "ai:scope": "{{quality.timeliness.scope}}",
+            "ai:reason": "{{quality.timeliness.reason}}"
+          }
+        },
+        "ai:trait_checks": [
+          "{{#quality.trait_checks}}",
+          {
+            "rdfs:comment": "Trait별 조건부 검사: 시간 단조성/간격/누수, 이종 타입/배열 필수 속성/길이 분포, 텍스트 길이/인코딩/개인정보 등. 미적용 검사를 합격 처리하지 않는다.",
+            "ai:trait": "{{check.trait}}",
+            "ai:rule_id": "{{check.rule_id}}",
+            "ai:value": {
+              "@value": "{{check.value}}",
+              "@type": "@json"
+            },
+            "ai:status": "{{check.status}}",
+            "ai:scope": "{{check.scope}}",
+            "ai:evidence": "{{check.evidence}}",
+            "ai:reason": "{{check.reason}}"
+          },
+          "{{/quality.trait_checks}}"
+        ]
+      },
+      "ai:ai": {
+        "rdfs:comment": "AI 학습 친화성 평가 및 모델 학습 가이드",
+        "ai:purpose": "{{ai.purpose}}",
+        "ai:tasks": [
+          "{{#ai.tasks}}",
+          {
+            "ai:type": "{{task.type}}",
+            "ai:description": "{{task.description}}"
+          },
+          "{{/ai.tasks}}"
+        ],
+        "ai:recommended_models": [
+          "{{#ai.models}}",
+          "{{model_name}}",
+          "{{/ai.models}}"
+        ],
+        "ai:split_ratio": {
+          "rdfs:comment": "AI 학습/검증/시험 데이터 분할 비율 가이드",
+          "ai:train": "{{ai.split.train}}",
+          "ai:validation": "{{ai.split.validation}}",
+          "ai:test": "{{ai.split.test}}",
+          "ai:strategy": "{{ai.split.strategy}}",
+          "ai:leakage_review": "{{ai.split.leakage_review}}"
+        },
+        "ai:large_data_optimization": {
+          "rdfs:comment": "대용량 데이터셋 처리 최적화 가이드",
+          "ai:is_chunk_applied": "{{ai.large_data.is_chunk_applied}}",
+          "ai:sample_size": "{{ai.large_data.sample_size}}",
+          "ai:parquet_recommended": "{{ai.large_data.parquet_recommended}}",
+          "ai:partitioning_key": "{{ai.large_data.partitioning_key}}"
+        },
+        "ai:scenarios": [
+          "{{#ai.scenarios}}",
+          {
+            "ai:title": "{{scenario.title}}",
+            "ai:description": "{{scenario.description}}"
+          },
+          "{{/ai.scenarios}}"
+        ]
+      },
+      "ai:interoperability": {
+        "rdfs:comment": "적용한 표준 어휘와 프로젝트 확장 어휘. 어휘 사용만으로 국가 프로파일 적합성을 보증하지 않는다.",
+        "ai:is_open_format": "{{interoperability.is_open_format}}",
+        "ai:encoding": "{{interoperability.encoding}}",
+        "ai:standard_schema_applied": "{{interoperability.standard_schema_applied}}",
+        "ai:standard_vocabularies": [
+          {
+            "ai:prefix": "adms",
+            "ai:uri": "http://www.w3.org/ns/adms#",
+            "ai:desc": "관리 메타데이터"
+          },
+          {
+            "ai:prefix": "dcat",
+            "ai:uri": "http://www.w3.org/ns/dcat#",
+            "ai:desc": "데이터 카탈로그"
+          },
+          {
+            "ai:prefix": "dct",
+            "ai:uri": "http://purl.org/dc/terms/",
+            "ai:desc": "더블린 코어"
+          },
+          {
+            "ai:prefix": "foaf",
+            "ai:uri": "http://xmlns.com/foaf/0.1/",
+            "ai:desc": "사람 및 조직"
+          },
+          {
+            "ai:prefix": "odrl",
+            "ai:uri": "http://www.w3.org/ns/odrl/2/",
+            "ai:desc": "데이터 사용 정책"
+          },
+          {
+            "ai:prefix": "owl",
+            "ai:uri": "http://www.w3.org/2002/07/owl#",
+            "ai:desc": "온톨로지 및 버전"
+          },
+          {
+            "ai:prefix": "prov",
+            "ai:uri": "http://www.w3.org/ns/prov#",
+            "ai:desc": "생성 이력"
+          },
+          {
+            "ai:prefix": "spdx",
+            "ai:uri": "http://spdx.org/rdf/terms#",
+            "ai:desc": "라이선스 규격"
+          },
+          {
+            "ai:prefix": "vcard",
+            "ai:uri": "http://www.w3.org/2006/vcard/ns#",
+            "ai:desc": "연락처"
+          },
+          {
+            "ai:prefix": "xsd",
+            "ai:uri": "http://www.w3.org/2001/XMLSchema#",
+            "ai:desc": "데이터 타입"
+          },
+          {
+            "ai:prefix": "schema",
+            "ai:uri": "http://schema.org/",
+            "ai:desc": "모달리티 속성"
+          },
+          {
+            "ai:prefix": "exif",
+            "ai:uri": "http://www.w3.org/2003/12/exif/ns#",
+            "ai:desc": "장비 메타데이터"
+          },
+          {
+            "ai:prefix": "rai",
+            "ai:uri": "http://mlcommons.org/croissant/RAI/",
+            "ai:desc": "책임있는 AI 편향/한계"
+          },
+          {
+            "ai:prefix": "cr",
+            "ai:uri": "http://mlcommons.org/croissant/",
+            "ai:desc": "머신러닝 크루아상"
+          },
+          {
+            "ai:prefix": "ai",
+            "ai:uri": "urn:synthetic-data:ai-ready:v2:",
+            "ai:desc": "프로젝트 확장(정부 표준 네임스페이스 아님)"
+          },
+          {
+            "ai:prefix": "api",
+            "ai:uri": "urn:synthetic-data:openapi:v1:",
+            "ai:desc": "프로젝트 API 계약 확장(정부 표준 네임스페이스 아님)"
+          },
+          {
+            "ai:prefix": "dqv",
+            "ai:uri": "http://www.w3.org/ns/dqv#",
+            "ai:desc": "품질 측정"
+          },
+          {
+            "ai:prefix": "rdf",
+            "ai:uri": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "ai:desc": "RDF 기본 어휘"
+          }
+        ]
+      },
+      "ai:usage": {
+        "rdfs:comment": "데이터 이용 메타데이터 (적용 라이선스 및 저작권 규격)",
+        "ai:license": "{{usage.license}}",
+        "ai:rights": "{{usage.rights}}",
+        "ai:access_rights": "{{usage.access_rights}}",
+        "ai:pricing": "{{usage.pricing}}",
+        "ai:attribution": "{{usage.attribution}}",
+        "ai:status": "{{usage.status}}"
+      },
+      "ai:lineage": {
+        "rdfs:comment": "데이터 수집 출처 및 정제·가공 이력",
+        "ai:source_datasets": {
+          "@value": "{{lineage.source_datasets}}",
+          "@type": "@json"
+        },
+        "ai:collection_process": "{{lineage.collection_process}}",
+        "ai:preprocessing_history": {
+          "@value": "{{lineage.preprocessing_history}}",
+          "@type": "@json"
+        },
+        "ai:imputation_method": "{{lineage.imputation_method}}",
+        "ai:version_notes": "{{lineage.version_notes}}"
+      },
+      "ai:governance": {
+        "rdfs:comment": "데이터 관리 부서 및 개인정보 보호 거버넌스",
+        "ai:managing_department": "{{governance.managing_department}}",
+        "ai:contact_point": {
+          "ai:name": "{{governance.contact.name}}",
+          "ai:email": "{{governance.contact.email}}",
+          "ai:phone": "{{governance.contact.phone}}"
+        },
+        "ai:privacy_security": {
+          "rdfs:comment": "개인정보(PII) 포함 여부 및 비식별화 처리 명세",
+          "ai:contains_pii": "{{governance.contains_pii}}",
+          "ai:anonymization_method": "{{governance.anonymization_method}}",
+          "ai:security_level": "{{governance.security_level}}"
+        }
+      },
+      "ai:artifacts": {
+        "rdfs:comment": "생성 및 연계되는 다종 산출물 파일 경로",
+        "ai:hwpx": "{{artifacts.hwpx_path}}",
+        "ai:docx": "{{artifacts.docx_path}}",
+        "ai:json": "{{artifacts.json_path}}",
+        "ai:xml": "{{artifacts.xml_path}}",
+        "ai:jsonld": "{{artifacts.jsonld_path}}",
+        "ai:zip_package": "{{artifacts.zip_package_path}}",
+        "ai:data_dictionary_path": "{{artifacts.data_dictionary_path}}",
+        "ai:quality_report_path": "{{artifacts.quality_report_path}}",
+        "ai:readme_path": "{{artifacts.readme_path}}"
+      },
+      "ai:fair": {
+        "rdfs:comment": "FAIR 원칙(Findable, Accessible, Interoperable, Reusable) 평가 점수",
+        "ai:findable": {
+          "ai:score": "{{fair.findable_score}}",
+          "ai:note": "{{fair.findable_note}}"
+        },
+        "ai:accessible": {
+          "ai:score": "{{fair.accessible_score}}",
+          "ai:note": "{{fair.accessible_note}}"
+        },
+        "ai:interoperable": {
+          "ai:score": "{{fair.interoperable_score}}",
+          "ai:note": "{{fair.interoperable_note}}"
+        },
+        "ai:reusable": {
+          "ai:score": "{{fair.reusable_score}}",
+          "ai:note": "{{fair.reusable_note}}"
+        }
+      },
+      "ai:reviewRequired": [
+        "{{#reviewRequired}}",
+        {
+          "rdfs:comment": "canonicalItems에서 REVIEW_REQUIRED인 항목만 추출한 기관 확인 목록. AUTO_INFERRED는 canonicalItems에 별도 유지.",
+          "ai:id": "{{item.id}}",
+          "ai:category": "{{item.category}}",
+          "ai:label": "{{item.label}}",
+          "ai:reason": "{{item.reason}}",
+          "ai:action": "{{item.action}}",
+          "ai:status": "{{item.status}}",
+          "ai:bindingPath": "{{item.bindingPath}}",
+          "ai:sourceType": "{{item.sourceType}}",
+          "ai:confidence": "{{item.confidence}}",
+          "ai:updatedAt": "{{item.updatedAt}}"
+        },
+        "{{/reviewRequired}}"
+      ],
+      "ai:provenance": {
+        "rdfs:comment": "산출물 생성 엔진 및 파일 무결성 해시 정보 (prov:Activity)",
+        "ai:generator_name": "SynthData Studio AI-Ready Engine",
+        "ai:generator_version": "{{provenance.generator_version}}",
+        "ai:source_file_sha256": "{{provenance.source_file_sha256}}",
+        "ai:generated_utc": "{{provenance.generated_utc}}"
+      },
+      "ai:analysis": {
+        "rdfs:comment": "ADR-002/003/004 분석 범위. 샘플 통계를 전체 품질로 주장하지 않는다.",
+        "ai:scope": "{{analysis.scope}}",
+        "ai:sample_size": "{{analysis.sample_size}}",
+        "ai:population_size": "{{analysis.population_size}}",
+        "ai:sampling_method": "{{analysis.sampling_method}}",
+        "ai:record_boundary_preserved": "{{analysis.record_boundary_preserved}}",
+        "ai:limitations": "{{analysis.limitations}}",
+        "ai:analyzed_at": "{{analysis.analyzed_at}}"
+      },
+      "ai:canonicalItems": [
+        "{{#canonicalItems}}",
+        {
+          "rdfs:comment": "ADR-003 v2의 완전한 항목 레코드. 데이터 사전·모달리티·법령·API 계약 등 모든 동적 값과 bindingPath로 일대일 연결. 레코드 자체의 provenance 필드는 재귀 검토하지 않는다.",
+          "ai:id": "{{entry.id}}",
+          "ai:bindingPath": "{{entry.bindingPath}}",
+          "ai:label": "{{entry.label}}",
+          "ai:property": "{{entry.property}}",
+          "ai:namespace": "{{entry.namespace}}",
+          "ai:value": {
+            "@value": "{{entry.value}}",
+            "@type": "@json"
+          },
+          "ai:valueType": "{{entry.valueType}}",
+          "ai:sourceType": "{{entry.sourceType}}",
+          "ai:status": "{{entry.status}}",
+          "ai:confidence": "{{entry.confidence}}",
+          "ai:reason": "{{entry.reason}}",
+          "ai:updatedAt": "{{entry.updatedAt}}",
+          "ai:sourceReference": "{{entry.sourceReference}}"
+        },
+        "{{/canonicalItems}}"
+      ],
+      "ai:references": [
+        "{{#references}}",
+        {
+          "rdfs:comment": "ADR-001 기준자료 추적. PRIMARY/SUPPLEMENTARY 구분; 특정 기관 사례는 범용 기준으로 등록하지 않는다.",
+          "ai:id": "{{reference.id}}",
+          "ai:title": "{{reference.title}}",
+          "ai:version": "{{reference.version}}",
+          "ai:source": "{{reference.source}}",
+          "ai:locator": "{{reference.locator}}",
+          "ai:role": "{{reference.role}}",
+          "ai:verification_status": "{{reference.verification_status}}"
+        },
+        "{{/references}}"
+      ],
+      "ai:profilePolicy": {
+        "rdfs:comment": "파일/API 통합 템플릿. structure.data_category=file ↔ document.doc_type=file_dataset; api ↔ api_dataset; hybrid ↔ hybrid_dataset. 모달리티 적용 여부는 제공 유형과 독립이다.",
+        "ai:applicability": "두 구조 블록을 공통 정의로 유지한다. 실제 적용 범위를 원천 명세로 판단하고 비해당 스칼라는 null/NOT_APPLICABLE, 비해당 반복 목록은 []로 표현한다. API가 파일 배포도 제공하면 distribution을 함께 작성할 수 있다. API 계약 미확정을 비해당으로 처리하지 않는다.",
+        "ai:reviewSummaryPolicy": "reviewRequired는 canonicalItems 중 status=REVIEW_REQUIRED인 항목의 파생 목록이며 id/bindingPath/status/sourceType/confidence/reason/updatedAt는 원본과 일치해야 한다. 하나라도 남으면 document.review_status=INCOMPLETE_REVIEW, document.is_draft=true, document.review_notice='임시 검토본 - 기관 공식 확인 필요'. REVIEW_REQUIRED 없이 AUTO_INFERRED만 남으면 INFERRED_DRAFT/is_draft=true 및 AI 작성 초안 안내. 모두 AUTO_CONFIRMED/USER_CONFIRMED/NOT_APPLICABLE이면 COMPLETE_REVIEW/is_draft=false 및 빈 review_notice. 검토 레코드 누락·중복·값 불일치는 내보내기 오류."
+      }
+    }
+  ]
+}

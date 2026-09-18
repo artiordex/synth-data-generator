@@ -69,10 +69,8 @@ const converterSteps: WorkflowStepItem<number>[] = [
 ];
 
 const aiGuideSteps: WorkflowStepItem<number>[] = [
-  { id: 1, label: '데이터 업로드' },
-  { id: 2, label: '데이터 자동 분석' },
-  { id: 3, label: '메타데이터 검토' },
-  { id: 4, label: '가이드 생성·내보내기' },
+  { id: 1, label: '데이터 적재·기관 정보' },
+  { id: 2, label: '문서 설정 및 ZIP 다운로드' },
 ];
 
 const workflowStepSets: Record<SyntheticWorkflow, WorkflowStepItem<number>[]> = {

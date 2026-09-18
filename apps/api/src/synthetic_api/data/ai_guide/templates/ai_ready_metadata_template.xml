@@ -1,0 +1,1025 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  파일명: ai_ready_metadata_template.xml
+  경로: apps/api/src/synthetic_api/data/ai_guide/templates/ai_ready_metadata_template.xml
+  표준 근거:
+    - [REF-01] 공공데이터의 인공지능 친화적 관리 가이드라인 v1.1 (행정안전부·NIA)
+    - [REF-07] 국가데이터 통합 연계를 위한 데이터 카탈로그 표준 가이드 v1.0 (행정안전부)
+  목적:
+    ADR-001~005 및 REF-01을 참조한 프로젝트 XML 템플릿.
+    정부 공인 XSD가 아니며 렌더링 계약은 ai_ready_metadata_template.json의 _template 참조.
+    모든 동적 값은 canonicalItems/bindingPath로 검토 레코드에 연결.
+    숫자/boolean/null/객체/배열은 valueType 및 xsi:nil로 원래 타입을 보존.
+-->
+<aiReadyDataset xmlns="urn:synthetic-data:ai-ready:v2:"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:schemaLocation="urn:synthetic-data:ai-ready:v2: ai_ready_metadata_schema.xsd"
+                schemaVersion="2.0" templateVersion="2.3">
+
+  <!-- ================================================================= -->
+  <!-- 1. 문서 상태 및 생성 메타데이터                                   -->
+  <!-- ================================================================= -->
+  <!-- 항목 상태: AUTO_CONFIRMED | AUTO_INFERRED | USER_CONFIRMED | REVIEW_REQUIRED | NOT_APPLICABLE.
+       REVIEW_REQUIRED 잔여 시 document/review_status=INCOMPLETE_REVIEW 및 임시 검토본 표시 필수.
+       JSON의 _template 및 ai_ready_metadata_template.json의 _template를 세 포맷 공통 계약으로 적용. -->
+  <!-- 통합 프로파일: structure.data_category=file ↔ document.doc_type=file_dataset;
+       api ↔ api_dataset, hybrid ↔ hybrid_dataset. 모달리티 적용 여부는 제공 유형과 독립.
+       비해당 스칼라는 null/NOT_APPLICABLE, 반복 목록은 빈 목록.
+       API 계약 미확정은 REVIEW_REQUIRED. API의 파일 배포가 있으면 distribution도 작성.
+       프로파일 및 검토 요약 규칙은 ai_ready_metadata_template.json의 _template 참조. -->
+  <document>
+    <status>{{document.status}}</status>
+    <generatedUtc>{{document.generated_utc}}</generatedUtc>
+    <docType>{{document.doc_type}}</docType>
+    <specificationVersion>2.2</specificationVersion>
+    <!-- 문서 전체 검토 상태: REVIEW_REQUIRED 잔여 시 INCOMPLETE_REVIEW; 추론 잔여만 있으면 INFERRED_DRAFT; 모두 확정/해당 없음이면 COMPLETE_REVIEW. 5-state 항목 상태와 구분. -->
+    <review_status>{{document.review_status}}</review_status>
+    <!-- boolean. REVIEW_REQUIRED 또는 AUTO_INFERRED 항목이 남으면 true. -->
+    <isDraft>{{document.is_draft}}</isDraft>
+    <!-- 기관 확인 필요 또는 AI 작성 초안 안내. 모든 출력에서 동일한 Canonical 값 사용. -->
+    <reviewNotice>{{document.review_notice}}</reviewNotice>
+  </document>
+
+  <!-- ================================================================= -->
+  <!-- 2. 데이터셋 기본 개요 (행안부 가이드라인 필수 항목 매핑)          -->
+  <!-- ================================================================= -->
+  <dataset>
+    <!-- [고유식별자] dct:identifier (필수, 영구 식별자) -->
+    <identifier>{{dataset.identifier}}</identifier>
+    <!-- [데이터명] dct:title (필수, 공식 명칭) -->
+    <title>{{dataset.title}}</title>
+    <!-- [데이터 설명] dct:description (필수, 보유 목적 및 수집 대상) -->
+    <description>{{dataset.description}}</description>
+    <!-- [구축목적] purpose -->
+    <purpose>{{dataset.purpose}}</purpose>
+    <!-- [관련법령] dct:references (필수, 법령 참조 및 URL) -->
+    <legalReferences>{{dataset.legal_references}}</legalReferences>
+    <!-- [소관기관/운영부서명] dct:creator (필수, 생산·관리 주체) -->
+    <creator>{{dataset.creator}}</creator>
+    <!-- [제공기관] dct:publisher (필수, 대외 배포 기관) -->
+    <publisher>{{dataset.publisher}}</publisher>
+    <!-- [제공시스템] dcat:landingPage (필수, 웹페이지 URL) -->
+    <landingPage>{{dataset.landing_page}}</landingPage>
+    <!-- [접속 URL] dcat:accessURL (필수, 배포본 파일/API URL) -->
+    <accessUrl>{{dataset.access_url}}</accessUrl>
+    <!-- [갱신주기] dct:accrualPeriodicity (필수, 갱신 빈도) -->
+    <updateFrequency>{{dataset.update_frequency}}</updateFrequency>
+    <!-- [업무/주제분류체계] dcat:theme (필수, 표준 분류) -->
+    <theme>{{dataset.theme}}</theme>
+    <!-- [키워드] dcat:keyword (필수, 검색 키워드) -->
+    <keywords>
+      <!-- 반복: {{#dataset.keywords}} -->
+      <keyword>{{keyword}}</keyword>
+      <!-- {{/dataset.keywords}} -->
+    </keywords>
+    <!-- [담당자 연락처] dcat:contactPoint (vCard 연계, 필수) -->
+    <contactPoint>
+      <fn>{{dataset.contact.name}}</fn>
+      <hasEmail>{{dataset.contact.email}}</hasEmail>
+      <hasTelephone>{{dataset.contact.phone}}</hasTelephone>
+    </contactPoint>
+    <!-- [언어] dct:language (필수, ISO 639-1) -->
+    <language>{{dataset.language}}</language>
+    <!-- [데이터 용량] dcat:byteSize (필수, 바이트 수) -->
+    <byteSize>{{dataset.byte_size}}</byteSize>
+    <!-- [데이터셋 유형] dcat:mediaType (필수, MIME 타입) -->
+    <mediaType>{{dataset.media_type}}</mediaType>
+    <!-- [시간범위] dct:temporal (권장) -->
+    <temporalCoverage>
+      <hasBeginning>{{dataset.temporal.start}}</hasBeginning>
+      <hasEnd>{{dataset.temporal.end}}</hasEnd>
+    </temporalCoverage>
+    <!-- [공간범위] dct:spatial (권장, 지리적 영역) -->
+    <spatialCoverage>{{dataset.spatial}}</spatialCoverage>
+    <!-- [연계데이터셋] dct:relation (선택) -->
+    <relations>
+      <!-- 반복: {{#dataset.relations}} -->
+      <relation>{{relation}}</relation>
+      <!-- {{/dataset.relations}} -->
+    </relations>
+    <!-- [버전 관리] owl:versionInfo, dct:issued, dct:modified, adms:versionNotes (필수) -->
+    <versionInfo>
+      <version>{{dataset.version.current}}</version>
+      <issued>{{dataset.version.issued}}</issued>
+      <modified>{{dataset.version.modified}}</modified>
+      <versionNotes>{{dataset.version.notes}}</versionNotes>
+    </versionInfo>
+    <!-- JSON-LD 데이터셋 노드의 영구 절대 IRI 또는 urn:. 표시용 identifier와 구분. -->
+    <uriOrId>{{dataset.uri_or_id}}</uriOrId>
+    <!-- 주제 분류 표시명. 분류 IRI 미확정 시 해당 canonicalItems를 REVIEW_REQUIRED로 유지. -->
+    <themeLabel>{{dataset.theme_label}}</themeLabel>
+  </dataset>
+
+  <!-- ================================================================= -->
+  <!-- 3. ★ 모달리티별 특화 메타데이터 (영상, 음성, 이미지, 수치/센서)   -->
+  <!-- ================================================================= -->
+  <modalitySpecifications>
+
+    <!-- [이미지 메타데이터] schema.org & EXIF 표준 -->
+    <imageMetadata isApplicable="{{modality.image.is_applicable}}">
+      <!-- [가로 크기] schema:width (권장, 픽셀) -->
+      <width>{{modality.image.width}}</width>
+      <!-- [세로 크기] schema:height (권장, 픽셀) -->
+      <height>{{modality.image.height}}</height>
+      <colorSpace>{{modality.image.color_space}}</colorSpace>
+      <resolutionDpi>{{modality.image.dpi}}</resolutionDpi>
+      <!-- [스캔/촬영 장비 제조사] exif:make (선택) -->
+      <exifMake>{{modality.image.exif_make}}</exifMake>
+      <!-- [스캔/촬영 장비 모델명] exif:model (선택) -->
+      <exifModel>{{modality.image.exif_model}}</exifModel>
+      <!-- 사양이 적용되는 파일/리소스 식별자. 이질적 파일은 각각의 메타데이터 레코드로 제공. -->
+      <resourceId>{{modality.image.resource_id}}</resourceId>
+      <!-- 리소스 MIME 타입. 코덱·확장자와 구분. -->
+      <mediaType>{{modality.image.media_type}}</mediaType>
+      <!-- 채널당 비트 수(bit), 정수. -->
+      <bitDepth>{{modality.image.bit_depth}}</bitDepth>
+      <!-- 촬영 시각(ISO 8601, 시간대 포함). EXIF에 시간대가 없으면 임의 보완 금지. -->
+      <captureDatetime>{{modality.image.capture_datetime}}</captureDatetime>
+      <!-- 촬영 환경·조명·장비 배치 설명. 선택적 프로젝트 확장; 관측/기관 확인 근거 기록. -->
+      <captureEnvironment>{{modality.image.capture_environment}}</captureEnvironment>
+    </imageMetadata>
+
+    <!-- [영상(비디오) 메타데이터] schema.org 표준 -->
+    <videoMetadata isApplicable="{{modality.video.is_applicable}}">
+      <!-- [가로 크기] schema:width (권장, 픽셀) -->
+      <width>{{modality.video.width}}</width>
+      <!-- [세로 크기] schema:height (권장, 픽셀) -->
+      <height>{{modality.video.height}}</height>
+      <!-- [재생시간] schema:duration (권장, ISO 8601 duration, 예: PT3M25S) -->
+      <duration>{{modality.video.duration}}</duration>
+      <!-- [초당 프레임 수] schema:frameRate (선택, FPS) -->
+      <frameRate>{{modality.video.frame_rate}}</frameRate>
+      <!-- [코덱명] codec (선택, MPEG-4 Part 2, H.264, HEVC 등) -->
+      <codec>{{modality.video.codec}}</codec>
+      <bitrate>{{modality.video.bitrate}}</bitrate>
+      <!-- 사양이 적용되는 파일/리소스 식별자. 이질적 파일은 각각의 메타데이터 레코드로 제공. -->
+      <resourceId>{{modality.video.resource_id}}</resourceId>
+      <!-- 리소스 MIME 타입. 코덱·확장자와 구분. -->
+      <mediaType>{{modality.video.media_type}}</mediaType>
+      <!-- 총 프레임 수, 정수. 길이×FPS 추정값과 직접 측정값의 상태를 구분. -->
+      <frameCount>{{modality.video.frame_count}}</frameCount>
+      <!-- 촬영 시작 시각(ISO 8601, 시간대 포함). -->
+      <captureStart>{{modality.video.capture_start}}</captureStart>
+      <!-- 촬영 종료 시각(ISO 8601, 시간대 포함). -->
+      <captureEnd>{{modality.video.capture_end}}</captureEnd>
+      <!-- 카메라의 비식별 리소스 ID. 특정 기관 CCTV 필드명을 강제하지 않는다. -->
+      <cameraId>{{modality.video.camera_id}}</cameraId>
+      <!-- 설치 위치 범주·시점·조명·날씨 등 관측 환경. 공개 범위 기관 확인. -->
+      <captureEnvironment>{{modality.video.capture_environment}}</captureEnvironment>
+      <!-- 프레임 타임스탬프 단위/시간 기준. 가변 FPS에서는 프레임별 시각을 사용. -->
+      <timeBase>{{modality.video.time_base}}</timeBase>
+    </videoMetadata>
+
+    <!-- [음성(오디오) 메타데이터] schema.org 표준 -->
+    <audioMetadata isApplicable="{{modality.audio.is_applicable}}">
+      <!-- [재생시간] schema:duration (권장, ISO 8601 duration, 예: PT3M25S) -->
+      <duration>{{modality.audio.duration}}</duration>
+      <!-- [샘플레이트] sampleRate (권장, Hz, 예: 16000) -->
+      <sampleRate>{{modality.audio.sample_rate}}</sampleRate>
+      <!-- [채널 수] channels (선택, 1: mono, 2: stereo) -->
+      <channels>{{modality.audio.channels}}</channels>
+      <bitDepth>{{modality.audio.bit_depth}}</bitDepth>
+      <codec>{{modality.audio.codec}}</codec>
+      <!-- 사양이 적용되는 파일/리소스 식별자. 이질적 파일은 각각의 메타데이터 레코드로 제공. -->
+      <resourceId>{{modality.audio.resource_id}}</resourceId>
+      <!-- 리소스 MIME 타입. 코덱·확장자와 구분. -->
+      <mediaType>{{modality.audio.media_type}}</mediaType>
+      <!-- 발화 언어 코드. 무발화 음향 데이터는 NOT_APPLICABLE. -->
+      <language>{{modality.audio.language}}</language>
+      <!-- 전사 파일/리소스 IRI. 전사 미제공과 해당 없음을 구분. -->
+      <transcriptUri>{{modality.audio.transcript_uri}}</transcriptUri>
+      <!-- 비식별 화자 수, 정수. 음성에서 추론 시 AUTO_INFERRED. -->
+      <speakerCount>{{modality.audio.speaker_count}}</speakerCount>
+      <!-- 녹음 장비·장소 범주·잡음 등 수집 환경 설명. -->
+      <recordingEnvironment>{{modality.audio.recording_environment}}</recordingEnvironment>
+      <!-- 전사/발화 구간의 시간 단위(예: s). -->
+      <segmentTimeUnit>{{modality.audio.segment_time_unit}}</segmentTimeUnit>
+      <!-- 측정된 신호 대 잡음비(dB), 숫자. 산출 방법·범위는 canonicalItems.reason에 기록. -->
+      <snrDb>{{modality.audio.snr_db}}</snrDb>
+    </audioMetadata>
+
+    <!-- [수치/정형 메타데이터] MLCommons Croissant 표준 -->
+    <tabularNumericMetadata isApplicable="{{modality.tabular.is_applicable}}">
+      <!-- [레코드셋 ID] cr:RecordSet/@id (영구 절대 IRI/URN, 로컬 테이블명과 구분) -->
+      <recordSetId>{{modality.tabular.record_set_id}}</recordSetId>
+      <!-- [컬럼 논리 식별자 체계] cr:Field/@id (권장, RecordSetID/컬럼명) -->
+      <fieldPattern>{{modality.tabular.field_pattern}}</fieldPattern>
+    </tabularNumericMetadata>
+
+    <!-- 3D·센서·로봇 티칭 조건부 확장. REF-01의 수집/단위/라벨/재현성 원칙을 구체화한 프로젝트 속성으로 국가 필수 속성명이나 특정 로봇 규격을 주장하지 않는다. -->
+    <spatialSensorMetadata>
+      <!-- boolean/null. 해당 없음은 하위 값을 null/NOT_APPLICABLE로 유지. -->
+      <isApplicable>{{modality.spatial_sensor.is_applicable}}</isApplicable>
+      <!-- 대상 포인트클라우드·센서 스트림·티칭 파일의 식별자. -->
+      <resourceId>{{modality.spatial_sensor.resource_id}}</resourceId>
+      <!-- 표현 형식: 포인트클라우드/메시/관절 궤적/센서 시계열 등 확인된 명세. -->
+      <representation>{{modality.spatial_sensor.representation}}</representation>
+      <!-- 리소스 MIME 타입. -->
+      <mediaType>{{modality.spatial_sensor.media_type}}</mediaType>
+      <!-- 기준 좌표계·원점·축 방향·좌우수계 정의. 좌표값만으로 추측 금지. -->
+      <coordinateSystem>{{modality.spatial_sensor.coordinate_system}}</coordinateSystem>
+      <!-- 거리 단위. m/mm 등의 단위를 명시. -->
+      <lengthUnit>{{modality.spatial_sensor.length_unit}}</lengthUnit>
+      <!-- 회전/관절 각도 단위. rad/deg 구분. -->
+      <angleUnit>{{modality.spatial_sensor.angle_unit}}</angleUnit>
+      <!-- 회전 표현 및 순서. Euler 축 순서/내외재 또는 quaternion 성분 순서를 명시. -->
+      <rotationRepresentation>{{modality.spatial_sensor.rotation_representation}}</rotationRepresentation>
+      <!-- 샘플링 주파수(Hz), 숫자. 비주기 데이터는 시간 필드 명세 사용. -->
+      <samplingRateHz>{{modality.spatial_sensor.sampling_rate_hz}}</samplingRateHz>
+      <!-- 각 측정/프레임 시각을 담는 원천 경로. -->
+      <timestampField>{{modality.spatial_sensor.timestamp_field}}</timestampField>
+      <!-- timestamp 값 단위(초/밀리초/나노초 등). -->
+      <timeUnit>{{modality.spatial_sensor.time_unit}}</timeUnit>
+      <!-- 시간 원점·시간대 또는 동기화 기준 clock. -->
+      <timeReference>{{modality.spatial_sensor.time_reference}}</timeReference>
+      <!-- 센서 종류 및 측정량. -->
+      <sensorType>{{modality.spatial_sensor.sensor_type}}</sensorType>
+      <!-- 기관/장비 명세에서 확인한 센서 모델. -->
+      <sensorModel>{{modality.spatial_sensor.sensor_model}}</sensorModel>
+      <!-- 센서 보정 파라미터·내외부 행렬·보정 이력 리소스 IRI. -->
+      <calibrationUri>{{modality.spatial_sensor.calibration_uri}}</calibrationUri>
+      <!-- 복수 센서 및 영상의 시간 동기화 방법과 오프셋 처리. -->
+      <synchronizationMethod>{{modality.spatial_sensor.synchronization_method}}</synchronizationMethod>
+      <!-- 포인트클라우드 점 수, 정수. 다른 표현에는 NOT_APPLICABLE. -->
+      <pointCount>{{modality.spatial_sensor.point_count}}</pointCount>
+      <!-- 로봇 모델. 비로봇 데이터는 NOT_APPLICABLE. -->
+      <robotModel>{{modality.spatial_sensor.robot_model}}</robotModel>
+      <!-- 관절 이름의 순서 있는 문자열 배열. 궤적 벡터의 순서와 일치. -->
+      <jointNames>{{modality.spatial_sensor.joint_names}}</jointNames>
+      <!-- 관절별 단위의 순서 있는 문자열 배열. 직동/회전 관절 구분. -->
+      <jointUnits>{{modality.spatial_sensor.joint_units}}</jointUnits>
+      <!-- 말단장치 포즈 기준 좌표계와 tool frame. -->
+      <endEffectorFrame>{{modality.spatial_sensor.end_effector_frame}}</endEffectorFrame>
+      <!-- 관절 위치/속도/토크/말단 포즈/명령값의 원천 경로 및 타입·단위 명세 객체. -->
+      <trajectoryFields>{{modality.spatial_sensor.trajectory_fields}}</trajectoryFields>
+      <!-- 티칭 에피소드 식별자 원천 경로. -->
+      <episodeIdField>{{modality.spatial_sensor.episode_id_field}}</episodeIdField>
+      <!-- 시연/원격조작/시뮬레이션 등 수집 방법. -->
+      <teachingMethod>{{modality.spatial_sensor.teaching_method}}</teachingMethod>
+      <!-- 티칭 작업·목표·성공 기준. AI 작성 시 AUTO_INFERRED. -->
+      <taskDescription>{{modality.spatial_sensor.task_description}}</taskDescription>
+    </spatialSensorMetadata>
+    <annotations>
+      <!-- 반복: {{#modality.annotations}} -->
+      <!-- 이미지·영상·음성·3D 공통 라벨링 명세. REF-01 데이터 카드의 라벨 정의/지침/검수 요구를 구체화. 실제 라벨 인스턴스는 annotation_uri로 연결. -->
+      <annotation>
+        <!-- 라벨 대상 리소스 식별자. -->
+        <resourceId>{{annotation.resource_id}}</resourceId>
+        <!-- 라벨 파일/리소스 IRI. -->
+        <annotationUri>{{annotation.annotation_uri}}</annotationUri>
+        <!-- 분류/바운딩박스/분할/추적/전사/포즈 등 라벨 표현 방식. -->
+        <annotationType>{{annotation.annotation_type}}</annotationType>
+        <!-- 라벨 스키마/버전 명세 IRI. -->
+        <schemaUri>{{annotation.schema_uri}}</schemaUri>
+        <!-- 클래스 ID·의미·코드북 객체 또는 목록. -->
+        <labelVocabulary>{{annotation.label_vocabulary}}</labelVocabulary>
+        <!-- 픽셀/정규화/3D 좌표, 원점, 축 및 단위. 비공간 라벨은 NOT_APPLICABLE. -->
+        <coordinateConvention>{{annotation.coordinate_convention}}</coordinateConvention>
+        <!-- 시작·종료 시각/프레임 인덱스 필드, 단위 및 원천과 정렬 방식. -->
+        <temporalAlignment>{{annotation.temporal_alignment}}</temporalAlignment>
+        <!-- 작업자용 라벨링 지침과 판본의 IRI. -->
+        <guidelineUri>{{annotation.guideline_uri}}</guidelineUri>
+        <!-- 라벨 검수 방법·표본 범위·승인 근거. -->
+        <validationMethod>{{annotation.validation_method}}</validationMethod>
+      </annotation>
+      <!-- {{/modality.annotations}} -->
+    </annotations>
+  </modalitySpecifications>
+
+  <!-- ================================================================= -->
+  <!-- 4. 책임있는 AI 및 데이터 품질·한계 (Responsible AI)               -->
+  <!-- ================================================================= -->
+  <responsibleAi>
+    <!-- [데이터 편향성] rai:dataBiases (권장, 확인된 편향 유형) -->
+    <dataBiases>{{responsible_ai.data_biases}}</dataBiases>
+    <!-- [데이터 한계] rai:knownLimitations (선택, 구조적·내용적 제한사항) -->
+    <knownLimitations>{{responsible_ai.known_limitations}}</knownLimitations>
+    <!-- [결측치 정보] rai:dataCollectionMissingData (선택, 결측치 비율 및 처리방식) -->
+    <missingDataInfo>{{responsible_ai.missing_data_info}}</missingDataInfo>
+    <!-- [품질 검증 정보] dqv:hasQualityAnnotation (선택, 품질 검토 결과) -->
+    <qualityAnnotation>{{responsible_ai.quality_annotation}}</qualityAnnotation>
+  </responsibleAi>
+
+  <!-- ================================================================= -->
+  <!-- 5. 데이터 구조 및 배포 명세 (2-Track: 파일데이터 vs 오픈API)       -->
+  <!-- ================================================================= -->
+  <structure>
+    <dataCategory>{{structure.data_category}}</dataCategory>
+    <hasFileData>{{structure.has_file_data}}</hasFileData>
+    <hasApiData>{{structure.has_api_data}}</hasApiData>
+    <rootType>{{structure.root_type}}</rootType>
+    <isLargeDataset>{{structure.is_large_dataset}}</isLargeDataset>
+
+    <!-- [Track 1: 파일데이터 배포] -->
+    <distribution>
+      <format>{{structure.format}}</format>
+      <encoding>{{structure.encoding}}</encoding>
+      <delimiter>{{structure.delimiter}}</delimiter>
+      <compression>{{structure.compression}}</compression>
+      <folderStructure>{{structure.folder_structure}}</folderStructure>
+    </distribution>
+
+    <!-- [Track 2: 기관 확인 API 계약. REF-01 데이터 카드 접근 사양 / ADR-002·003] -->
+    <apiSpecification>
+      <baseUrl>{{structure.api_base_url}}</baseUrl>
+      <serviceName>{{structure.api_service_name}}</serviceName>
+      <interfaceType>{{structure.api_interface_type}}</interfaceType>
+      <httpMethods>{{structure.api_http_methods}}</httpMethods>
+      <mimeTypes>{{structure.api_mime_types}}</mimeTypes>
+      <characterEncoding>{{structure.api_character_encoding}}</characterEncoding>
+      <https>{{structure.api_https}}</https>
+      <accessRights>{{structure.api_access_rights}}</accessRights>
+      <serviceStart>{{structure.api_service_start}}</serviceStart>
+      <lastModified>{{structure.api_last_modified}}</lastModified>
+      <authType>{{structure.api_auth_type}}</authType>
+      <authTypeDesc>{{structure.api_auth_type_desc}}</authTypeDesc>
+      <contractStatus>{{structure.api_contract_status}}</contractStatus>
+
+      <operations>
+        <!-- 반복: {{#structure.api_operations}} -->
+        <operation id="{{operation.id}}" name="{{operation.name}}" type="{{operation.type}}">
+          <description>{{operation.description}}</description>
+          <endpointPath>{{operation.endpoint_path}}</endpointPath>
+          <httpMethod>{{operation.http_method}}</httpMethod>
+          <dataFormats>
+            <!-- 반복: {{#operation.formats}} -->
+            <format>{{format}}</format>
+            <!-- {{/operation.formats}} -->
+          </dataFormats>
+          <requestParameters>
+            <!-- 반복: {{#operation.request_parameters}} -->
+            <param name="{{param.name}}" nameKo="{{param.name_ko}}" location="{{param.location}}" dataType="{{param.data_type}}" length="{{param.length}}" required="{{param.required}}" allowedValues="{{param.allowed_values}}" defaultValue="{{param.default_value}}" sampleValue="{{param.sample_value}}">
+              <description>{{param.description}}</description>
+            </param>
+            <!-- {{/operation.request_parameters}} -->
+          </requestParameters>
+          <responseParameters>
+            <!-- 반복: {{#operation.response_parameters}} -->
+            <param name="{{param.name}}" nameKo="{{param.name_ko}}" path="{{param.path}}" dataType="{{param.data_type}}" cardinality="{{param.cardinality}}" required="{{param.required}}" allowedValues="{{param.allowed_values}}" sampleValue="{{param.sample_value}}">
+              <description>{{param.description}}</description>
+            </param>
+            <!-- {{/operation.response_parameters}} -->
+          </responseParameters>
+          <sampleMessages>
+            <xmlSample>{{operation.sample_xml}}</xmlSample>
+            <jsonSample>{{operation.sample_json}}</jsonSample>
+          </sampleMessages>
+        </operation>
+        <!-- {{/structure.api_operations}} -->
+      </operations>
+
+      <errorCodes>
+        <!-- 반복: {{#structure.api_error_codes}} -->
+        <errorCode code="{{error.code}}" httpStatus="{{error.http_status}}">
+          <message>{{error.message}}</message>
+          <description>{{error.description}}</description>
+        </errorCode>
+        <!-- {{/structure.api_error_codes}} -->
+      </errorCodes>
+      <!-- 기관 제공 API 계약 문서/OpenAPI 명세 IRI. -->
+      <specificationUrl>{{structure.api_specification_url}}</specificationUrl>
+      <!-- 운영 API 버전. 응답 구조만으로 추론 금지. -->
+      <version>{{structure.api_version}}</version>
+      <!-- 요청 횟수·기간·적용 단위(키/IP 등)를 담는 객체. 기관 승인 전 REVIEW_REQUIRED. -->
+      <rateLimit>{{structure.api_rate_limit}}</rateLimit>
+      <!-- 페이지/커서·페이지 크기·종료 조건의 계약 객체. 관측 응답만으로 확정하지 않는다. -->
+      <pagination>{{structure.api_pagination}}</pagination>
+      <!-- 응답 봉투와 분리한 실제 데이터 경로. -->
+      <payloadPath>{{structure.api_payload_path}}</payloadPath>
+      <!-- JSON Pointer/XPath/QName 등 경로 규칙. -->
+      <pathSyntax>{{structure.api_path_syntax}}</pathSyntax>
+      <!-- XML prefix→URI 매핑 객체. QName과 속성/요소 구분을 보존. -->
+      <namespaces>{{structure.namespaces}}</namespaces>
+    </apiSpecification>
+    <!-- 문자열 배열. STRUCTURED_TABULAR, API_PAYLOAD, TIME_SERIES, NESTED_HIERARCHICAL, TEXT_HEAVY, IMAGE_REFERENCE, LARGE_DATASET 등을 복수 부여. 물리 포맷과 독립. -->
+    <traits>{{structure.traits}}</traits>
+  </structure>
+
+  <!-- ================================================================= -->
+  <!-- 6. 데이터 사전 (Data Dictionary: cr:Field 표준 기반)               -->
+  <!-- ================================================================= -->
+  <fields>
+    <!-- 반복: {{#fields}} -->
+    <field path="{{field.path}}" name="{{field.name}}" nameKo="{{field.name_ko}}" fieldId="{{field.id}}" order="{{field.order}}"
+           value_origin="{{field.value_origin}}" derivation_ref="{{field.derivation_ref}}"
+           missing_processing_ref="{{field.missing_processing_ref}}" quality_flag_ref="{{field.quality_flag_ref}}">
+      <dataType>{{field.dataType}}</dataType>
+      <inferredType>{{field.inferredType}}</inferredType>
+      <required>{{field.required}}</required>
+      <isPk>{{field.is_pk}}</isPk>
+      <description>{{field.description}}</description>
+      <unit>{{field.unit}}</unit>
+      <codeList>{{field.codeList}}</codeList>
+      <constraints>{{field.constraints}}</constraints>
+      <statistics>
+        <nullCount>{{field.null_count}}</nullCount>
+        <emptyCount>{{field.empty_count}}</emptyCount>
+        <distinctCount>{{field.distinct_count}}</distinctCount>
+        <minValue>{{field.min_value}}</minValue>
+        <maxValue>{{field.max_value}}</maxValue>
+      </statistics>
+      <sampleValues>
+        <!-- 반복: {{#field.samples}} -->
+        <sample>{{sample_value}}</sample>
+        <!-- {{/field.samples}} -->
+      </sampleValues>
+      <!-- 경로 표현 규칙. 구조 와일드카드 경로를 실행 가능한 단일 JSON Pointer로 오인하지 않는다. -->
+      <pathSyntax>{{field.path_syntax}}</pathSyntax>
+      <source>{{field.source}}</source>
+      <sourceCategory>{{field.source_category}}</sourceCategory>
+    </field>
+    <!-- {{/fields}} -->
+  </fields>
+
+  <!-- ================================================================= -->
+  <!-- 6A. 데이터 처리·파생·결측·품질 플래그 (Canonical processing)      -->
+  <!-- ================================================================= -->
+  <processing>
+    <integration>
+      <is_integrated>{{processing.integration.is_integrated}}</is_integrated>
+      <description>{{processing.integration.description}}</description>
+      <method>{{processing.integration.method}}</method>
+      <join_type>{{processing.integration.join_type}}</join_type>
+      <join_keys>
+        <!-- {{#processing.integration.join_keys}} -->
+        <join_key>{{join_key}}</join_key>
+        <!-- {{/processing.integration.join_keys}} -->
+      </join_keys>
+      <temporal_alignment>{{processing.integration.temporal_alignment}}</temporal_alignment>
+      <spatial_alignment>{{processing.integration.spatial_alignment}}</spatial_alignment>
+      <source_dataset_ids>
+        <!-- {{#processing.integration.source_dataset_ids}} -->
+        <source_dataset_id>{{source_dataset_id}}</source_dataset_id>
+        <!-- {{/processing.integration.source_dataset_ids}} -->
+      </source_dataset_ids>
+      <external_sources>
+        <!-- {{#processing.integration.external_sources}} -->
+        <external_source>{{external_source}}</external_source>
+        <!-- {{/processing.integration.external_sources}} -->
+      </external_sources>
+      <output_description>{{processing.integration.output_description}}</output_description>
+      <limitations>{{processing.integration.limitations}}</limitations>
+    </integration>
+    <derived_fields>
+      <!-- {{#processing.derived_fields}} -->
+      <derived_field>
+        <field_id>{{derived.field_id}}</field_id>
+        <field_name>{{derived.field_name}}</field_name>
+        <derivation_type>{{derived.derivation_type}}</derivation_type>
+        <source_fields>
+          <!-- {{#derived.source_fields}} -->
+          <source_field>{{source_field}}</source_field>
+          <!-- {{/derived.source_fields}} -->
+        </source_fields>
+        <description>{{derived.description}}</description>
+        <method>{{derived.method}}</method>
+        <formula_or_rule>{{derived.formula_or_rule}}</formula_or_rule>
+        <aggregation>{{derived.aggregation}}</aggregation>
+        <window>{{derived.window}}</window>
+        <unit>{{derived.unit}}</unit>
+        <parameters>{{derived.parameters}}</parameters>
+        <fallback_rule>{{derived.fallback_rule}}</fallback_rule>
+        <reproducible>{{derived.reproducible}}</reproducible>
+        <confidence>{{derived.confidence}}</confidence>
+        <notes>{{derived.notes}}</notes>
+      </derived_field>
+      <!-- {{/processing.derived_fields}} -->
+    </derived_fields>
+    <transformations>
+      <!-- {{#processing.transformations}} -->
+      <transformation>
+        <name>{{name}}</name>
+        <target_field_ids>
+          <!-- {{#transformation.target_field_ids}} -->
+          <target_field_id>{{target_field_id}}</target_field_id>
+          <!-- {{/transformation.target_field_ids}} -->
+        </target_field_ids>
+        <method>{{method}}</method>
+        <description>{{description}}</description>
+        <parameters>{{parameters}}</parameters>
+        <reversible>{{reversible}}</reversible>
+        <limitations>{{limitations}}</limitations>
+      </transformation>
+      <!-- {{/processing.transformations}} -->
+    </transformations>
+    <missing_value_processing>
+      <!-- {{#processing.missing_value_processing}} -->
+      <rule>
+        <target_field_ids>
+          <!-- {{#missing_rule.target_field_ids}} -->
+          <target_field_id>{{target_field_id}}</target_field_id>
+          <!-- {{/missing_rule.target_field_ids}} -->
+        </target_field_ids>
+        <detected_missing_count>{{missing_rule.detected_missing_count}}</detected_missing_count>
+        <detected_missing_ratio>{{missing_rule.detected_missing_ratio}}</detected_missing_ratio>
+        <method>{{missing_rule.method}}</method>
+        <method_description>{{missing_rule.method_description}}</method_description>
+        <steps>
+          <!-- {{#missing_rule.steps}} -->
+          <step>
+            <step>{{step}}</step>
+            <name>{{name}}</name>
+            <rule>{{rule}}</rule>
+          </step>
+          <!-- {{/missing_rule.steps}} -->
+        </steps>
+        <grouping_keys>
+          <!-- {{#missing_rule.grouping_keys}} -->
+          <grouping_key>{{grouping_key}}</grouping_key>
+          <!-- {{/missing_rule.grouping_keys}} -->
+        </grouping_keys>
+        <temporal_window>{{missing_rule.temporal_window}}</temporal_window>
+        <parameters>{{missing_rule.parameters}}</parameters>
+        <fallback_method>{{missing_rule.fallback_method}}</fallback_method>
+        <clipping_rule>{{missing_rule.clipping_rule}}</clipping_rule>
+        <affected_record_count>{{missing_rule.affected_record_count}}</affected_record_count>
+        <quality_flag_field>{{missing_rule.quality_flag_field}}</quality_flag_field>
+        <original_value_preserved>{{missing_rule.original_value_preserved}}</original_value_preserved>
+        <limitations>{{missing_rule.limitations}}</limitations>
+      </rule>
+      <!-- {{/processing.missing_value_processing}} -->
+    </missing_value_processing>
+    <outlier_processing>
+      <!-- {{#processing.outlier_processing}} -->
+      <rule>
+        <target_field_ids>
+          <!-- {{#outlier_rule.target_field_ids}} -->
+          <target_field_id>{{target_field_id}}</target_field_id>
+          <!-- {{/outlier_rule.target_field_ids}} -->
+        </target_field_ids>
+        <detection_method>{{outlier_rule.detection_method}}</detection_method>
+        <threshold>{{outlier_rule.threshold}}</threshold>
+        <rule>{{outlier_rule.rule}}</rule>
+        <action>{{outlier_rule.action}}</action>
+        <affected_count>{{outlier_rule.affected_count}}</affected_count>
+        <replacement_method>{{outlier_rule.replacement_method}}</replacement_method>
+        <quality_flag_field>{{outlier_rule.quality_flag_field}}</quality_flag_field>
+        <notes>{{outlier_rule.notes}}</notes>
+      </rule>
+      <!-- {{/processing.outlier_processing}} -->
+    </outlier_processing>
+    <quality_flags>
+      <!-- {{#processing.quality_flags}} -->
+      <flag>
+        <flag_field>{{quality_flag.flag_field}}</flag_field>
+        <description>{{quality_flag.description}}</description>
+        <target_fields>
+          <!-- {{#quality_flag.target_fields}} -->
+          <target_field>{{target_field}}</target_field>
+          <!-- {{/quality_flag.target_fields}} -->
+        </target_fields>
+        <values>
+          <!-- {{#quality_flag.values}} -->
+          <value>
+            <code>{{code}}</code>
+            <name>{{name}}</name>
+            <meaning>{{meaning}}</meaning>
+            <value_origin>{{value_origin}}</value_origin>
+          </value>
+          <!-- {{/quality_flag.values}} -->
+        </values>
+        <meaning>{{quality_flag.meaning}}</meaning>
+      </flag>
+      <!-- {{/processing.quality_flags}} -->
+    </quality_flags>
+  </processing>
+
+  <!-- ================================================================= -->
+  <!-- 7. 공통 6대 품질지표 (dqv:QualityMeasurement)                    -->
+  <!-- ================================================================= -->
+  <quality>
+    <overallScore>{{quality.overall_score}}</overallScore>
+    <metrics>
+      <completeness>
+        <score>{{quality.completeness.score}}</score>
+        <status>{{quality.completeness.status}}</status>
+        <nullRate>{{quality.completeness.null_rate}}</nullRate>
+        <evidence>{{quality.completeness.evidence}}</evidence>
+        <!-- FULL/SAMPLE. 지표별 실제 분석 범위. -->
+        <scope>{{quality.completeness.scope}}</scope>
+        <!-- 측정 방식·적용 조건·미평가 사유. 미평가/해당 없음의 점수는 null. -->
+        <reason>{{quality.completeness.reason}}</reason>
+      </completeness>
+      <validity>
+        <score>{{quality.validity.score}}</score>
+        <status>{{quality.validity.status}}</status>
+        <violationCount>{{quality.validity.violation_count}}</violationCount>
+        <evidence>{{quality.validity.evidence}}</evidence>
+        <!-- FULL/SAMPLE. 지표별 실제 분석 범위. -->
+        <scope>{{quality.validity.scope}}</scope>
+        <!-- 측정 방식·적용 조건·미평가 사유. 미평가/해당 없음의 점수는 null. -->
+        <reason>{{quality.validity.reason}}</reason>
+      </validity>
+      <consistency>
+        <score>{{quality.consistency.score}}</score>
+        <status>{{quality.consistency.status}}</status>
+        <evidence>{{quality.consistency.evidence}}</evidence>
+        <!-- FULL/SAMPLE. 지표별 실제 분석 범위. -->
+        <scope>{{quality.consistency.scope}}</scope>
+        <!-- 측정 방식·적용 조건·미평가 사유. 미평가/해당 없음의 점수는 null. -->
+        <reason>{{quality.consistency.reason}}</reason>
+      </consistency>
+      <accuracy>
+        <score>{{quality.accuracy.score}}</score>
+        <status>{{quality.accuracy.status}}</status>
+        <outlierCount>{{quality.accuracy.outlier_count}}</outlierCount>
+        <evidence>{{quality.accuracy.evidence}}</evidence>
+        <!-- FULL/SAMPLE. 지표별 실제 분석 범위. -->
+        <scope>{{quality.accuracy.scope}}</scope>
+        <!-- 측정 방식·적용 조건·미평가 사유. 미평가/해당 없음의 점수는 null. -->
+        <reason>{{quality.accuracy.reason}}</reason>
+      </accuracy>
+      <uniqueness>
+        <score>{{quality.uniqueness.score}}</score>
+        <status>{{quality.uniqueness.status}}</status>
+        <duplicateCount>{{quality.uniqueness.duplicate_count}}</duplicateCount>
+        <candidateKey>{{quality.uniqueness.candidate_key}}</candidateKey>
+        <evidence>{{quality.uniqueness.evidence}}</evidence>
+        <!-- FULL/SAMPLE. 지표별 실제 분석 범위. -->
+        <scope>{{quality.uniqueness.scope}}</scope>
+        <!-- 측정 방식·적용 조건·미평가 사유. 미평가/해당 없음의 점수는 null. -->
+        <reason>{{quality.uniqueness.reason}}</reason>
+      </uniqueness>
+      <timeliness>
+        <score>{{quality.timeliness.score}}</score>
+        <status>{{quality.timeliness.status}}</status>
+        <evidence>{{quality.timeliness.evidence}}</evidence>
+        <!-- FULL/SAMPLE. 지표별 실제 분석 범위. -->
+        <scope>{{quality.timeliness.scope}}</scope>
+        <!-- 측정 방식·적용 조건·미평가 사유. 미평가/해당 없음의 점수는 null. -->
+        <reason>{{quality.timeliness.reason}}</reason>
+      </timeliness>
+    </metrics>
+    <traitChecks>
+      <!-- 반복: {{#quality.trait_checks}} -->
+      <!-- Trait별 조건부 검사: 시간 단조성/간격/누수, 이종 타입/배열 필수 속성/길이 분포, 텍스트 길이/인코딩/개인정보 등. 미적용 검사를 합격 처리하지 않는다. -->
+      <check>
+        <!-- 검사 대상 Trait. -->
+        <trait>{{check.trait}}</trait>
+        <!-- 적용 규칙 식별자 및 판본. -->
+        <ruleId>{{check.rule_id}}</ruleId>
+        <!-- 정량 결과/진단 객체. 원래 타입 보존. -->
+        <value>{{check.value}}</value>
+        <!-- 5-state 검토 상태. -->
+        <status>{{check.status}}</status>
+        <!-- FULL/SAMPLE. -->
+        <scope>{{check.scope}}</scope>
+        <!-- 근거 경로/측정값/정성 초안 구분. -->
+        <evidence>{{check.evidence}}</evidence>
+        <!-- 적용/미적용/기관 확인 사유. -->
+        <reason>{{check.reason}}</reason>
+      </check>
+      <!-- {{/quality.trait_checks}} -->
+    </traitChecks>
+  </quality>
+
+  <!-- ================================================================= -->
+  <!-- 8. 데이터 이용 메타데이터 (적용 라이선스 및 저작권)                 -->
+  <!-- ================================================================= -->
+  <usage>
+    <!-- [적용 라이선스] dct:license (필수, 법적 문서 URI) -->
+    <license>{{usage.license}}</license>
+    <!-- [저작권] dct:rights (필수, 저작권 전반 정보) -->
+    <rights>{{usage.rights}}</rights>
+    <accessRights>{{usage.access_rights}}</accessRights>
+    <pricing>{{usage.pricing}}</pricing>
+    <attribution>{{usage.attribution}}</attribution>
+    <status>{{usage.status}}</status>
+  </usage>
+
+  <!-- ================================================================= -->
+  <!-- 9. AI 학습 가이드                                                -->
+  <!-- ================================================================= -->
+  <ai>
+    <purpose>{{ai.purpose}}</purpose>
+    <tasks>
+      <!-- 반복: {{#ai.tasks}} -->
+      <task type="{{task.type}}">
+        <description>{{task.description}}</description>
+      </task>
+      <!-- {{/ai.tasks}} -->
+    </tasks>
+    <recommendedModels>
+      <!-- 반복: {{#ai.models}} -->
+      <model>{{model_name}}</model>
+      <!-- {{/ai.models}} -->
+    </recommendedModels>
+    <splitRatio>
+      <train>{{ai.split.train}}</train>
+      <validation>{{ai.split.validation}}</validation>
+      <test>{{ai.split.test}}</test>
+      <!-- 시간순/그룹별/무작위 등 분할 기준. 고정 비율을 범용 강제하지 않는다. -->
+      <strategy>{{ai.split.strategy}}</strategy>
+      <!-- 동일 개체·에피소드·미래 시점이 분할 경계를 넘는 누수 검토. -->
+      <leakageReview>{{ai.split.leakage_review}}</leakageReview>
+    </splitRatio>
+    <largeDataOptimization>
+      <isChunkApplied>{{ai.large_data.is_chunk_applied}}</isChunkApplied>
+      <sampleSize>{{ai.large_data.sample_size}}</sampleSize>
+      <parquetRecommended>{{ai.large_data.parquet_recommended}}</parquetRecommended>
+      <partitioningKey>{{ai.large_data.partitioning_key}}</partitioningKey>
+    </largeDataOptimization>
+    <scenarios>
+      <!-- 반복: {{#ai.scenarios}} -->
+      <scenario>
+        <title>{{scenario.title}}</title>
+        <description>{{scenario.description}}</description>
+      </scenario>
+      <!-- {{/ai.scenarios}} -->
+    </scenarios>
+    <recommended_features>
+      <!-- {{#ai.recommended_features}} -->
+      <feature>
+        <field_id>{{field_id}}</field_id>
+        <field_name>{{field_name}}</field_name>
+        <role>{{role}}</role>
+        <importance>{{importance}}</importance>
+        <reason>{{reason}}</reason>
+      </feature>
+      <!-- {{/ai.recommended_features}} -->
+    </recommended_features>
+    <time_series_characteristics>{{ai.time_series_characteristics}}</time_series_characteristics>
+    <usage_risks>
+      <!-- {{#ai.usage_risks}} -->
+      <usage_risk>{{risk}}</usage_risk>
+      <!-- {{/ai.usage_risks}} -->
+    </usage_risks>
+  </ai>
+
+  <!-- ================================================================= -->
+  <!-- 10. 산출물 및 거버넌스                                            -->
+  <!-- ================================================================= -->
+  <governance>
+    <managingDepartment>{{governance.managing_department}}</managingDepartment>
+    <contactPoint>
+      <name>{{governance.contact.name}}</name>
+      <email>{{governance.contact.email}}</email>
+      <phone>{{governance.contact.phone}}</phone>
+    </contactPoint>
+    <privacySecurity>
+      <containsPii>{{governance.contains_pii}}</containsPii>
+      <anonymizationMethod>{{governance.anonymization_method}}</anonymizationMethod>
+      <securityLevel>{{governance.security_level}}</securityLevel>
+    </privacySecurity>
+  </governance>
+
+  <artifacts>
+    <hwpx>{{artifacts.hwpx_path}}</hwpx>
+    <docx>{{artifacts.docx_path}}</docx>
+    <json>{{artifacts.json_path}}</json>
+    <xml>{{artifacts.xml_path}}</xml>
+    <jsonld>{{artifacts.jsonld_path}}</jsonld>
+    <zipPackage>{{artifacts.zip_package_path}}</zipPackage>
+    <!-- 독립 데이터 사전 JSON 경로. -->
+    <dataDictionaryPath>{{artifacts.data_dictionary_path}}</dataDictionaryPath>
+    <!-- 독립 품질 보고서 JSON 경로. -->
+    <qualityReportPath>{{artifacts.quality_report_path}}</qualityReportPath>
+    <!-- 패키지 활용 안내 README 경로. -->
+    <readmePath>{{artifacts.readme_path}}</readmePath>
+  </artifacts>
+
+  <reviewRequired>
+    <!-- 반복: {{#reviewRequired}} -->
+    <item id="{{item.id}}" category="{{item.category}}" status="{{item.status}}">
+      <bindingPath>{{item.bindingPath}}</bindingPath>
+      <sourceType>{{item.sourceType}}</sourceType>
+      <confidence>{{item.confidence}}</confidence>
+      <updatedAt>{{item.updatedAt}}</updatedAt>
+      <label>{{item.label}}</label>
+      <reason>{{item.reason}}</reason>
+      <action>{{item.action}}</action>
+    </item>
+    <!-- {{/reviewRequired}} -->
+  </reviewRequired>
+
+  <provenance>
+    <generatorName>SynthData Studio AI-Ready Engine</generatorName>
+    <generatorVersion>{{provenance.generator_version}}</generatorVersion>
+    <sourceFileSha256>{{provenance.source_file_sha256}}</sourceFileSha256>
+    <generatedUtc>{{provenance.generated_utc}}</generatedUtc>
+  </provenance>
+
+  <pipeline>
+    <!-- 반복: {{#pipeline}} -->
+    <!-- 데이터 처리 및 정제 파이프라인 단계 -->
+    <step>
+      <step>{{pipeline.step}}</step>
+      <name>{{pipeline.name}}</name>
+      <rules>{{pipeline.rules}}</rules>
+      <output>{{pipeline.output}}</output>
+    </step>
+    <!-- {{/pipeline}} -->
+  </pipeline>
+
+  <!-- 데이터셋 전체 레코드 및 셀 단위 물리적 집계 통계 -->
+  <statistics>
+    <!-- 전체 레코드 수. 전체 미계수 시 null; 분석된 레코드 수는 analysis.sample_size. -->
+    <totalRecords>{{statistics.total_records}}</totalRecords>
+    <totalFields>{{statistics.total_fields}}</totalFields>
+    <totalBytes>{{statistics.total_bytes}}</totalBytes>
+    <!-- analysis.scope 범위에서 관측한 결측 셀 수. 표본 분석 시 전체 결측 수로 해석 금지. -->
+    <missingCellsTotal>{{statistics.missing_cells_total}}</missingCellsTotal>
+    <!-- analysis.scope 범위에서 관측한 중복 행 수. -->
+    <duplicateRowsTotal>{{statistics.duplicate_rows_total}}</duplicateRowsTotal>
+  </statistics>
+
+  <!-- 데이터 수집 출처 및 정제·가공 이력 -->
+  <lineage>
+    <sourceDatasets>{{lineage.source_datasets}}</sourceDatasets>
+    <collectionProcess>{{lineage.collection_process}}</collectionProcess>
+    <preprocessingHistory>{{lineage.preprocessing_history}}</preprocessingHistory>
+    <imputationMethod>{{lineage.imputation_method}}</imputationMethod>
+    <versionNotes>{{lineage.version_notes}}</versionNotes>
+  </lineage>
+
+  <!-- 적용한 표준 어휘와 프로젝트 확장 어휘. 어휘 사용만으로 국가 프로파일 적합성을 보증하지 않는다. -->
+  <interoperability>
+    <isOpenFormat>{{interoperability.is_open_format}}</isOpenFormat>
+    <encoding>{{interoperability.encoding}}</encoding>
+    <standardSchemaApplied>{{interoperability.standard_schema_applied}}</standardSchemaApplied>
+    <standardVocabularies>
+      <vocabulary>
+        <prefix>adms</prefix>
+        <uri>http://www.w3.org/ns/adms#</uri>
+        <desc>관리 메타데이터</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>dcat</prefix>
+        <uri>http://www.w3.org/ns/dcat#</uri>
+        <desc>데이터 카탈로그</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>dct</prefix>
+        <uri>http://purl.org/dc/terms/</uri>
+        <desc>더블린 코어</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>foaf</prefix>
+        <uri>http://xmlns.com/foaf/0.1/</uri>
+        <desc>사람 및 조직</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>odrl</prefix>
+        <uri>http://www.w3.org/ns/odrl/2/</uri>
+        <desc>데이터 사용 정책</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>owl</prefix>
+        <uri>http://www.w3.org/2002/07/owl#</uri>
+        <desc>온톨로지 및 버전</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>prov</prefix>
+        <uri>http://www.w3.org/ns/prov#</uri>
+        <desc>생성 이력</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>spdx</prefix>
+        <uri>http://spdx.org/rdf/terms#</uri>
+        <desc>라이선스 규격</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>vcard</prefix>
+        <uri>http://www.w3.org/2006/vcard/ns#</uri>
+        <desc>연락처</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>xsd</prefix>
+        <uri>http://www.w3.org/2001/XMLSchema#</uri>
+        <desc>데이터 타입</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>schema</prefix>
+        <uri>http://schema.org/</uri>
+        <desc>모달리티 속성</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>exif</prefix>
+        <uri>http://www.w3.org/2003/12/exif/ns#</uri>
+        <desc>장비 메타데이터</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>rai</prefix>
+        <uri>http://mlcommons.org/croissant/RAI/</uri>
+        <desc>책임있는 AI 편향/한계</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>cr</prefix>
+        <uri>http://mlcommons.org/croissant/</uri>
+        <desc>머신러닝 크루아상</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>ai</prefix>
+        <uri>urn:synthetic-data:ai-ready:v2:</uri>
+        <desc>프로젝트 확장(정부 표준 네임스페이스 아님)</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>api</prefix>
+        <uri>urn:synthetic-data:openapi:v1:</uri>
+        <desc>프로젝트 API 계약 확장(정부 표준 네임스페이스 아님)</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>dqv</prefix>
+        <uri>http://www.w3.org/ns/dqv#</uri>
+        <desc>품질 측정</desc>
+      </vocabulary>
+      <vocabulary>
+        <prefix>rdf</prefix>
+        <uri>http://www.w3.org/1999/02/22-rdf-syntax-ns#</uri>
+        <desc>RDF 기본 어휘</desc>
+      </vocabulary>
+    </standardVocabularies>
+  </interoperability>
+
+  <!-- FAIR 원칙(Findable, Accessible, Interoperable, Reusable) 평가 점수 -->
+  <fair>
+    <findable>
+      <score>{{fair.findable_score}}</score>
+      <note>{{fair.findable_note}}</note>
+    </findable>
+    <accessible>
+      <score>{{fair.accessible_score}}</score>
+      <note>{{fair.accessible_note}}</note>
+    </accessible>
+    <interoperable>
+      <score>{{fair.interoperable_score}}</score>
+      <note>{{fair.interoperable_note}}</note>
+    </interoperable>
+    <reusable>
+      <score>{{fair.reusable_score}}</score>
+      <note>{{fair.reusable_note}}</note>
+    </reusable>
+  </fair>
+
+  <!-- ADR-002/003/004 분석 범위. 샘플 통계를 전체 품질로 주장하지 않는다. -->
+  <analysis>
+    <!-- FULL 또는 SAMPLE. -->
+    <scope>{{analysis.scope}}</scope>
+    <!-- 분석한 레코드 수, 정수. -->
+    <sampleSize>{{analysis.sample_size}}</sampleSize>
+    <!-- 전체 레코드 수, 미확정 null. 표본 수로 대체하지 않는다. -->
+    <populationSize>{{analysis.population_size}}</populationSize>
+    <!-- 표본 추출 방식·seed·대상 범위 설명. -->
+    <samplingMethod>{{analysis.sampling_method}}</samplingMethod>
+    <!-- boolean. 레코드 경계 보존 여부. -->
+    <recordBoundaryPreserved>{{analysis.record_boundary_preserved}}</recordBoundaryPreserved>
+    <!-- 분석 범위와 대표성 한계. -->
+    <limitations>{{analysis.limitations}}</limitations>
+    <!-- 분석 기준 시각(ISO 8601 UTC). -->
+    <analyzedAt>{{analysis.analyzed_at}}</analyzedAt>
+  </analysis>
+
+  <canonicalItems>
+    <!-- 반복: {{#canonicalItems}} -->
+    <!-- ADR-003 v2의 완전한 항목 레코드. 데이터 사전·모달리티·법령·API 계약 등 모든 동적 값과 bindingPath로 일대일 연결. 레코드 자체의 provenance 필드는 재귀 검토하지 않는다. -->
+    <entry>
+      <!-- 포맷 간 불변인 메타데이터 항목 식별자. -->
+      <id>{{entry.id}}</id>
+      <!-- 렌더러 입력 값의 RFC 6901 JSON Pointer. 예: /dataset/title, /fields/0/description, /structure/api_operations/0/http_method. -->
+      <bindingPath>{{entry.bindingPath}}</bindingPath>
+      <label>{{entry.label}}</label>
+      <property>{{entry.property}}</property>
+      <namespace>{{entry.namespace}}</namespace>
+      <!-- 해당 바인딩의 값. 숫자/boolean/객체/배열/null 원래 타입 보존. unknown과 해당 없음은 상태로 구별. -->
+      <value>{{entry.value}}</value>
+      <!-- string|number|integer|boolean|object|array|null. XML에서 복원할 원래 JSON 타입. -->
+      <valueType>{{entry.valueType}}</valueType>
+      <!-- 항목 출처 종류. FILE_HEADER/FILE_PROFILE/AI_INFERENCE/USER_INPUT/REFERENCE_DOCUMENT/NOT_APPLICABLE/UNKNOWN 등 프로젝트 계약 값. ADR은 고정 enum을 정의하지 않는다. -->
+      <sourceType>{{entry.sourceType}}</sourceType>
+      <!-- AUTO_CONFIRMED | AUTO_INFERRED | USER_CONFIRMED | REVIEW_REQUIRED | NOT_APPLICABLE. -->
+      <status>{{entry.status}}</status>
+      <!-- 0~1 숫자 또는 평가 불가 null. 품질 점수/승인 여부와 독립. -->
+      <confidence>{{entry.confidence}}</confidence>
+      <!-- 추출·추론·승인 근거 또는 미확정/비해당 사유. 빈 문자열 금지. -->
+      <reason>{{entry.reason}}</reason>
+      <!-- ISO 8601 UTC 변경 시각. -->
+      <updatedAt>{{entry.updatedAt}}</updatedAt>
+      <!-- 원천 파일/필드/기관 계약서/가이드 조항 등의 근거 참조. -->
+      <sourceReference>{{entry.sourceReference}}</sourceReference>
+    </entry>
+    <!-- {{/canonicalItems}} -->
+  </canonicalItems>
+
+  <references>
+    <!-- 반복: {{#references}} -->
+    <!-- ADR-001 기준자료 추적. PRIMARY/SUPPLEMENTARY 구분; 특정 기관 사례는 범용 기준으로 등록하지 않는다. -->
+    <reference>
+      <!-- REF-01~REF-08 또는 추가 공식 근거 식별자. -->
+      <id>{{reference.id}}</id>
+      <!-- 공식 문서명. -->
+      <title>{{reference.title}}</title>
+      <!-- 검토한 판본. -->
+      <version>{{reference.version}}</version>
+      <!-- 저장소 경로 또는 공식 원문 URL. -->
+      <source>{{reference.source}}</source>
+      <!-- 페이지·표·절 등 정확한 근거 위치. -->
+      <locator>{{reference.locator}}</locator>
+      <!-- PRIMARY 또는 SUPPLEMENTARY. REF-06은 SUPPLEMENTARY. -->
+      <role>{{reference.role}}</role>
+      <!-- 원문 대조 여부. 미확인 판본을 확인 완료로 표시하지 않는다. -->
+      <verificationStatus>{{reference.verification_status}}</verificationStatus>
+    </reference>
+    <!-- {{/references}} -->
+  </references>
+
+</aiReadyDataset>

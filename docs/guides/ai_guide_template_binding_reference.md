@@ -1,0 +1,186 @@
+# AI ??? ??? ??? ??
+
+? ??? `ai_ready_public_data_guide_template.md`, DOCX, HWPX ???? ?? ??? ? ???? ??? ????. ? ??? ??? ?? Canonical Metadata ??? ???? ????. Markdown ???? ???? ??? ??? ???? ? ???? ???? ?? ??? ????? ?? ?? ??? ????.
+
+????? ??? ?? ???? ?? ??? ????.
+
+- `ai_ready_metadata_template.json`: Canonical JSON? ?? ?? ??
+- `ai_ready_metadata_template.xml`: XSD ??? ??? XML ??? `processing` ?? ??
+- `ai_ready_metadata_template.jsonld`: `aig:` ???? ??? ???? JSON-LD ???
+- `ontology.ttl`: `aig:Processing`, `aig:DerivedField`, `aig:MissingValueProcessing`, `aig:QualityFlag` ? ?? ??
+
+## Mustache ??
+
+| ?? | ?? | ? |
+| --- | --- | --- |
+| `{{path}}` | ??? ?? JSON ? 1?? ????. | `{{dataset.title}}` |
+| `{{#path}} ... {{/path}}` | ??? ???? ????. ??? ?? ??? ??? ????. | `{{#fields}} ... {{/fields}}` |
+| `{{^path}} ... {{/path}}` | ??? ?? ?? ?? ????. | `{{^apiOperations}} API ?? ??? {{/apiOperations}}` |
+| `{{@number}}` | ?? ?? ??? 1?? ???? ?? ???. | `{{@number}} {{name}}` |
+
+?? ??? ??? ? ?? ?? ?? ?? ?? ??? ??? ??. `field`, `operation`, `param`, `derived`, `missing_rule`, `outlier_rule`, `quality_flag`, `task`, `scenario`, `pipeline`? ?? ?? ??? ???? ?? ????. ?? ?? `{{field.name}}`? ?? `fields` ??? `name`?, `{{derived.formula_or_rule}}`? ?? ?? ??? `formula_or_rule`? ????. ?? ?? ???? `{{name}}`?? ??? ?? ?? ???? ??.
+
+## ????? ?? ??
+
+- ?????? ??? ??? ?? ??? ????.
+- ?? `REVIEW_REQUIRED`??? ?? ??? `[?? ?? ??]`? ????.
+- `NOT_APPLICABLE`, ? ???, ? ?????? ?? ?? ????.
+- ?? ?? ?? ?? ?? ?? ???? ?? ????. ??? ?? ??? ?? ??? ????.
+- ???? ???? ?? ???, ???, ?? ??, ?? ??? ??? ??? ???. `method`, `formula_or_rule`, `meaning`? ??? ?? ?? ??? ????.
+- ???? ?? ???? ???? ???? ???????. ? ??? HTML? ?? ???? ???.
+
+## ????? ?? ???
+
+```text
+{{dataset.title}}                 ???? ?? ??
+{{dataset.publisher}}             ????
+{{dataset.creator}}               ????????? ?? ????
+{{dataset.contact.name}}          ????
+{{dataset.contact.email}}         ??? ???
+{{dataset.contact.phone}}         ??? ???
+{{dataset.description}}           ??? ??
+{{dataset.purpose}}               ????? ??
+{{dataset.legal_references}}     ?? ?????
+{{dataset.keywords}}              ??? ??(??? {{#dataset.keywords}})
+{{dataset.theme}}                 ?? ??
+{{dataset.update_frequency}}      ?? ??
+{{usage.license}}                 ????
+{{usage.rights}}                  ?????? ??
+{{governance.managing_department}} ?? ????
+```
+
+??? ?? ???? ?? ??? ???? ?? AI? ?? ?? ??? ?? ?? ??? ???. ??? ??? ?? `USER_CONFIRMED` ??? Canonical `canonicalItems`? ????.
+
+## 12? ???? ? ?? ??
+
+?? ??? ???? `guide.sections`? ????? ??? ?? ?? ???.
+
+| semantic section key | ?? ?? | ?? ??? |
+| --- | --- | --- |
+| `sources_collection` | `{{guide.sections.management.children.sources_collection.number}} {{guide.sections.management.children.sources_collection.title}}` | `{{lineage.source_datasets}}`, `{{analysis.sources}}`, `{{#fileSources}} ... {{/fileSources}}` |
+| `integration` | `{{guide.sections.management.children.integration.number}} {{guide.sections.management.children.integration.title}}` | `{{#integrations}} {{description}}`, `{{method}}`, `{{join_keys}}`, `{{join_type}}`, `{{output_description}}`, `{{limitations}}` `{{/integrations}}` |
+| `cleaning` | `{{guide.sections.management.children.cleaning.number}} {{guide.sections.management.children.cleaning.title}}` | `{{lineage.preprocessing_history}}`, `{{#pipeline}} {{step}}`, `{{name}}`, `{{rules}}`, `{{output}}` `{{/pipeline}}` |
+| `derivation_transformation` | `{{guide.sections.management.children.derivation_transformation.number}} {{guide.sections.management.children.derivation_transformation.title}}` | `{{#derivedFields}} {{field_id}}`, `{{field_name}}`, `{{derivation_type}}`, `{{source_fields}}`, `{{method}}`, `{{formula_or_rule}}`, `{{reproducible}}` `{{/derivedFields}}` |
+| `missing_outlier_processing` | `{{guide.sections.management.children.missing_outlier_processing.number}} {{guide.sections.management.children.missing_outlier_processing.title}}` | `{{#missingValueRules}} {{target_field_ids}}`, `{{detected_missing_count}}`, `{{detected_missing_ratio}}`, `{{method}}`, `{{method_description}}`, `{{quality_flag_field}}` `{{/missingValueRules}}`; `{{#outlierRules}} {{detection_method}}`, `{{threshold}}`, `{{action}}`, `{{replacement_method}}` `{{/outlierRules}}` |
+| `processing_validation` | `{{guide.sections.management.children.processing_validation.number}} {{guide.sections.management.children.processing_validation.title}}` | `{{quality.metrics.validity.score}}`, `{{quality.metrics.consistency.score}}`, `{{#pipeline}} ... {{/pipeline}}` |
+| `quality` | `{{guide.sections.management.children.quality.number}} {{guide.sections.management.children.quality.title}}` | `{{quality.overall_score}}`, `{{quality.metrics.completeness.score}}`, `{{quality.metrics.completeness.evidence}}`, `{{statistics.total_records}}`, `{{statistics.total_fields}}` |
+| `quality_flags` | `{{guide.sections.management.children.quality_flags.number}} {{guide.sections.management.children.quality_flags.title}}` | `{{#qualityFlags}} {{flag_field}}`, `{{description}}`, `{{target_fields}}`; `{{#values}} {{code}}`, `{{name}}`, `{{meaning}}`, `{{value_origin}} {{/values}} {{/qualityFlags}}` |
+| `metadata_interoperability` | `{{guide.sections.management.children.metadata_interoperability.number}} {{guide.sections.management.children.metadata_interoperability.title}}` | `{{interoperability.schema_format}}`, `{{interoperability.schema_uri}}`, `{{interoperability.code_systems}}`, `{{interoperability.identifier_policy}}`, `{{interoperability.standard_schema_applied}}` |
+| `lineage_changes` | `{{guide.sections.management.children.lineage_changes.number}} {{guide.sections.management.children.lineage_changes.title}}` | `{{lineage.collection_process}}`, `{{lineage.preprocessing_history}}`, `{{lineage.version_notes}}`, `{{lineage.source_datasets}}` |
+| `privacy_deidentification` | `{{guide.sections.management.children.privacy_deidentification.number}} {{guide.sections.management.children.privacy_deidentification.title}}` | `{{governance.privacy_security.contains_pii}}`, `{{governance.privacy_security.anonymization_method}}`, `{{governance.privacy_security.deletion_method}}`, `{{governance.privacy_security.retention_period}}`, `{{responsible_ai.data_biases}}` |
+| `rights_conditions` | `{{guide.sections.management.children.rights_conditions.number}} {{guide.sections.management.children.rights_conditions.title}}` | `{{usage.license}}`, `{{usage.rights}}`, `{{usage.access_rights}}`, `{{usage.access_restrictions}}`, `{{usage.attribution}}`, `{{usage.pricing}}` |
+
+??????????????? ??? ?? ??? ?? ??? ??? ??.
+
+```text
+{{#integrations}} ... {{/integrations}}
+{{#derivedFields}} ... {{/derivedFields}}
+{{#missingValueRules}} ... {{/missingValueRules}}
+{{#outlierRules}} ... {{/outlierRules}}
+{{#qualityFlags}} ... {{/qualityFlags}}
+```
+
+## 8? AI ? ?? ??
+
+| semantic section key | ?? ?? | ?? ??? |
+| --- | --- | --- |
+| `ai_summary` | `{{guide.sections.ai.children.ai_summary.number}} {{guide.sections.ai.children.ai_summary.title}}` | `{{ai.purpose}}`, `{{ai.time_series_characteristics}}`, `{{ai.spatial_characteristics}}` |
+| `tasks` | `{{guide.sections.ai.children.tasks.number}} {{guide.sections.ai.children.tasks.title}}` | `{{#aiTasks}}` ?? `{{#ai.tasks}}` ??? `{{type}}`, `{{description}}`, `{{input_fields}}`, `{{target_fields}}`, `{{evaluation_metrics}}`, `{{evidence}}`, `{{/aiTasks}}` |
+| `training_info` | `{{guide.sections.ai.children.training_info.number}} {{guide.sections.ai.children.training_info.title}}` | `{{ai.split_ratio.train}}`, `{{ai.split_ratio.validation}}`, `{{ai.split_ratio.test}}`, `{{ai.split_ratio.strategy}}`, `{{ai.large_data_optimization}}` |
+| `recommended_features` | `{{guide.sections.ai.children.recommended_features.number}} {{guide.sections.ai.children.recommended_features.title}}` | `{{#aiRecommendedFeatures}} {{field_id}}`, `{{field_name}}`(?? `{{name}}`), `{{role}}`, `{{importance}}`, `{{reason}}` `{{/aiRecommendedFeatures}}` |
+| `bias_representativeness` | `{{guide.sections.ai.children.bias_representativeness.number}} {{guide.sections.ai.children.bias_representativeness.title}}` | `{{ai.bias}}`, `{{ai.representativeness}}`, `{{statistics.representativeness}}`, `{{responsible_ai.data_biases}}` |
+| `limitations` | `{{guide.sections.ai.children.limitations.number}} {{guide.sections.ai.children.limitations.title}}` | `{{aiLimitations}}`, `{{responsible_ai.known_limitations}}`, `{{analysis.limitations}}` |
+| `corrected_estimated_usage` | `{{guide.sections.ai.children.corrected_estimated_usage.number}} {{guide.sections.ai.children.corrected_estimated_usage.title}}` | `{{ai.quality_flag_usage}}`, `{{ai.imputed_data_usage}}`, `{{#missingValueRules}} {{original_value_preserved}} {{/missingValueRules}}` |
+| `usage_risks` | `{{guide.sections.ai.children.usage_risks.number}} {{guide.sections.ai.children.usage_risks.title}}` | `{{#ai.usage_risks}} {{risk}} {{/ai.usage_risks}}` |
+
+AI ??? ???? ???? ??? ????. ??????????????? ????? ??? ? ??? ?? ?? `null` ?? `REVIEW_REQUIRED`? ??.
+
+## ??????API ?? ??
+
+??? ???? ?? ?? ??? ????.
+
+```text
+{{#fileSources}} {{name}} {{format}} {{encoding}} {{byte_size}} {{observed_records}} {{/fileSources}}
+{{#fileFields}} {{@number}} {{name_ko}} {{name}} {{data_type}} {{required}} {{unit}} {{description}} {{/fileFields}}
+{{#fileFields}} {{sample_values}} {{statistics.null_count}} {{statistics.distinct_count}} {{/fileFields}}
+```
+
+API? ???? ?? ?? ??? ????.
+
+```text
+{{#apiOperations}} {{operation_name}} {{operation_type}} {{http_method}} {{endpoint_path}} {{data_formats}} {{/apiOperations}}
+{{#apiRequestParameters}} {{param_name}} {{name_ko}} {{location}} {{data_type}} {{required}} {{sample_value}} {{description}} {{/apiRequestParameters}}
+{{#apiResponseParameters}} {{param_name}} {{name_ko}} {{path}} {{data_type}} {{required}} {{sample_value}} {{description}} {{/apiResponseParameters}}
+{{#apiErrors}} {{code}} {{message}} {{http_status}} {{description}} {{/apiErrors}}
+{{structure.api_specification.base_url}} {{structure.api_specification.auth_type}} {{structure.api_specification.authentication_description}}
+```
+
+? ?? ??? ?? ??? `file`? `api` ??? ?? ????. ???? ?? ??? `{{#guide.file}} ... {{/guide.file}}` ? `{{#guide.api}} ... {{/guide.api}}`??, ?? ? ??? ???? ???? ???.
+
+## ??? ?? ?? ?
+
+?? ?? ???? ?? ?? ??? ? ??.
+
+```text
+{{field.field_id}}   {{field.path}}          {{field.name}}
+{{field.name_ko}}    {{field.data_type}}     {{field.inferred_type}}
+{{field.description}} {{field.unit}}         {{field.required}}
+{{field.is_pk}}       {{field.value_origin}}  {{field.derived}}
+{{field.derivation_ref}}                       {{field.missing_processing_ref}}
+{{field.quality_flag_ref}}                     {{field.source_dataset_id}}
+{{field.source_field}}                          {{field.source_category}}
+{{field.statistics.null_count}}                {{field.statistics.empty_count}}
+{{field.statistics.distinct_count}}            {{field.statistics.min_value}}
+{{field.statistics.max_value}}                 {{field.sample_values}}
+```
+
+`value_origin`? ?? ?? `observed`, `derived`, `calculated`, `imputed`, `estimated`, `modeled`??. ?? ???? ???? ??? ??? `observed`? ???? ?? ?? ?? ??? ???.
+
+## ????? `processing` ???
+
+Canonical JSON? `processing` ??? ??? ?? ???? XML?JSON-LD?? ?? ?? ??? ????.
+
+```text
+processing.integration.is_integrated
+processing.integration.description
+processing.integration.method
+processing.integration.join_type
+processing.integration.join_keys[]
+processing.integration.source_dataset_ids[]
+processing.derived_fields[]
+processing.transformations[]
+processing.missing_value_processing[]
+processing.outlier_processing[]
+processing.quality_flags[]
+```
+
+JSON-LD??? `processing`? `aig:Processing`, ?? ??? `aig:DerivedField`, ?? ?? ??? `aig:MissingValueProcessing`, ?? ???? `aig:QualityFlag`? ??. `value_origin`, `derivation_type`, `source_field`, `imputation_method`, `quality_flag_field`, `flag_value_meaning`? `ontology.ttl`? `aig:` ??? ????.
+
+## ??? ??(`prune_blocks`)? ??? ???
+
+?? ?? ?? ?? ??? ?? ?? ??. ?? ??? ?? ??? ???? ?? ????.
+
+```markdown
+### {{guide.sections.management.children.quality_flags.number}} {{guide.sections.management.children.quality_flags.title}}
+{{#qualityFlags}}
+| ??? ?? | ?? | ?? |
+| --- | --- | --- |
+| {{flag_field}} | {{code}} | {{meaning}} |
+{{/qualityFlags}}
+```
+
+??? ?? ??? ?? ??? ?? ?? ??? ?? ??, `prune_blocks`? ??? ??? ??? ? ?? ?? ????. ?? ??? ? ?? ?? `[?? ?? ??]`? ?????, ??? ??? ??? ??? ?? ??? ? ???? ?? ???.
+
+## ??? ?? ? ??
+
+1. ?? ??? ?? ??? ?? ??? ??? ????.
+2. ??? `#` ???? ??? ?? ?? `{{path}}`? ??.
+3. ?? ??? ?? ?? ?? `guide.sections`? `number`? ????.
+4. ?? ?? ??? `file` ??, API ?? ??? `api` ?? ?? ??.
+5. ?? ? ?? ??? ??? ????.
+
+```powershell
+.venv\Scripts\python.exe -m pytest apps/api/tests/test_ai_guide_documents.py -k "test_xml or test_jsonld or test_exchange" -v
+.venv\Scripts\python.exe -c "from lxml import etree; etree.XMLSchema(file='apps/api/src/synthetic_api/data/ai_guide/templates/ai_ready_metadata_schema.xsd'); print('XSD Schema valid!')"
+.venv\Scripts\python.exe -c "import rdflib; g=rdflib.Graph(); g.parse('apps/api/src/synthetic_api/data/ai_guide/templates/ontology.ttl', format='turtle'); print(f'Ontology valid! Triples: {len(g)}')"
+```

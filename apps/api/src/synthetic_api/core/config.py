@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # Optional OpenAI-assisted review document text polishing
     OPENAI_API_KEY: str = ''
+    OPENAI_GUIDE_MODEL: str = 'gpt-4o-mini'
     OPENAI_COLUMN_DESCRIPTION_ENABLED: bool = False
     OPENAI_COLUMN_DESCRIPTION_MODEL: str = ''
     OPENAI_COLUMN_DESCRIPTION_SYSTEM_PROMPT: str = ''
@@ -51,7 +52,12 @@ class Settings(BaseSettings):
     OPENAI_COLUMN_DESCRIPTION_CACHE_TTL_DAYS: int = 30
     OPENAI_COLUMN_DESCRIPTION_CACHE_PATH: Path = PROJECT_ROOT / 'storage' / 'local' / 'column_description_cache.json'
     
-    model_config = SettingsConfigDict(case_sensitive=True)
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=PROJECT_ROOT / '.env',
+        env_file_encoding='utf-8',
+        extra='ignore',
+    )
 
 settings = Settings()
 

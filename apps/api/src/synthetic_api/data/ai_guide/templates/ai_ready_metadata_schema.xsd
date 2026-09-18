@@ -1,0 +1,1183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:synthetic-data:ai-ready:v2:" targetNamespace="urn:synthetic-data:ai-ready:v2:" elementFormDefault="qualified" version="2.3">
+  <xs:annotation>
+    <xs:documentation>통합 메타데이터 XML v2.3의 프로젝트 XSD 1.0. 정부 공인 스키마가 아니다. ai_ready_metadata_template.xml의 요소명·순서·속성 및 JSON의 _template 계약을 따른다. 플레이스홀더 원문이 아니라 렌더링된 XML을 검증한다. 미확정·비해당 값은 xsi:nil="true", null 속성은 생략한다. object/array 및 복합 Canonical 값은 XML 이스케이프된 JSON 텍스트로 보존한다. XSD는 구조·타입·상태·ID 참조를 검사한다. JSON 텍스트 구문, value/valueType 일치, bindingPath 실제 값 대응, 모든 바인딩의 검토 레코드 존재, docType/dataCategory 대응, reviewRequired의 정확한 파생 및 문서 검토 요약은 Canonical/렌더러 단계에서 별도 검증해야 한다.</xs:documentation>
+  </xs:annotation>
+  <xs:simpleType name="NonEmptyString">
+    <xs:restriction base="xs:token">
+      <xs:minLength value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="StatusType">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="AUTO_CONFIRMED" />
+      <xs:enumeration value="AUTO_INFERRED" />
+      <xs:enumeration value="USER_CONFIRMED" />
+      <xs:enumeration value="REVIEW_REQUIRED" />
+      <xs:enumeration value="NOT_APPLICABLE" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="RequiredReviewStatusType">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="REVIEW_REQUIRED" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="DocumentReviewStatusType">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="INCOMPLETE_REVIEW" />
+      <xs:enumeration value="INFERRED_DRAFT" />
+      <xs:enumeration value="COMPLETE_REVIEW" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="DataCategoryType">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="file" />
+      <xs:enumeration value="api" />
+      <xs:enumeration value="hybrid" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="DocType">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="file_dataset" />
+      <xs:enumeration value="api_dataset" />
+      <xs:enumeration value="hybrid_dataset" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ScopeType">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="FULL" />
+      <xs:enumeration value="SAMPLE" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ValueType">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="string" />
+      <xs:enumeration value="number" />
+      <xs:enumeration value="integer" />
+      <xs:enumeration value="boolean" />
+      <xs:enumeration value="object" />
+      <xs:enumeration value="array" />
+      <xs:enumeration value="null" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ReferenceRoleType">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="PRIMARY" />
+      <xs:enumeration value="SUPPLEMENTARY" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ConfidenceType">
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0" />
+      <xs:maxInclusive value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ScoreType">
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0" />
+      <xs:maxInclusive value="100" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="PositiveDecimal">
+    <xs:restriction base="xs:decimal">
+      <xs:minExclusive value="0" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="NonNegativeDecimal">
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="JsonPointerType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(/([^~/]|~[01])*)+" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Sha256Type">
+    <xs:restriction base="xs:token">
+      <xs:pattern value="[0-9a-fA-F]{64}" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="aiReadyDataset">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="document" type="tns:DocumentType" />
+        <xs:element name="dataset" type="tns:DatasetType" />
+        <xs:element name="modalitySpecifications" minOccurs="0" type="tns:ModalitySpecificationsType" />
+        <xs:element name="responsibleAi" minOccurs="0" type="tns:ResponsibleAiType" />
+        <xs:element name="structure" type="tns:StructureType" />
+        <xs:element name="fields" type="tns:FieldsType" />
+        <xs:element name="processing" minOccurs="0" type="tns:ProcessingType" />
+        <xs:element name="quality" type="tns:QualityType" />
+        <xs:element name="usage" type="tns:UsageType" />
+        <xs:element name="ai" minOccurs="0" type="tns:AiType" />
+        <xs:element name="governance" type="tns:GovernanceType" />
+        <xs:element name="artifacts" minOccurs="0" type="tns:ArtifactsType" />
+        <xs:element name="reviewRequired" type="tns:ReviewRequiredType" />
+        <xs:element name="provenance" minOccurs="0" type="tns:ProvenanceType" />
+        <xs:element name="pipeline" minOccurs="0" type="tns:PipelineType" />
+        <xs:element name="statistics" minOccurs="0" type="tns:StatisticsType" />
+        <xs:element name="lineage" minOccurs="0" type="tns:LineageType" />
+        <xs:element name="interoperability" minOccurs="0" type="tns:InteroperabilityType" />
+        <xs:element name="fair" minOccurs="0" type="tns:FairType" />
+        <xs:element name="analysis" type="tns:AnalysisType" />
+        <xs:element name="canonicalItems" type="tns:CanonicalItemsType" />
+        <xs:element name="references" minOccurs="0" type="tns:ReferencesType" />
+      </xs:sequence>
+      <xs:attribute name="schemaVersion" type="xs:string" use="required" fixed="2.0" />
+      <xs:attribute name="templateVersion" type="xs:string" use="required" fixed="2.3" />
+    </xs:complexType>
+    <xs:key name="canonicalId">
+      <xs:selector xpath="tns:canonicalItems/tns:entry" />
+      <xs:field xpath="tns:id" />
+    </xs:key>
+    <xs:key name="canonicalBindingPath">
+      <xs:selector xpath="tns:canonicalItems/tns:entry" />
+      <xs:field xpath="tns:bindingPath" />
+    </xs:key>
+    <xs:unique name="reviewItemId">
+      <xs:selector xpath="tns:reviewRequired/tns:item" />
+      <xs:field xpath="@id" />
+    </xs:unique>
+    <xs:keyref name="reviewCanonicalId" refer="tns:canonicalId">
+      <xs:selector xpath="tns:reviewRequired/tns:item" />
+      <xs:field xpath="@id" />
+    </xs:keyref>
+  </xs:element>
+  <xs:complexType name="DocumentType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 document 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="status" type="tns:StatusType" />
+      <xs:element name="generatedUtc" type="xs:dateTime" />
+      <xs:element name="docType" type="tns:DocType" />
+      <xs:element name="specificationVersion" type="xs:string" />
+      <xs:element name="review_status" type="tns:DocumentReviewStatusType" />
+      <xs:element name="isDraft" type="xs:boolean" />
+      <xs:element name="reviewNotice" type="xs:string" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DatasetType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 dataset 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="identifier" type="xs:string" nillable="true" />
+      <xs:element name="title" type="xs:string" nillable="true" />
+      <xs:element name="description" type="xs:string" nillable="true" />
+      <xs:element name="purpose" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="legalReferences" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="creator" type="xs:string" nillable="true" />
+      <xs:element name="publisher" type="xs:string" nillable="true" />
+      <xs:element name="landingPage" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="accessUrl" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="updateFrequency" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="theme" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="keywords" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="keyword" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="contactPoint">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="fn" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="hasEmail" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="hasTelephone" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="language" type="xs:string" nillable="true" />
+      <xs:element name="byteSize" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="mediaType" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="temporalCoverage" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="hasBeginning" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="hasEnd" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="spatialCoverage" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="relations" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="relation" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="versionInfo">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="version" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="issued" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="modified" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="versionNotes" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="uriOrId" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="themeLabel" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ModalitySpecificationsType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 modalitySpecifications 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="imageMetadata" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="width" minOccurs="0" type="xs:positiveInteger" nillable="true" />
+            <xs:element name="height" minOccurs="0" type="xs:positiveInteger" nillable="true" />
+            <xs:element name="colorSpace" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="resolutionDpi" minOccurs="0" type="tns:PositiveDecimal" nillable="true" />
+            <xs:element name="exifMake" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="exifModel" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="resourceId" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="mediaType" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="bitDepth" minOccurs="0" type="xs:positiveInteger" nillable="true" />
+            <xs:element name="captureDatetime" minOccurs="0" type="xs:dateTime" nillable="true" />
+            <xs:element name="captureEnvironment" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+          <xs:attribute name="isApplicable" type="xs:boolean" />
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="videoMetadata" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="width" minOccurs="0" type="xs:positiveInteger" nillable="true" />
+            <xs:element name="height" minOccurs="0" type="xs:positiveInteger" nillable="true" />
+            <xs:element name="duration" minOccurs="0" type="xs:duration" nillable="true" />
+            <xs:element name="frameRate" minOccurs="0" type="tns:PositiveDecimal" nillable="true" />
+            <xs:element name="codec" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="bitrate" minOccurs="0" type="tns:NonNegativeDecimal" nillable="true" />
+            <xs:element name="resourceId" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="mediaType" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="frameCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+            <xs:element name="captureStart" minOccurs="0" type="xs:dateTime" nillable="true" />
+            <xs:element name="captureEnd" minOccurs="0" type="xs:dateTime" nillable="true" />
+            <xs:element name="cameraId" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="captureEnvironment" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="timeBase" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+          <xs:attribute name="isApplicable" type="xs:boolean" />
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="audioMetadata" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="duration" minOccurs="0" type="xs:duration" nillable="true" />
+            <xs:element name="sampleRate" minOccurs="0" type="tns:PositiveDecimal" nillable="true" />
+            <xs:element name="channels" minOccurs="0" type="xs:positiveInteger" nillable="true" />
+            <xs:element name="bitDepth" minOccurs="0" type="xs:positiveInteger" nillable="true" />
+            <xs:element name="codec" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="resourceId" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="mediaType" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="language" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="transcriptUri" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="speakerCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+            <xs:element name="recordingEnvironment" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="segmentTimeUnit" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="snrDb" minOccurs="0" type="xs:decimal" nillable="true" />
+          </xs:sequence>
+          <xs:attribute name="isApplicable" type="xs:boolean" />
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="tabularNumericMetadata" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="recordSetId" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="fieldPattern" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+          <xs:attribute name="isApplicable" type="xs:boolean" />
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="spatialSensorMetadata" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="isApplicable" minOccurs="0" type="xs:boolean" nillable="true" />
+            <xs:element name="resourceId" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="representation" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="mediaType" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="coordinateSystem" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="lengthUnit" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="angleUnit" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="rotationRepresentation" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="samplingRateHz" minOccurs="0" type="tns:PositiveDecimal" nillable="true" />
+            <xs:element name="timestampField" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="timeUnit" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="timeReference" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="sensorType" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="sensorModel" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="calibrationUri" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="synchronizationMethod" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="pointCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+            <xs:element name="robotModel" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="jointNames" minOccurs="0" type="xs:string" nillable="true">
+              <xs:annotation>
+                <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+            <xs:element name="jointUnits" minOccurs="0" type="xs:string" nillable="true">
+              <xs:annotation>
+                <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+            <xs:element name="endEffectorFrame" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="trajectoryFields" minOccurs="0" type="xs:string" nillable="true">
+              <xs:annotation>
+                <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+            <xs:element name="episodeIdField" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="teachingMethod" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="taskDescription" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="annotations" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="annotation" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="resourceId" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="annotationUri" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="annotationType" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="schemaUri" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="labelVocabulary" minOccurs="0" type="xs:string" nillable="true">
+                    <xs:annotation>
+                      <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+                    </xs:annotation>
+                  </xs:element>
+                  <xs:element name="coordinateConvention" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="temporalAlignment" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="guidelineUri" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="validationMethod" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ResponsibleAiType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 responsibleAi 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="dataBiases" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="knownLimitations" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="missingDataInfo" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="qualityAnnotation" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="StructureType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 structure 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="dataCategory" type="tns:DataCategoryType" />
+      <xs:element name="hasFileData" type="xs:boolean" nillable="true" />
+      <xs:element name="hasApiData" type="xs:boolean" nillable="true" />
+      <xs:element name="rootType" type="xs:string" nillable="true" />
+      <xs:element name="isLargeDataset" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="distribution" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="format" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="encoding" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="delimiter" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="compression" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="folderStructure" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="apiSpecification" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="baseUrl" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="serviceName" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="interfaceType" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="httpMethods" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="mimeTypes" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="characterEncoding" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="https" minOccurs="0" type="xs:boolean" nillable="true" />
+            <xs:element name="accessRights" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="serviceStart" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="lastModified" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="authType" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="authTypeDesc" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="contractStatus" minOccurs="0" type="tns:StatusType" />
+            <xs:element name="operations" minOccurs="0">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="operation" minOccurs="0" maxOccurs="unbounded">
+                    <xs:complexType>
+                      <xs:sequence>
+                        <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+                        <xs:element name="endpointPath" minOccurs="0" type="xs:string" nillable="true" />
+                        <xs:element name="httpMethod" minOccurs="0" type="xs:string" nillable="true" />
+                        <xs:element name="dataFormats" minOccurs="0">
+                          <xs:complexType>
+                            <xs:sequence>
+                              <xs:element name="format" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" />
+                            </xs:sequence>
+                          </xs:complexType>
+                        </xs:element>
+                        <xs:element name="requestParameters" minOccurs="0">
+                          <xs:complexType>
+                            <xs:sequence>
+                              <xs:element name="param" minOccurs="0" maxOccurs="unbounded">
+                                <xs:complexType>
+                                  <xs:sequence>
+                                    <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+                                  </xs:sequence>
+                                  <xs:attribute name="name" type="xs:string" />
+                                  <xs:attribute name="nameKo" type="xs:string" />
+                                  <xs:attribute name="location" type="xs:string" />
+                                  <xs:attribute name="dataType" type="xs:string" />
+                                  <xs:attribute name="length" type="xs:string" />
+                                  <xs:attribute name="required" type="xs:boolean" />
+                                  <xs:attribute name="allowedValues" type="xs:string" />
+                                  <xs:attribute name="defaultValue" type="xs:string" />
+                                  <xs:attribute name="sampleValue" type="xs:string" />
+                                </xs:complexType>
+                              </xs:element>
+                            </xs:sequence>
+                          </xs:complexType>
+                        </xs:element>
+                        <xs:element name="responseParameters" minOccurs="0">
+                          <xs:complexType>
+                            <xs:sequence>
+                              <xs:element name="param" minOccurs="0" maxOccurs="unbounded">
+                                <xs:complexType>
+                                  <xs:sequence>
+                                    <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+                                  </xs:sequence>
+                                  <xs:attribute name="name" type="xs:string" />
+                                  <xs:attribute name="nameKo" type="xs:string" />
+                                  <xs:attribute name="path" type="xs:string" />
+                                  <xs:attribute name="dataType" type="xs:string" />
+                                  <xs:attribute name="cardinality" type="xs:string" />
+                                  <xs:attribute name="required" type="xs:boolean" />
+                                  <xs:attribute name="allowedValues" type="xs:string" />
+                                  <xs:attribute name="sampleValue" type="xs:string" />
+                                </xs:complexType>
+                              </xs:element>
+                            </xs:sequence>
+                          </xs:complexType>
+                        </xs:element>
+                        <xs:element name="sampleMessages" minOccurs="0">
+                          <xs:complexType>
+                            <xs:sequence>
+                              <xs:element name="xmlSample" minOccurs="0" type="xs:string" nillable="true" />
+                              <xs:element name="jsonSample" minOccurs="0" type="xs:string" nillable="true" />
+                            </xs:sequence>
+                          </xs:complexType>
+                        </xs:element>
+                      </xs:sequence>
+                      <xs:attribute name="id" type="xs:string" />
+                      <xs:attribute name="name" type="xs:string" />
+                      <xs:attribute name="type" type="xs:string" />
+                    </xs:complexType>
+                  </xs:element>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="errorCodes" minOccurs="0">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="errorCode" minOccurs="0" maxOccurs="unbounded">
+                    <xs:complexType>
+                      <xs:sequence>
+                        <xs:element name="message" minOccurs="0" type="xs:string" nillable="true" />
+                        <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+                      </xs:sequence>
+                      <xs:attribute name="code" type="xs:string" />
+                      <xs:attribute name="httpStatus" type="xs:string" />
+                    </xs:complexType>
+                  </xs:element>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="specificationUrl" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="version" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="rateLimit" minOccurs="0" type="xs:string" nillable="true">
+              <xs:annotation>
+                <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+            <xs:element name="pagination" minOccurs="0" type="xs:string" nillable="true">
+              <xs:annotation>
+                <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+            <xs:element name="payloadPath" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="pathSyntax" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="namespaces" minOccurs="0" type="xs:string" nillable="true">
+              <xs:annotation>
+                <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="traits" minOccurs="0" type="xs:string" nillable="true">
+        <xs:annotation>
+          <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FieldsType">
+    <xs:annotation>
+      <xs:documentation>XML fields container. FieldType carries the shared field metadata and provenance references.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="field" minOccurs="0" maxOccurs="unbounded" type="tns:FieldType" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FieldType">
+    <xs:sequence>
+      <xs:element name="dataType" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="inferredType" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="required" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="isPk" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="unit" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="codeList" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="constraints" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="statistics" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="nullCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+            <xs:element name="emptyCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+            <xs:element name="distinctCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+            <xs:element name="minValue" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="maxValue" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="sampleValues" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="sample" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="pathSyntax" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="source" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="sourceCategory" minOccurs="0" type="tns:DataCategoryType" nillable="true" />
+    </xs:sequence>
+    <xs:attribute name="path" type="xs:string" />
+    <xs:attribute name="name" type="xs:string" />
+    <xs:attribute name="nameKo" type="xs:string" />
+    <xs:attribute name="fieldId" type="xs:string" />
+    <xs:attribute name="order" type="xs:nonNegativeInteger" />
+    <xs:attribute name="value_origin" type="xs:string" />
+    <xs:attribute name="derivation_ref" type="xs:string" />
+    <xs:attribute name="missing_processing_ref" type="xs:string" />
+    <xs:attribute name="quality_flag_ref" type="xs:string" />
+  </xs:complexType>
+  <xs:complexType name="ProcessingType">
+    <xs:sequence>
+      <xs:element name="integration" minOccurs="0" type="tns:ProcessingIntegrationType" />
+      <xs:element name="derived_fields" minOccurs="0" type="tns:DerivedFieldsType" />
+      <xs:element name="transformations" minOccurs="0" type="tns:TransformationsType" />
+      <xs:element name="missing_value_processing" minOccurs="0" type="tns:MissingValueProcessingType" />
+      <xs:element name="outlier_processing" minOccurs="0" type="tns:OutlierProcessingType" />
+      <xs:element name="quality_flags" minOccurs="0" type="tns:QualityFlagsType" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ProcessingIntegrationType">
+    <xs:sequence>
+      <xs:element name="is_integrated" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="method" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="join_type" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="join_keys" minOccurs="0">
+        <xs:complexType><xs:sequence><xs:element name="join_key" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="temporal_alignment" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="spatial_alignment" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="source_dataset_ids" minOccurs="0">
+        <xs:complexType><xs:sequence><xs:element name="source_dataset_id" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="external_sources" minOccurs="0">
+        <xs:complexType><xs:sequence><xs:element name="external_source" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="output_description" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="limitations" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DerivedFieldsType">
+    <xs:sequence><xs:element name="derived_field" minOccurs="0" maxOccurs="unbounded" type="tns:DerivedFieldType" /></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DerivedFieldType">
+    <xs:sequence>
+      <xs:element name="field_id" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="field_name" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="derivation_type" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="source_fields" minOccurs="0"><xs:complexType><xs:sequence><xs:element name="source_field" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType></xs:element>
+      <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="method" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="formula_or_rule" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="aggregation" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="window" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="unit" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="parameters" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="fallback_rule" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="reproducible" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="confidence" minOccurs="0" type="tns:ConfidenceType" nillable="true" />
+      <xs:element name="notes" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="TransformationsType">
+    <xs:sequence><xs:element name="transformation" minOccurs="0" maxOccurs="unbounded" type="tns:TransformationType" /></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="TransformationType">
+    <xs:sequence>
+      <xs:element name="name" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="target_field_ids" minOccurs="0"><xs:complexType><xs:sequence><xs:element name="target_field_id" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType></xs:element>
+      <xs:element name="method" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="parameters" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="reversible" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="limitations" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="MissingValueProcessingType">
+    <xs:sequence><xs:element name="rule" minOccurs="0" maxOccurs="unbounded" type="tns:MissingValueRuleType" /></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="MissingValueRuleType">
+    <xs:sequence>
+      <xs:element name="target_field_ids" minOccurs="0"><xs:complexType><xs:sequence><xs:element name="target_field_id" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType></xs:element>
+      <xs:element name="detected_missing_count" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="detected_missing_ratio" minOccurs="0" type="tns:NonNegativeDecimal" nillable="true" />
+      <xs:element name="method" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="method_description" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="steps" minOccurs="0"><xs:complexType><xs:sequence><xs:element name="step" minOccurs="0" maxOccurs="unbounded" type="tns:RuleStepType" /></xs:sequence></xs:complexType></xs:element>
+      <xs:element name="grouping_keys" minOccurs="0"><xs:complexType><xs:sequence><xs:element name="grouping_key" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType></xs:element>
+      <xs:element name="temporal_window" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="parameters" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="fallback_method" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="clipping_rule" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="affected_record_count" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="quality_flag_field" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="original_value_preserved" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="limitations" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="RuleStepType">
+    <xs:sequence>
+      <xs:element name="step" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="name" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="rule" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OutlierProcessingType">
+    <xs:sequence><xs:element name="rule" minOccurs="0" maxOccurs="unbounded" type="tns:OutlierRuleType" /></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OutlierRuleType">
+    <xs:sequence>
+      <xs:element name="target_field_ids" minOccurs="0"><xs:complexType><xs:sequence><xs:element name="target_field_id" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType></xs:element>
+      <xs:element name="detection_method" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="threshold" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="rule" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="action" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="affected_count" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="replacement_method" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="quality_flag_field" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="notes" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="QualityFlagsType">
+    <xs:sequence><xs:element name="flag" minOccurs="0" maxOccurs="unbounded" type="tns:QualityFlagType" /></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="QualityFlagType">
+    <xs:sequence>
+      <xs:element name="flag_field" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="target_fields" minOccurs="0"><xs:complexType><xs:sequence><xs:element name="target_field" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" /></xs:sequence></xs:complexType></xs:element>
+      <xs:element name="values" minOccurs="0"><xs:complexType><xs:sequence><xs:element name="value" minOccurs="0" maxOccurs="unbounded" type="tns:QualityFlagValueType" /></xs:sequence></xs:complexType></xs:element>
+      <xs:element name="meaning" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="QualityFlagValueType">
+    <xs:sequence>
+      <xs:element name="code" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="name" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="meaning" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="value_origin" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="QualityType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 quality 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="overallScore" minOccurs="0" type="tns:ScoreType" nillable="true" />
+      <xs:element name="metrics" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="completeness">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+                  <xs:element name="status" minOccurs="0" type="tns:StatusType" />
+                  <xs:element name="nullRate" minOccurs="0" type="tns:NonNegativeDecimal" nillable="true" />
+                  <xs:element name="evidence" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="scope" minOccurs="0" type="tns:ScopeType" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="validity">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+                  <xs:element name="status" minOccurs="0" type="tns:StatusType" />
+                  <xs:element name="violationCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+                  <xs:element name="evidence" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="scope" minOccurs="0" type="tns:ScopeType" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="consistency">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+                  <xs:element name="status" minOccurs="0" type="tns:StatusType" />
+                  <xs:element name="evidence" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="scope" minOccurs="0" type="tns:ScopeType" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="accuracy">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+                  <xs:element name="status" minOccurs="0" type="tns:StatusType" />
+                  <xs:element name="outlierCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+                  <xs:element name="evidence" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="scope" minOccurs="0" type="tns:ScopeType" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="uniqueness">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+                  <xs:element name="status" minOccurs="0" type="tns:StatusType" />
+                  <xs:element name="duplicateCount" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+                  <xs:element name="candidateKey" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="evidence" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="scope" minOccurs="0" type="tns:ScopeType" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+            <xs:element name="timeliness">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+                  <xs:element name="status" minOccurs="0" type="tns:StatusType" />
+                  <xs:element name="evidence" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="scope" minOccurs="0" type="tns:ScopeType" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="traitChecks" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="check" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="trait" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="ruleId" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="value" minOccurs="0" type="xs:string" nillable="true">
+                    <xs:annotation>
+                      <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+                    </xs:annotation>
+                  </xs:element>
+                  <xs:element name="status" minOccurs="0" type="tns:StatusType" />
+                  <xs:element name="scope" minOccurs="0" type="tns:ScopeType" nillable="true" />
+                  <xs:element name="evidence" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="UsageType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 usage 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="license" type="xs:string" nillable="true" />
+      <xs:element name="rights" type="xs:string" nillable="true" />
+      <xs:element name="accessRights" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="pricing" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="attribution" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="status" type="tns:StatusType" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="AiType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 ai 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="purpose" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="tasks" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="task" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+                <xs:attribute name="type" type="xs:string" />
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="recommendedModels" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="model" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="splitRatio" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="train" minOccurs="0" type="tns:ConfidenceType" nillable="true" />
+            <xs:element name="validation" minOccurs="0" type="tns:ConfidenceType" nillable="true" />
+            <xs:element name="test" minOccurs="0" type="tns:ConfidenceType" nillable="true" />
+            <xs:element name="strategy" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="leakageReview" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="largeDataOptimization" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="isChunkApplied" minOccurs="0" type="xs:boolean" nillable="true" />
+            <xs:element name="sampleSize" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+            <xs:element name="parquetRecommended" minOccurs="0" type="xs:boolean" nillable="true" />
+            <xs:element name="partitioningKey" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="scenarios" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="scenario" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="title" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="recommended_features" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="feature" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="field_id" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="field_name" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="role" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="importance" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="time_series_characteristics" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="usage_risks" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="usage_risk" minOccurs="0" maxOccurs="unbounded" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="GovernanceType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 governance 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="managingDepartment" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="contactPoint" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="name" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="email" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="phone" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="privacySecurity" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="containsPii" minOccurs="0" type="xs:boolean" nillable="true" />
+            <xs:element name="anonymizationMethod" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="securityLevel" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ArtifactsType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 artifacts 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="hwpx" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="docx" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="json" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="xml" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="jsonld" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="zipPackage" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="dataDictionaryPath" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="qualityReportPath" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="readmePath" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ReviewRequiredType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 reviewRequired 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="item" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="bindingPath" type="tns:JsonPointerType" />
+            <xs:element name="sourceType" type="tns:NonEmptyString" />
+            <xs:element name="confidence" type="tns:ConfidenceType" nillable="true" />
+            <xs:element name="updatedAt" type="xs:dateTime" />
+            <xs:element name="label" type="tns:NonEmptyString" />
+            <xs:element name="reason" type="tns:NonEmptyString" />
+            <xs:element name="action" type="xs:string" nillable="true" />
+          </xs:sequence>
+          <xs:attribute name="id" type="tns:NonEmptyString" use="required" />
+          <xs:attribute name="category" type="xs:string" />
+          <xs:attribute name="status" type="tns:RequiredReviewStatusType" use="required" />
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ProvenanceType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 provenance 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="generatorName" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="generatorVersion" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="sourceFileSha256" minOccurs="0" type="tns:Sha256Type" nillable="true" />
+      <xs:element name="generatedUtc" minOccurs="0" type="xs:dateTime" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PipelineType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 pipeline 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="step" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="step" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="name" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="rules" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="output" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="StatisticsType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 statistics 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="totalRecords" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="totalFields" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="totalBytes" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="missingCellsTotal" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="duplicateRowsTotal" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="LineageType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 lineage 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="sourceDatasets" minOccurs="0" type="xs:string" nillable="true">
+        <xs:annotation>
+          <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="collectionProcess" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="preprocessingHistory" minOccurs="0" type="xs:string" nillable="true">
+        <xs:annotation>
+          <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="imputationMethod" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="versionNotes" minOccurs="0" type="xs:string" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="InteroperabilityType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 interoperability 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="isOpenFormat" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="encoding" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="standardSchemaApplied" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="standardVocabularies" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="vocabulary" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="prefix" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="uri" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="desc" minOccurs="0" type="xs:string" nillable="true" />
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FairType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 fair 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="findable" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+            <xs:element name="note" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="accessible" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+            <xs:element name="note" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="interoperable" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+            <xs:element name="note" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="reusable" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="score" minOccurs="0" type="tns:ScoreType" nillable="true" />
+            <xs:element name="note" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="AnalysisType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 analysis 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="scope" minOccurs="0" type="tns:ScopeType" nillable="true" />
+      <xs:element name="sampleSize" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="populationSize" minOccurs="0" type="xs:nonNegativeInteger" nillable="true" />
+      <xs:element name="samplingMethod" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="recordBoundaryPreserved" minOccurs="0" type="xs:boolean" nillable="true" />
+      <xs:element name="limitations" minOccurs="0" type="xs:string" nillable="true" />
+      <xs:element name="analyzedAt" minOccurs="0" type="xs:dateTime" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CanonicalItemsType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 canonicalItems 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="entry" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="id" type="tns:NonEmptyString" />
+            <xs:element name="bindingPath" type="tns:JsonPointerType" />
+            <xs:element name="label" type="tns:NonEmptyString" />
+            <xs:element name="property" type="tns:NonEmptyString" />
+            <xs:element name="namespace" type="tns:NonEmptyString" />
+            <xs:element name="value" type="xs:string" nillable="true">
+              <xs:annotation>
+                <xs:documentation>복합값은 JSON 텍스트로 보존한다. JSON 구문과 valueType 대응은 렌더러에서 별도 검증.</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+            <xs:element name="valueType" type="tns:ValueType" />
+            <xs:element name="sourceType" type="tns:NonEmptyString" />
+            <xs:element name="status" type="tns:StatusType" />
+            <xs:element name="confidence" type="tns:ConfidenceType" nillable="true" />
+            <xs:element name="reason" type="tns:NonEmptyString" />
+            <xs:element name="updatedAt" type="xs:dateTime" />
+            <xs:element name="sourceReference" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ReferencesType">
+    <xs:annotation>
+      <xs:documentation>통합 XML의 references 블록. 요소 순서는 템플릿과 동일하며 반복 목록은 비어 있을 수 있다.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="reference" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="id" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="title" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="version" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="source" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="locator" minOccurs="0" type="xs:string" nillable="true" />
+            <xs:element name="role" minOccurs="0" type="tns:ReferenceRoleType" nillable="true" />
+            <xs:element name="verificationStatus" minOccurs="0" type="xs:string" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

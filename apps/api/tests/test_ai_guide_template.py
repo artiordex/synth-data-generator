@@ -69,7 +69,9 @@ def test_api_branch_and_annotations():
     assert contract['dictionary'][1]['annotation']['unit'] == '원'
     with ZipFile(io.BytesIO(data)) as z:
         text = z.read('Preview/PrvText.txt').decode()
-        assert 'API 서비스·요청·응답·오류 계약' in text
+        assert '1.1 공공데이터 오픈API 조회 서비스' in text
+        assert '다. 요청·응답·오류 계약' in text
+        assert '샘플데이터·항목설명' in text
         assert '파일 적재·변환 지침' not in text
 
 

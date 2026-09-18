@@ -14,11 +14,162 @@ import csv
 import hashlib
 import io
 import json
+import re
 from typing import Any
 from lxml import etree
 
 MAX_BYTES = 32 * 1024 * 1024
 MAX_NODES = 10000000
+
+# These patterns describe generic metadata concepts only.  They intentionally
+# do not name a domain-specific field (for example, a particular sensor or
+# business measure); the analyzer records candidates and leaves the rule to
+# the institution when the source does not prove it.
+_DERIVATION_HINT = re.compile(
+    r'(?:date|time|timestamp|datetime|year|month|day|hour|minute|second|'
+    r'total|sum|avg|average|mean|min|max|count|rate|ratio|percent|'
+    r'날짜|일자|시간|시각|연도|월|일|시|분|초|합계|평균|최소|최대|건수|비율|비중)',
+    re.IGNORECASE,
+)
+_QUALITY_FLAG_HINT = re.compile(
+    r'(?:flag|quality|status|state|valid|validity|missing|null|imput|'
+    r'code|class|category|indicator|품질|플래그|상태|결측|누락|보정|검증|유효|코드|구분|여부)',
+    re.IGNORECASE,
+)
+_QUALITY_FLAG_EXPLICIT_HINT = re.compile(
+    r'(?:flag|quality|status|state|valid|validity|missing|null|imput|indicator|code|class|category)',
+    re.IGNORECASE,
+)
+_BINARY_FLAG_VALUES = {
+    '0', '1', '2', 'y', 'n', 'yes', 'no', 'true', 'false',
+    'valid', 'invalid', 'good', 'bad', 'ok', 'ng', 'unknown',
+    '예', '아니오', '정상', '오류', '유효', '무효', '미확인',
+}
+
+
+def _sample_values(field: dict) -> list:
+    values = field.get('examples')
+    if not isinstance(values, list):
+        values = field.get('sample_values')
+    return values if isinstance(values, list) else []
+
+
+def _processing_candidates(fields: list[dict], data_category: str) -> dict:
+    """Build conservative, source-grounded processing observations.
+
+    This function never invents a formula or applies a correction.  It only
+    records observed missingness, generic structural hints, and candidate flag
+    values.  Any rule that would change a value remains null and therefore is
+    surfaced as REVIEW_REQUIRED by the canonical finalizer.
+    """
+    missing_rules = []
+    derived_fields = []
+    quality_flags = []
+
+    for field in fields:
+        path = str(field.get('path') or '')
+        name = str(field.get('name') or path)
+        field['value_origin'] = 'observed'
+        field['derived'] = False
+
+        null_count = int(field.get('null_count') or 0)
+        empty_count = int(field.get('empty_count') or 0)
+        structural_missing = int(field.get('missing_count') or 0)
+        missing_count = null_count + empty_count + structural_missing
+        if missing_count:
+            occurrences = int(field.get('occurrences') or 0)
+            denominator = occurrences + structural_missing
+            missing_rules.append({
+                'target_field_ids': [path],
+                'detected_missing_count': missing_count,
+                'detected_missing_ratio': (missing_count / denominator) if denominator else None,
+                'method': None,
+                'method_description': '결측치 처리 방식 기관 확인 필요',
+                'steps': [],
+                'grouping_keys': [],
+                'temporal_window': None,
+                'parameters': {},
+                'fallback_method': None,
+                'clipping_rule': None,
+                'affected_record_count': None,
+                'quality_flag_field': None,
+                'original_value_preserved': True,
+                'limitations': '원천 데이터에서 대체·삭제·보간 규칙을 확인할 수 없음',
+            })
+
+        # A temporal/aggregate-shaped name is only a candidate for a possible
+        # derivation.  The source field remains observed and no formula is
+        # supplied without an explicit contract.
+        if _DERIVATION_HINT.search(name) and not set(field.get('types') or ()) <= {'object', 'array'}:
+            derived_fields.append({
+                'field_id': path,
+                'field_name': name,
+                'derivation_type': 'observed',
+                'source_fields': [path],
+                'description': '원천에서 직접 관측된 필드이며 파생·계산 여부는 기관 확인 필요',
+                'method': None,
+                'formula_or_rule': None,
+                'aggregation': None,
+                'window': None,
+                'unit': None,
+                'parameters': {},
+                'fallback_rule': None,
+                'reproducible': None,
+                'confidence': None,
+                'notes': '구조적 명칭만으로 파생 규칙을 확정하지 않음',
+            })
+
+        samples = _sample_values(field)
+        normalized = {str(value).strip().lower() for value in samples if value is not None}
+        name_hint = bool(_QUALITY_FLAG_HINT.search(name))
+        non_numeric_binary = any(not isinstance(value, (int, float, bool)) for value in samples)
+        binary_hint = len(normalized) >= 2 and normalized <= _BINARY_FLAG_VALUES
+        explicit_flag_name = bool(_QUALITY_FLAG_EXPLICIT_HINT.search(name))
+        # Low-cardinality values alone are insufficient evidence: a numeric
+        # measure can also contain 0/1/2.  Require a generic status/code name
+        # before surfacing a quality-flag candidate.
+        if name_hint and ((binary_hint and (non_numeric_binary or explicit_flag_name)) or not normalized):
+            values = []
+            seen = set()
+            for value in samples:
+                key = repr(value)
+                if key in seen:
+                    continue
+                seen.add(key)
+                values.append({
+                    'code': str(value) if value is not None else None,
+                    'name': None,
+                    'meaning': None,
+                    'value_origin': 'observed',
+                })
+            quality_flags.append({
+                'flag_field': path,
+                'description': '품질·상태 플래그 후보이며 코드 의미는 기관 확인 필요',
+                'target_fields': [],
+                'values': values,
+                'meaning': None,
+            })
+
+    return {
+        'integration': {
+            'is_integrated': False,
+            'description': '단일 입력 원천을 분석했으며 외부 데이터 결합은 확인되지 않음',
+            'method': None,
+            'join_type': None,
+            'join_keys': [],
+            'temporal_alignment': None,
+            'spatial_alignment': None,
+            'source_dataset_ids': [],
+            'external_sources': [],
+            'output_description': None,
+            'limitations': '외부 원천·결합키·결합 규칙은 입력에서 확인되지 않음',
+        },
+        'derived_fields': derived_fields,
+        'transformations': [],
+        'missing_value_processing': missing_rules,
+        'outlier_processing': [],
+        'quality_flags': quality_flags,
+    }
 
 
 # 데이터를 JSON 문자열로 직렬화함
@@ -165,7 +316,28 @@ def analyze(text: str, fmt: str, binary: str | None = None) -> dict:
     cells=sum(f['scalar_occurrences'] for f in leaf); missing=sum(f['null_count']+f['empty_count'] for f in leaf)
     quality=[{'category':'COMPLETENESS','status':'MEASURED','scope':'observed_leaf_values','missing':missing,'observed':cells,'score':round(100*(cells-missing)/cells,2) if cells else None}]
     quality += [{'category':k,'status':'REVIEW_REQUIRED','score':None} for k in ['VALIDITY','CONSISTENCY','UNIQUENESS','TIMELINESS','ACCURACY']]
-    return {'schema_version':'2.0','format':fmt,'data_category':category,'sha256':hashlib.sha256(raw).hexdigest(),'byte_size':len(raw),'root_type':kind(data),'traits':sorted(traits),'namespaces':namespaces,'namespace_bindings':[{'prefix':p,'uri':u} for p,u in sorted(namespace_bindings)],'fields':list(fields.values()),'record_sets':candidates,'tables':tables,'quality_metrics':quality,'warnings':warnings,'review_required':['소관기관','라이선스','갱신주기','개인정보 및 편향 검토']+(['endpoint','HTTP method','인증','요청 파라미터','오류 코드','페이지네이션'] if category=='api' else ['단위','코드 사전','결합키','보간 및 가공 이력'])}
+    field_list = list(fields.values())
+    processing = _processing_candidates(field_list, category)
+    return {
+        'schema_version': '2.0',
+        'format': fmt,
+        'data_category': category,
+        'sha256': hashlib.sha256(raw).hexdigest(),
+        'byte_size': len(raw),
+        'root_type': kind(data),
+        'traits': sorted(traits),
+        'namespaces': namespaces,
+        'namespace_bindings': [{'prefix': p, 'uri': u} for p, u in sorted(namespace_bindings)],
+        'fields': field_list,
+        'record_sets': candidates,
+        'tables': tables,
+        'quality_metrics': quality,
+        'processing': processing,
+        'warnings': warnings,
+        'review_required': ['소관기관', '라이선스', '갱신주기', '개인정보 및 편향 검토']
+        + (['endpoint', 'HTTP method', '인증', '요청 파라미터', '오류 코드', '페이지네이션']
+           if category == 'api' else ['단위', '코드 사전', '결합키', '보간 및 가공 이력']),
+    }
 
 
 # 분석 모델과 제목을 기반으로 AI 친화 가이드 마크다운을 렌더링함
@@ -175,7 +347,7 @@ def render_markdown(model, title):
     for f in model['fields']:
         path=f['path'].replace('|','\\|').replace('\n','\\n')
         lines.append(f"| {path} | {', '.join(f['types'])} | {f['occurrences']} | {f['null_count']} | {f['empty_count']} | {f['missing_count'] if f['missing_count'] is not None else '해당 없음'} |")
-    lines+=['\n## 품질 진단','완전성은 관측된 값만의 지표이며 누락된 선택 필드나 실제 정확성을 보증하지 않습니다.','```json',dumps(model['quality_metrics']),'```','\n## 기관 확인 필요 (REVIEW_REQUIRED)']+['- '+x for x in model['review_required']]
+    lines+=['\n## 품질 진단','입력값 채움률은 업로드 데이터에서 null·빈 문자열이 아닌 관측값의 비율입니다. 모집단 대표성, 정확성, 필수 필드 충족 여부를 보증하지 않습니다.','```json',dumps(model['quality_metrics']),'```','\n## 기관 확인 필요 (REVIEW_REQUIRED)']+['- '+x for x in model['review_required']]
     lines+=['\n## 파싱 및 활용 지침','- null, 빈 문자열, 누락, 0, false를 구분하고 원천 값을 임의 보정하지 않습니다.','- 구조 분석만으로 OpenAPI/XSD 적합성 또는 AI 학습 적합성을 확정하지 않습니다.','- 학습/검증 분리, 편향, 저작권, 개인정보, 원천 및 가공 이력을 검토합니다.']+['- '+x for x in model['warnings']]
     if category=='API':
         lines += ['\n## API 서비스 및 호출 계약',

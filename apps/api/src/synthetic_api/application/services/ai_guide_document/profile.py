@@ -21,7 +21,23 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from ..ai_guide_analysis import analyze, kind
+from ..ai_guide_analysis import analyze, kind, _processing_candidates
+
+
+SENSITIVE_SAMPLE_NAME = re.compile(r'(api.?key|service.?key|token|secret|password|passwd|credential|인증키|비밀번호)', re.I)
+
+
+def safe_samples(field):
+    """Keep short display samples without exporting credentials or signed query strings."""
+    if SENSITIVE_SAMPLE_NAME.search(field.get('path','')):
+        return ['[보안정보 제외]'] if field.get('examples') else []
+    values=[]
+    for value in field.get('examples',[])[:3]:
+        if isinstance(value,str):
+            value=re.sub(r'([?&](?:serviceKey|apiKey|token|signature)=)[^&\s]+',r'\1[보안정보 제외]',value,flags=re.I)
+            value=value[:200]
+        values.append(value)
+    return values
 
 
 # 날짜/시간 객체 또는 문자열을 ISO 포맷 타임스탬프로 변환함
@@ -48,6 +64,7 @@ class Observations:
         self.minimum = self.maximum = None
         self.formula = self.uncached = 0
         self.times = Counter()
+        self.samples = []
 
     # 단일 관측값 또는 수식을 통계에 반영함
     def add(self, value, formula=False, cached=None):
@@ -61,6 +78,8 @@ class Observations:
         self.empty += isinstance(value, str) and value == ''
         self.false += value is False
         self.zero += not isinstance(value, bool) and isinstance(value, (int, float)) and value == 0
+        if value is not None and value != '' and len(self.samples) < 3 and value not in self.samples:
+            self.samples.append(value[:200] if isinstance(value,str) else value)
         if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
             self.numeric += 1
             self.mean += (value - self.mean) / self.numeric
@@ -90,7 +109,8 @@ class Observations:
                     numeric_count=self.numeric, numeric_missing_count=self.null+self.empty+self.uncached,
                     min_value=self.minimum, max_value=self.maximum,
                     mean=self.mean if self.numeric else None, formula_count=self.formula,
-                    uncached_formula_count=self.uncached, temporal=temporal)
+                    uncached_formula_count=self.uncached, temporal=temporal,
+                    sample_values=self.samples)
 
 
 # 바이트 데이터를 파싱하여 통계 및 품질 메타데이터를 프로파일링함
@@ -109,6 +129,7 @@ def profile_bytes(raw: bytes, fmt: str, name: str) -> dict:
         model.update(name=name, byte_size=len(raw), sha256=hashlib.sha256(raw).hexdigest(),
                      scope='FULL', encoding=encoding)
         for field in model['fields']:
+            field['sample_values'] = safe_samples(field)
             field.pop('examples', None)  # No source credentials or signed URLs in exports.
         model['declared_counts'] = []
         if fmt in {'json', 'jsonld', 'json-ld'}:
@@ -192,16 +213,21 @@ def profile_bytes(raw: bytes, fmt: str, name: str) -> dict:
             tables.append(dict(name=sheet.title, row_count=count, columns=headers, blank_rows=blank,temporal=temporal))
             for header, stat in zip(headers, stats):
                 path = '/'+sheet.title.replace('~','~0').replace('/','~1')+'/*/'+header.replace('~','~0').replace('/','~1')
-                fields.append(dict(path=path, name=header, sheet=sheet.title, missing_count=0, **stat.finish()))
+                summary=stat.finish()
+                if SENSITIVE_SAMPLE_NAME.search(header) and summary['sample_values']:
+                    summary['sample_values']=['[보안정보 제외]']
+                fields.append(dict(path=path, name=header, sheet=sheet.title, missing_count=0, **summary))
     finally:
         workbook.close()
         cached_book.close()
     cells = sum(f['occurrences'] for f in fields)
     missing = sum(f['null_count']+f['empty_count'] for f in fields)
+    field_list = fields
     return dict(name=name, format=fmt, data_category='file', byte_size=len(raw),
                 sha256=hashlib.sha256(raw).hexdigest(), root_type='workbook', scope='FULL',
                 encoding=None, tables=tables, fields=fields, record_sets=[], declared_counts=[],
                 namespaces={}, traits=['tabular'], observed_records=sum(t['row_count'] for t in tables),
+                processing=_processing_candidates(field_list, 'file'),
                 quality_metrics=[dict(category='COMPLETENESS', score=100*(cells-missing)/cells if cells else None,
                                       missing=missing, observed=cells)],
                 warnings=['업로드 파일 전수 조사이며 모집단 전체를 뜻하지 않습니다.',

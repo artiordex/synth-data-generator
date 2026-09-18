@@ -1,28 +1,30 @@
 /**
  * 파일명: AiRuleGuideStudio.tsx
  * 경로: apps/web/src/features/aiguide/AiRuleGuideStudio.tsx
- * 목적: CSV(파일데이터), JSON·XML(API데이터)를 기반으로 공공 AI 친화도 표준 평가,
- *       대량 데이터 파이프라인 최적화 및 HWPX 문서 변환 롤 가이드를 제작·관리함
- * 작성자: 개발팀
+ * 목적: 공공데이터를 분석하고 기관 검토용 AI 친화 가이드를 생성합니다.
  * 작성일: 2026-09-16
- * 수정일: 2026-09-16
  */
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Sparkles, Upload, FileText, CheckCircle2, ChevronRight,
-  Download, Copy, RefreshCw, Layers, Table, Sliders,
-  Eye, Code2, ArrowLeft, ArrowRight, Check, AlertTriangle,
-  Loader2, Bot, Zap, Globe, ShieldCheck, Database,
-  Settings, SlidersHorizontal, CheckSquare
+  Sparkles, FileText, CheckCircle2,
+  Download, Copy, Table, Braces,
+  ArrowRight, Check, AlertTriangle,
+  Loader2, Globe, Database, Archive
 } from 'lucide-react';
 import {
-  generateAiRuleGuide, exportAiGuideTemplate, AiGuideFieldAnnotation,
-  ReadinessCheckItem, parseGovDocument, exportParsedDocx, GovDocParseResult, ParsedSimpleTable
+  generateAiRuleGuide, generateAiGuideDocuments, AiGuideHumanFormat, AiGuideFieldAnnotation,
+  ReadinessCheckItem, parseGovDocument, GovDocParseResult, ParsedSimpleTable
 } from '../../services/api';
 import { AiGuideTemplatePanel } from './AiGuideTemplatePanel';
+import { TaxonomySelects } from './TaxonomySelects';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import JSZip from 'jszip';
+import DOMPurify from 'dompurify';
+
+  // AI 가이드 생성 시 원격 AI 추론을 사용합니다.
+const AI_GUIDE_REMOTE_INFERENCE_ENABLED = true;
 
 export type SupportedFormat = 'csv' | 'tsv' | 'xlsx' | 'json' | 'jsonld' | 'xml' | 'docx' | 'hwpx';
 export type DataCategory = 'file' | 'api';
@@ -35,6 +37,7 @@ export interface SamplePreviewData {
   rows: string[][];
   totalRows: number;
   totalCols: number;
+  jsonSnippet?: string;
 }
 
 export interface ColumnRule {
@@ -48,60 +51,12 @@ export interface ColumnRule {
   sampleValues: string[];
 }
 
-export interface DocumentStylePreset {
-  id: string;
-  name: string;
-  description: string;
-  headerBgColor: string;
-  headerTextColor: string;
-  headerFontWeight: 'bold' | 'semibold' | 'normal';
-  bodyFontSizePt: number;
-  headerFontSizePt: number;
-  borderStyle: 'single' | 'double_header' | 'light_gray';
-}
-
 interface AiRuleGuideStudioProps {
   isDarkMode: boolean;
   onStepChange?: (step: number) => void;
   activeStep?: number;
   onSelectStep?: (step: number) => void;
 }
-
-const STYLE_PRESETS: DocumentStylePreset[] = [
-  {
-    id: 'gov_standard',
-    name: '행정안전부 공문서 표준 서식',
-    description: '공공기관 공문서 서식 지침 준수, 헤더 회색 음영(#EAEAEA), 바탕글 10pt 표 서식임',
-    headerBgColor: '#e5e7eb',
-    headerTextColor: '#111827',
-    headerFontWeight: 'bold',
-    bodyFontSizePt: 10,
-    headerFontSizePt: 10,
-    borderStyle: 'single',
-  },
-  {
-    id: 'mfds_deliberation',
-    name: '식약처 심의·검토 보고서 양식',
-    description: '식약처 기술심의 및 품질평가용 테이블, 헤더 이중 하단선 및 명확한 격자선 적용 서식임',
-    headerBgColor: '#e0f2fe',
-    headerTextColor: '#0369a1',
-    headerFontWeight: 'bold',
-    bodyFontSizePt: 9.5,
-    headerFontSizePt: 9.5,
-    borderStyle: 'double_header',
-  },
-  {
-    id: 'stats_public',
-    name: '공공데이터 통계 공시 양식',
-    description: '수치 비교 및 집계 데이터 중심, 행 줄무늬 및 오른쪽 숫자 정렬 최적화 서식임',
-    headerBgColor: '#f1f5f9',
-    headerTextColor: '#334155',
-    headerFontWeight: 'semibold',
-    bodyFontSizePt: 9,
-    headerFontSizePt: 9.5,
-    borderStyle: 'light_gray',
-  },
-];
 
 // 식약처 의약품 허가 대장 CSV 샘플 데이터(파일데이터)
 const getSampleCsv = (): string => {
@@ -112,44 +67,40 @@ const getSampleCsv = (): string => {
 20240104,베아제정,대웅제약,2024-03-05,일반의약품,판크레아틴
 20240105,노바스크정,비아트리스코리아,2024-03-22,전문의약품,베실산암로디핀`;
 };
-
-// 건강기능식품 영양성분 공시 JSON 샘플 데이터(API데이터)
 const getSampleJson = (): string => {
   return JSON.stringify([
     {
-      "품목관리번호": "HF-2024-001",
-      "제품명": "고함량 비타민C 1000",
-      "영업소명": "식약건강산업",
-      "신고일자": "2024-04-10",
-      "1회분량": "1정(1,200mg)",
-      "비타민C_mg": 1000,
-      "열량_kcal": 5,
-      "유통기한_개월": 24
+      품목관리번호: 'HF-2024-001',
+      제품명: '고함량 비타민C 1000',
+      영업소명: '식약건강산업',
+      신고일자: '2024-04-10',
+      '1회분량': '1정(1,200mg)',
+      비타민C_mg: 1000,
+      열량_kcal: 5,
+      유통기한_개월: 24,
     },
     {
-      "품목관리번호": "HF-2024-002",
-      "제품명": "프로바이오틱스 유산균",
-      "영업소명": "바이오헬스케어",
-      "신고일자": "2024-04-18",
-      "1회분량": "1포(2,000mg)",
-      "비타민C_mg": 50,
-      "열량_kcal": 8,
-      "유통기한_개월": 18
+      품목관리번호: 'HF-2024-002',
+      제품명: '프로바이오틱스 유산균',
+      영업소명: '바이오헬스케어',
+      신고일자: '2024-04-18',
+      '1회분량': '1포(2,000mg)',
+      비타민C_mg: 50,
+      열량_kcal: 8,
+      유통기한_개월: 18,
     },
     {
-      "품목관리번호": "HF-2024-003",
-      "제품명": "루테인 지아잔틴 복합제",
-      "영업소명": "한국약업연구소",
-      "신고일자": "2024-05-02",
-      "1회분량": "1캡슐(500mg)",
-      "비타민C_mg": 0,
-      "열량_kcal": 4,
-      "유통기한_개월": 24
-    }
+      품목관리번호: 'HF-2024-003',
+      제품명: '루테인 지아잔틴 복합제',
+      영업소명: '한국약업연구소',
+      신고일자: '2024-05-02',
+      '1회분량': '1캡슐(500mg)',
+      비타민C_mg: 0,
+      열량_kcal: 4,
+      유통기한_개월: 24,
+    },
   ], null, 2);
 };
-
-// 공공보건의료 연계 XML 샘플 데이터(API데이터)
 const getSampleXml = (): string => {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <response>
@@ -188,8 +139,45 @@ const getSampleXml = (): string => {
   </body>
 </response>`;
 };
+export function decodeKoreanText(buf: ArrayBuffer): string {
+  const raw = new Uint8Array(buf);
+  if (raw.length === 0) return '';
 
-// CSV 원문 텍스트를 분석하여 행 및 컬럼 구조를 반환함
+  // 1. UTF-8 BOM (0xEF, 0xBB, 0xBF)
+  if (raw.length >= 3 && raw[0] === 0xef && raw[1] === 0xbb && raw[2] === 0xbf) {
+    return new TextDecoder('utf-8').decode(raw.subarray(3));
+  }
+  // 2. UTF-16 LE BOM (0xFF, 0xFE)
+  if (raw.length >= 2 && raw[0] === 0xff && raw[1] === 0xfe) {
+    return new TextDecoder('utf-16le').decode(raw.subarray(2));
+  }
+  // 3. UTF-16 BE BOM (0xFE, 0xFF)
+  if (raw.length >= 2 && raw[0] === 0xfe && raw[1] === 0xff) {
+    return new TextDecoder('utf-16be').decode(raw.subarray(2));
+  }
+
+  // 4. 엄격한 UTF-8 디코딩을 먼저 시도합니다.
+  try {
+    const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+    const decoded = utf8Decoder.decode(raw);
+    if (!decoded.includes('\uFFFD')) {
+      return decoded;
+    }
+  } catch {
+    // UTF-8 실패 시 공공데이터에서 사용하는 EUC-KR/CP949로 대체합니다.
+  }
+
+  // 5. EUC-KR/CP949 대체 디코딩
+  try {
+    const eucDecoder = new TextDecoder('euc-kr');
+    return eucDecoder.decode(raw);
+  } catch {
+    // 최종 단계에서는 기본 UTF-8로 처리합니다.
+    return new TextDecoder('utf-8').decode(raw);
+  }
+}
+
+// CSV 원문 텍스트를 분석하여 행 및 컬럼 구조를 반환합니다.
 function parseCsvPayload(raw: string): { columns: string[]; rows: Record<string, string>[] } {
   const lines = raw.trim().split(/\r?\n/).filter(line => line.trim().length > 0);
   if (lines.length === 0) return { columns: [], rows: [] };
@@ -207,29 +195,199 @@ function parseCsvPayload(raw: string): { columns: string[]; rows: Record<string,
   return { columns: headers, rows };
 }
 
-// 컬럼 값들의 분포를 보고 적절한 데이터 타입과 정렬을 추론함
+/**
+ * JSON 객체 또는 배열에서 실제 데이터 레코드 목록과 상위 15건 미리보기 구조를 추출합니다.
+ * 공공데이터 포털 API 표준 래핑 구조(response > body > items > item 등)를 재귀 탐색하여 언래핑하고,
+ * 중첩 객체/배열 값도 안전하게 JSON 문자열로 변환하여 [object Object] 표시를 방지합니다.
+ */
+export function extractJsonPreviewData(
+  parsed: unknown,
+  format: 'json' | 'jsonld' = 'json'
+): SamplePreviewData {
+  const findRecordArray = (val: unknown, depth = 0): Record<string, unknown>[] | null => {
+    if (depth > 6 || val === null || val === undefined) return null;
+
+    if (Array.isArray(val)) {
+      if (val.length === 0) return [];
+      const objItems = val.filter(item => item !== null && typeof item === 'object');
+      if (objItems.length > 0) {
+        return objItems as Record<string, unknown>[];
+      }
+      return null;
+    }
+
+    if (typeof val !== 'object') return null;
+
+    const obj = val as Record<string, unknown>;
+    const priorityKeys = ['items', 'item', 'records', 'data', 'results', 'list', 'rows', 'body', 'response'];
+    for (const key of priorityKeys) {
+      if (key in obj) {
+        const sub = obj[key];
+        if (key === 'item' && sub && typeof sub === 'object' && !Array.isArray(sub)) {
+          return [sub as Record<string, unknown>];
+        }
+        const found = findRecordArray(sub, depth + 1);
+        if (found && found.length > 0) return found;
+      }
+    }
+
+    for (const [k, v] of Object.entries(obj)) {
+      if (!priorityKeys.includes(k) && typeof v === 'object' && v !== null) {
+        const found = findRecordArray(v, depth + 1);
+        if (found && found.length > 0) return found;
+      }
+    }
+
+    return null;
+  };
+
+  const foundRecords = findRecordArray(parsed);
+
+  if (foundRecords && foundRecords.length > 0) {
+    const headerOrder: string[] = [];
+    const headerSet = new Set<string>();
+    foundRecords.slice(0, 30).forEach(rec => {
+      if (rec && typeof rec === 'object') {
+        Object.keys(rec).forEach(key => {
+          if (!headerSet.has(key)) {
+            headerSet.add(key);
+            headerOrder.push(key);
+          }
+        });
+      }
+    });
+
+    const headers = headerOrder.length > 0 ? headerOrder : ['데이터'];
+    const top15 = foundRecords.slice(0, 15);
+    const rows = top15.map(rec =>
+      headers.map(h => {
+        const val = rec[h];
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'object') {
+          try {
+            return JSON.stringify(val);
+          } catch {
+            return String(val);
+          }
+        }
+        return String(val);
+      })
+    );
+
+    return {
+      format,
+      headers,
+      rows,
+      totalRows: foundRecords.length,
+      totalCols: headers.length,
+      jsonSnippet: JSON.stringify(top15, null, 2),
+    };
+  }
+
+  // 단일 객체인 경우 (키-값 쌍 구조)
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const obj = parsed as Record<string, unknown>;
+    const entries = Object.entries(obj);
+    const top15Entries = entries.slice(0, 15);
+    const top15Obj = Object.fromEntries(top15Entries);
+
+    return {
+      format,
+      headers: ['키(Key)', '값(Value)'],
+      rows: top15Entries.map(([k, v]) => [
+        k,
+        v === null || v === undefined
+          ? ''
+          : typeof v === 'object'
+          ? JSON.stringify(v)
+          : String(v),
+      ]),
+      totalRows: entries.length,
+      totalCols: 2,
+      jsonSnippet: JSON.stringify(top15Obj, null, 2),
+    };
+  }
+
+  // 단순 원시값 배열인 경우
+  if (Array.isArray(parsed)) {
+    const top15 = parsed.slice(0, 15);
+    return {
+      format,
+      headers: ['값(Value)'],
+      rows: top15.map(v => [
+        v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v),
+      ]),
+      totalRows: parsed.length,
+      totalCols: 1,
+      jsonSnippet: JSON.stringify(top15, null, 2),
+    };
+  }
+
+  return {
+    format,
+    headers: ['데이터'],
+    rows: [[String(parsed ?? '')]],
+    totalRows: 1,
+    totalCols: 1,
+    jsonSnippet: String(parsed ?? ''),
+  };
+}
+
+/**
+ * 비개발자 실무자도 한눈에 편안하게 읽을 수 있도록 밝은 테마에 맞춘 부드러운 색상으로 JSON 구문을 강조합니다.
+ */
+export function highlightJsonToHtml(jsonStr: string): string {
+  if (!jsonStr) return '';
+  const escaped = jsonStr
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const highlighted = escaped.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    match => {
+      let cls = 'text-amber-700 dark:text-amber-400 font-medium'; // 숫자
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+          cls = 'text-blue-700 dark:text-sky-400 font-bold'; // 속성 키
+        } else {
+          cls = 'text-emerald-800 dark:text-emerald-300 font-medium'; // 문자열 값
+        }
+      } else if (/true|false/.test(match)) {
+        cls = 'text-purple-700 dark:text-purple-400 font-semibold'; // 불리언
+      } else if (/null/.test(match)) {
+        cls = 'text-rose-600 dark:text-rose-400 italic font-semibold'; // null
+      }
+      return `<span class="${cls}">${match}</span>`;
+    }
+  );
+
+  return DOMPurify.sanitize(highlighted);
+}
+
+// 컬럼 값 분포를 확인하여 데이터 유형과 정렬 방식을 추론합니다.
 function inferRuleProperties(key: string, sampleValues: string[]): {
   inferredType: string;
   align: 'left' | 'center' | 'right';
   formatType: 'text' | 'number_comma' | 'date_standard' | 'badge';
 } {
-  const nonEmpties = sampleValues.filter(v => v.trim().length > 0);
+  const nonEmpties = sampleValues.filter(value => value.trim().length > 0);
   if (nonEmpties.length === 0) {
     return { inferredType: 'string', align: 'left', formatType: 'text' };
   }
 
-  const isNumeric = nonEmpties.every(v => {
-    const clean = v.replace(/,/g, '').trim();
+  const isNumeric = nonEmpties.every(value => {
+    const clean = value.replace(/,/g, '').trim();
     return !isNaN(Number(clean)) && clean.length > 0;
   });
   if (isNumeric) {
-    if (key.includes('코드') || key.includes('번호') || key.includes('연번') || key.includes('id')) {
+    if (key.includes('코드') || key.includes('번호') || key.includes('연번') || key.toLowerCase().includes('id')) {
       return { inferredType: 'string', align: 'center', formatType: 'text' };
     }
     return { inferredType: 'number', align: 'right', formatType: 'number_comma' };
   }
 
-  const isDate = nonEmpties.every(v => /^\d{4}[-./]\d{1,2}[-./]\d{1,2}$/.test(v.trim()));
+  const isDate = nonEmpties.every(value => /^\d{4}[-./]\d{1,2}[-./]\d{1,2}$/.test(value.trim()));
   if (isDate || key.includes('일자') || key.includes('일시') || key.includes('날짜')) {
     return { inferredType: 'date', align: 'center', formatType: 'date_standard' };
   }
@@ -241,13 +399,182 @@ function inferRuleProperties(key: string, sampleValues: string[]): {
   return { inferredType: 'string', align: 'left', formatType: 'text' };
 }
 
+export interface KoglTypeItem {
+  id: string;
+  name: string;
+  shortName: string;
+  typeNum: string;
+  conditions: string;
+  commercial: boolean;
+  modification: boolean;
+  attribution: boolean;
+  tags: string[];
+}
+
+export const KOGL_TYPES: Record<string, KoglTypeItem> = {
+  KOGL_TYPE_0: {
+    id: 'KOGL_TYPE_0',
+    name: '제0유형 : 자유이용',
+    shortName: '자유이용',
+    typeNum: '0',
+    conditions: '출처표시 조건 없음 · 상업적/비상업적 이용가능 · 변형 등 2차적 저작물 작성 가능',
+    commercial: true,
+    modification: true,
+    attribution: false,
+    tags: ['출처표시 불필요', '상업적 이용가능', '변형가능'],
+  },
+  KOGL_TYPE_1: {
+    id: 'KOGL_TYPE_1',
+    name: '제1유형 : 출처표시 (추천)',
+    shortName: '출처표시',
+    typeNum: '1',
+    conditions: '출처표시 필수 · 상업적/비상업적 이용가능 · 변형 등 2차적 저작물 작성 가능',
+    commercial: true,
+    modification: true,
+    attribution: true,
+    tags: ['출처표시 필수', '상업적 이용가능', '변형가능'],
+  },
+  KOGL_TYPE_2: {
+    id: 'KOGL_TYPE_2',
+    name: '제2유형 : 출처표시 + 상업적이용금지',
+    shortName: '출처표시+상업금지',
+    typeNum: '2',
+    conditions: '출처표시 필수 · 비상업적 이용만 가능 · 변형 등 2차적 저작물 작성 가능',
+    commercial: false,
+    modification: true,
+    attribution: true,
+    tags: ['출처표시 필수', '상업적이용 금지', '변형가능'],
+  },
+  KOGL_TYPE_3: {
+    id: 'KOGL_TYPE_3',
+    name: '제3유형 : 출처표시 + 변경금지',
+    shortName: '출처표시+변경금지',
+    typeNum: '3',
+    conditions: '출처표시 필수 · 상업적/비상업적 이용가능 · 내용 및 형식 변경금지',
+    commercial: true,
+    modification: false,
+    attribution: true,
+    tags: ['출처표시 필수', '상업적 이용가능', '변경금지'],
+  },
+  KOGL_TYPE_4: {
+    id: 'KOGL_TYPE_4',
+    name: '제4유형 : 출처표시 + 상업적이용금지 + 변경금지',
+    shortName: '출처표시+상업/변경금지',
+    typeNum: '4',
+    conditions: '출처표시 필수 · 비상업적 이용만 가능 · 내용 및 형식 변경금지',
+    commercial: false,
+    modification: false,
+    attribution: true,
+    tags: ['출처표시 필수', '상업적이용 금지', '변경금지'],
+  },
+  KOGL_TYPE_AI: {
+    id: 'KOGL_TYPE_AI',
+    name: 'AI유형 : 인공지능(AI) 모델 학습용 이용허락',
+    shortName: 'AI 학습허용',
+    typeNum: 'AI',
+    conditions: '인공지능 모델 학습 및 연구개발 전용 이용허락',
+    commercial: true,
+    modification: true,
+    attribution: true,
+    tags: ['AI 모델 학습 허용', '연구·개발 특화'],
+  },
+};
+
+export const KoglBadge: React.FC<{ typeKey: string; compact?: boolean }> = ({ typeKey, compact = false }) => {
+  const item = KOGL_TYPES[typeKey] || KOGL_TYPES.KOGL_TYPE_1;
+
+  return (
+    <div className="inline-flex items-center gap-2.5 bg-white dark:bg-slate-900 border border-slate-900 dark:border-slate-400 rounded px-2.5 py-1 text-slate-900 dark:text-slate-100 shadow-sm shrink-0">
+      {/* 공식 공공누리 OPEN 심볼 박스 */}
+      <div className="flex items-center gap-1.5 border-r border-slate-300 dark:border-slate-700 pr-2">
+        <span className="font-black text-sm tracking-tighter text-slate-900 dark:text-white">OPEN</span>
+        <div className="flex flex-col text-[8px] leading-tight text-slate-500 dark:text-slate-400 font-semibold">
+          <span>공공누리</span>
+          <span className="text-[7px]">자유이용허락</span>
+        </div>
+      </div>
+
+      {/* 유형별 아이콘 및 명칭 */}
+      <div className="flex items-center gap-1.5">
+        {item.typeNum === '0' && (
+          <span className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-bold px-1.5 py-0.5 rounded">
+            자유이용
+          </span>
+        )}
+        {item.typeNum === '1' && (
+          <div className="flex items-center gap-1">
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[9px] font-bold">
+              BY
+            </span>
+            <span className="text-xs font-bold">출처표시</span>
+          </div>
+        )}
+        {item.typeNum === '2' && (
+          <div className="flex items-center gap-1">
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[9px] font-bold">BY</span>
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] font-bold">NC</span>
+            <span className="text-xs font-bold">상업용금지</span>
+          </div>
+        )}
+        {item.typeNum === '3' && (
+          <div className="flex items-center gap-1">
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[9px] font-bold">BY</span>
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-bold">ND</span>
+            <span className="text-xs font-bold">변경금지</span>
+          </div>
+        )}
+        {item.typeNum === '4' && (
+          <div className="flex items-center gap-1">
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[9px] font-bold">BY</span>
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] font-bold">NC</span>
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-bold">ND</span>
+          </div>
+        )}
+        {item.typeNum === 'AI' && (
+          <div className="flex items-center gap-1">
+            <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+              AI 학습허용
+            </span>
+          </div>
+        )}
+      </div>
+
+      {!compact && (
+        <span className="text-[11px] text-slate-600 dark:text-slate-400 font-medium pl-1 border-l border-slate-200 dark:border-slate-700 hidden sm:inline">
+          {item.conditions}
+        </span>
+      )}
+    </div>
+  );
+};
+
+export interface UpdateFrequencyOption {
+  value: string;
+  label: string;
+}
+
+export const UPDATE_FREQUENCY_OPTIONS: UpdateFrequencyOption[] = [
+  { value: 'DAILY_OR_MORE', label: '수시 (1일 1회 이상)' },
+  { value: 'AUTO', label: '수시 (자동 갱신)' },
+  { value: 'ONE_TIME', label: '수시 (1회성 데이터)' },
+
+  { value: 'DAILY', label: '일간' },
+  { value: 'WEEKLY', label: '주간' },
+  { value: 'MONTHLY', label: '월간' },
+  { value: 'QUARTERLY', label: '분기' },
+  { value: 'SEMIANNUAL', label: '반기' },
+  { value: 'ANNUAL', label: '연간' },
+
+  { value: 'OTHER', label: '기타' },
+];
+
 export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
   isDarkMode,
   onStepChange,
   activeStep: controlledStep,
   onSelectStep,
 }) => {
-  // 단계 관리 (1: 업로드 & 감지, 2: AI 친화도 진단 & 스키마, 3: 서식 롤 상세, 4: 가이드 내보내기)
+  // 화면 단계 상태: 1단계 데이터 적재, 2단계 추천 검토 및 문서 설정
   const [internalStep, setInternalStep] = useState<number>(1);
   const currentStep = controlledStep !== undefined ? controlledStep : internalStep;
 
@@ -257,16 +584,29 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     setInternalStep(nextStep);
   };
 
-  // 데이터 입력 및 포맷 상태
+  // 데이터 입력 및 파일 형식 상태
   const [inputFormat, setInputFormat] = useState<SupportedFormat>('csv');
   const [dataCategory, setDataCategory] = useState<DataCategory>('file');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [rawText, setRawText] = useState<string>('');
-  const [documentTitle, setDocumentTitle] = useState<string>('식약처 의약품 품목허가 표준 공시서');
+  const [documentTitle, setDocumentTitle] = useState<string>('공공데이터 AI 가이드');
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
   const [samplePreview, setSamplePreview] = useState<SamplePreviewData | null>(null);
+  const [previewTab, setPreviewTab] = useState<'table' | 'json'>('table');
+  const [jsonSnippetCopied, setJsonSnippetCopied] = useState<boolean>(false);
 
-  // 대량 데이터 관련 상태
+  const handleCopyJsonSnippet = async () => {
+    if (!samplePreview?.jsonSnippet) return;
+    try {
+      await navigator.clipboard.writeText(samplePreview.jsonSnippet);
+      setJsonSnippetCopied(true);
+      setTimeout(() => setJsonSnippetCopied(false), 2000);
+    } catch {
+      // 클립보드 접근 불가 시 무시
+    }
+  };
+
+  // 대용량 데이터 상태
   const [isLargeDataset, setIsLargeDataset] = useState<boolean>(false);
   const [fileSizeBytes, setFileSizeBytes] = useState<number>(0);
   const [estimatedTotalRows, setEstimatedTotalRows] = useState<number>(0);
@@ -276,7 +616,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     parseCsvPayload(getSampleCsv())
   );
 
-  // HWPX 룰 설정 상태
+  // HWPX 출력 설정 상태
   const [rules, setRules] = useState<ColumnRule[]>(() => {
     const init = parseCsvPayload(getSampleCsv());
     const totalCols = init.columns.length || 1;
@@ -297,15 +637,10 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     });
   });
 
-  // 서식 프리셋 및 문서 옵션
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('gov_standard');
-  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('landscape');
-  const [repeatHeader, setRepeatHeader] = useState<boolean>(true);
-  const [showRowNumber, setShowRowNumber] = useState<boolean>(true);
-  const [previewSubTab, setPreviewSubTab] = useState<'hwpx_render' | 'ai_guide' | 'json_ld' | 'quality_report' | 'large_data' | 'json' | 'xml' | 'parsed_tables'>('hwpx_render');
+  const [downloadSuccessNotice, setDownloadSuccessNotice] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
-  // AI 친화도 및 에이전트 연동 상태
+  // AI 추론 상태
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [isAiPowered, setIsAiPowered] = useState<boolean>(false);
   const [aiSummary, setAiSummary] = useState<string>('');
@@ -317,26 +652,35 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
 
   const [fileBase64, setFileBase64] = useState<string | undefined>();
   const [canonicalMetadata, setCanonicalMetadata] = useState<Record<string, unknown> | null>(null);
-  const [templateMetadata, setTemplateMetadata] = useState<Record<string, string>>({});
+  const [templateMetadata, setTemplateMetadata] = useState<Record<string, string>>({
+    publisher: '식품의약품안전처',
+    creator: '식품의약품안전처 의약품관리과',
+    contact_name: '043-719-2700',
+    theme_label: '보건 - 식품·의약품안전',
+    legal_basis: '공공데이터의 제공 및 이용 활성화에 관한 법률',
+    collection_process: '식품의약품안전처 행정정보시스템 및 공공데이터 연계',
+    update_frequency: '수시 (1일 1회 이상)',
+    next_registration_date: '',
+    license_type: 'KOGL_TYPE_1',
+  });
   const [fieldAnnotations, setFieldAnnotations] = useState<Record<string, AiGuideFieldAnnotation>>({});
-  const [isExportingTemplate, setIsExportingTemplate] = useState(false);
-  const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [docParseResult, setDocParseResult] = useState<GovDocParseResult | null>(null);
   const [metadataXml, setMetadataXml] = useState('');
   const [serverJsonLd, setServerJsonLd] = useState('');
-
-
-  // 현재 선택된 서식 프리셋 객체
-  const currentPreset = useMemo(() => {
-    return STYLE_PRESETS.find(p => p.id === selectedPresetId) || STYLE_PRESETS[0];
-  }, [selectedPresetId]);
+  const [humanFormat, setHumanFormat] = useState<AiGuideHumanFormat>('docx');
+  const [humanDocumentBase64, setHumanDocumentBase64] = useState('');
+  const [humanDocumentFilename, setHumanDocumentFilename] = useState('');
+  const [allDocumentsBase64, setAllDocumentsBase64] = useState<Record<string, string>>({});
+  const [zipDocumentBase64, setZipDocumentBase64] = useState<string>('');
+  const [zipFilename, setZipFilename] = useState<string>('');
+  const [isGeneratingFinal, setIsGeneratingFinal] = useState(false);
+  const [aiModel, setAiModel] = useState<string | null>(null);
 
   // 분석 실행 핸들러
   const handleParseData = async (
     textToParse: string,
     format: SupportedFormat,
     category: DataCategory,
-    useAiAgent: boolean = true,
     titleOverride?: string
   ) => {
     setErrorNotice(null);
@@ -349,14 +693,25 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
         file_base64: format === 'xlsx' ? fileBase64 : undefined,
         format,
         data_category: category,
-        preset_style: selectedPresetId,
+        preset_style: 'fixed_template',
         document_title: titleOverride ?? documentTitle,
-        orientation,
+        orientation: 'landscape',
         is_large_dataset: isLargeDataset,
         file_size_bytes: fileSizeBytes,
-        provider: useAiAgent ? 'auto' : 'local',
+        provider: AI_GUIDE_REMOTE_INFERENCE_ENABLED ? 'openai' : 'local',
+        user_metadata: {
+          publisher: '공공기관',
+          creator: '데이터 관리부서',
+          contact_name: '02-000-0000',
+          ...templateMetadata,
+          ...(templateMetadata.publisher?.trim() ? { publisher: templateMetadata.publisher.trim() } : {}),
+          ...(templateMetadata.creator?.trim() ? { creator: templateMetadata.creator.trim() } : {}),
+          ...(templateMetadata.contact_name?.trim() ? { contact_name: templateMetadata.contact_name.trim() } : {}),
+        },
       });
       setCanonicalMetadata(aiRes.canonical_metadata);
+      setTemplateMetadata(previous => ({...previous, ...(aiRes.suggested_metadata ?? {})}));
+      setFieldAnnotations(aiRes.suggested_field_annotations ?? {});
       setRules(aiRes.columns);
       setParsedData({columns: aiRes.columns.map(c => c.key), rows: [0,1,2].map(i => Object.fromEntries(aiRes.columns.map(c => [c.key, c.sampleValues[i] ?? ''])))});
       setDataCategory(aiRes.data_category ?? category);
@@ -368,17 +723,16 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
       setServerJsonLd(aiRes.json_ld); setMetadataXml(aiRes.metadata_xml);
       handleStepTransition(2);
     } catch (err) {
-      setErrorNotice(err instanceof Error ? err.message : '분석 실패');
+      setErrorNotice(err instanceof Error ? err.message : '데이터 분석에 실패했습니다.');
     } finally { setIsAiLoading(false); }
   };
   // 공공 샘플 데이터 즉시 로드 핸들러
   const handleLoadSample = (type: SupportedFormat) => {
-    setCanonicalMetadata(null); setTemplateMetadata({}); setFieldAnnotations({});
+    setCanonicalMetadata(null); setFieldAnnotations({});
     setFileBase64(undefined); setIsLargeDataset(false);
     setInputFormat(type);
-    const cat: DataCategory = type === 'csv' ? 'file' : 'api';
-    setDataCategory(cat);
-    setIsLargeDataset(false);
+    const category: DataCategory = type === 'csv' ? 'file' : 'api';
+    setDataCategory(category);
     setFileSizeBytes(type === 'csv' ? 1024 : 2048);
     setEstimatedTotalRows(type === 'csv' ? 5 : 3);
 
@@ -386,72 +740,121 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     let title = '';
     if (type === 'csv') {
       sample = getSampleCsv();
-      title = '식약처 의약품 품목허가 표준 공시서';
+      title = '식약처 의약품 품목허가 표준 공시 데이터';
+      setTemplateMetadata({
+        publisher: '식품의약품안전처',
+        creator: '식품의약품안전처 의약품관리과',
+        contact_name: '043-719-2700',
+        theme_label: '보건 - 식품·의약품안전',
+        legal_basis: '공공데이터의 제공 및 이용 활성화에 관한 법률',
+        collection_process: '식품의약품안전처 행정정보시스템 및 공공데이터 연계',
+        update_frequency: '수시 (1일 1회 이상)',
+        next_registration_date: '',
+      });
       const parsed = Papa.parse<string[]>(sample, { skipEmptyLines: 'greedy' });
-      if (parsed.data && parsed.data.length > 0) {
+      if (parsed.data.length > 0) {
+        const headers = parsed.data[0] || [];
+        const top15 = parsed.data.slice(1, 16);
         setSamplePreview({
           format: 'csv',
-          headers: parsed.data[0] || [],
-          rows: parsed.data.slice(1, 8),
+          headers,
+          rows: top15,
           totalRows: parsed.data.length - 1,
-          totalCols: (parsed.data[0] || []).length,
+          totalCols: headers.length,
+          jsonSnippet: JSON.stringify(
+            top15.map(row => Object.fromEntries(headers.map((h, i) => [h, row[i] ?? '']))),
+            null,
+            2
+          ),
         });
+        setPreviewTab('table');
       }
     } else if (type === 'json') {
       sample = getSampleJson();
-      title = '건강기능식품 영양성분 공시 보고서';
-      try {
-        const j = JSON.parse(sample);
-        const arr = Array.isArray(j) ? j : [j];
-        const headers = Object.keys(arr[0] || {});
-        setSamplePreview({
-          format: 'json',
-          headers,
-          rows: arr.slice(0, 7).map(item => headers.map(k => String(item[k] ?? ''))),
-          totalRows: arr.length,
-          totalCols: headers.length,
-        });
-      } catch { /* ignore */ }
+      title = '건강기능식품 영양성분 공시 데이터';
+      setTemplateMetadata({
+        publisher: '식품의약품안전처',
+        creator: '식품의약품안전처 건강기능식품정책과',
+        contact_name: '043-719-2450',
+        theme_label: '보건 - 식품·의약품안전',
+        legal_basis: '건강기능식품에 관한 법률',
+        collection_process: '식품안전나라 시스템 연계 API',
+        update_frequency: '수시 (1일 1회 이상)',
+        next_registration_date: '',
+      });
+      const parsed = JSON.parse(sample);
+      const previewData = extractJsonPreviewData(parsed, 'json');
+      setSamplePreview(previewData);
+      setPreviewTab('json');
     } else {
       sample = getSampleXml();
-      title = '공공보건의료기관 현황 연계 명세서';
-      try {
-        const xmlDoc = new DOMParser().parseFromString(sample, 'text/xml');
-        const items = xmlDoc.querySelectorAll('item, row, record');
-        if (items.length > 0) {
-          const headers = Array.from(items[0].children).map(c => c.tagName);
-          setSamplePreview({
-            format: 'xml',
-            headers,
-            rows: Array.from(items).slice(0, 7).map(it => headers.map(h => it.querySelector(h)?.textContent || '')),
-            totalRows: items.length,
-            totalCols: headers.length,
-          });
-        }
-      } catch { /* ignore */ }
+      title = '공공보건의료기관 현황 통계 데이터';
+      setTemplateMetadata({
+        publisher: '보건복지부',
+        creator: '공공의료과',
+        contact_name: '044-202-2530',
+        theme_label: '보건 - 보건의료',
+        legal_basis: '공공보건의료에 관한 법률',
+        collection_process: '국립중앙의료원 연계 API 수집',
+        update_frequency: '수시 (1일 1회 이상)',
+        next_registration_date: '',
+      });
+      const xmlDoc = new DOMParser().parseFromString(sample, 'text/xml');
+      const items = xmlDoc.querySelectorAll('item, row, record');
+      if (items.length > 0) {
+        const headers = Array.from(items[0].children).map(child => child.tagName);
+        setSamplePreview({
+          format: 'xml', headers,
+          rows: Array.from(items).slice(0, 15).map(item => headers.map(header => item.querySelector(header)?.textContent || '')),
+          totalRows: items.length, totalCols: headers.length,
+        });
+      }
     }
     setUploadedFile(new File([sample], `${title}.${type}`, { type: 'text/plain' }));
     setRawText(sample);
     setDocumentTitle(title);
-    handleParseData(sample, type, cat, false, title);
   };
-
-  // 파일 선택 및 데이터 샘플 무손실 미리보기 파싱 핸들러 (XLSX, CSV, TSV, JSON, XML 글자 깨짐 0%)
+  // 파일 선택
   const handleFileSelect = async (file: File) => {
     setCanonicalMetadata(null);
-    setTemplateMetadata({});
+    const fileStem = file.name.replace(/\.[^/.]+$/, '');
+    const parts = fileStem.split('_');
+    const guessedPublisher = parts.length > 1 && parts[0].length >= 2 ? parts[0] : '';
+    let guessedTheme = '';
+    if (fileStem.includes('교통') || fileStem.includes('도로') || fileStem.includes('철도') || fileStem.includes('버스')) {
+      guessedTheme = '교통 및 물류 - 도로';
+    } else if (fileStem.includes('의약') || fileStem.includes('병원') || fileStem.includes('의료')) {
+      guessedTheme = '보건 - 보건의료';
+    } else if (fileStem.includes('주택') || fileStem.includes('토지') || fileStem.includes('도시')) {
+      guessedTheme = '지역개발 - 지역 및 도시';
+    } else if (fileStem.includes('재정') || fileStem.includes('금융') || fileStem.includes('보증')) {
+      guessedTheme = '일반공공행정 - 재정·금융';
+    } else if (fileStem.includes('식품') || fileStem.includes('보건')) {
+      guessedTheme = '보건 - 식품·의약품안전';
+    }
+    setTemplateMetadata({
+      publisher: guessedPublisher,
+      creator: '',
+      contact_name: '',
+      theme_label: guessedTheme,
+      legal_basis: '',
+      collection_process: '',
+      update_frequency: '수시 (1일 1회 이상)',
+      next_registration_date: '',
+    });
     setFieldAnnotations({});
+    setFileBase64(undefined);
     setUploadedFile(file);
     setErrorNotice(null);
     setSamplePreview(null);
 
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     if (!['csv', 'tsv', 'xlsx', 'xls', 'json', 'jsonld', 'xml', 'docx', 'hwpx'].includes(ext)) {
-      setErrorNotice('CSV, TSV, XLSX, JSON, JSON-LD, XML, DOCX, HWPX 파일을 선택하세요.');
+      setErrorNotice('지원 형식은 CSV, TSV, XLSX, JSON, JSON-LD, XML, DOCX, HWPX입니다.');
       return;
     }
     if (file.size > 32 * 1024 * 1024) {
-      setErrorNotice('32 MiB 이하의 유효한 파일 단위로 분할하세요.');
+      setErrorNotice('파일은 32 MiB 이하로 업로드해 주세요.');
       return;
     }
 
@@ -472,10 +875,10 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
 
     try {
       if (normFormat === 'xlsx') {
-        // 1. 엑셀 파일 (SheetJS로 시트 및 셀 내용 완벽 추출)
+        // 1. XLSX 파일을 SheetJS로 읽고 시트 데이터를 추출합니다.
         const arrayBuf = await file.arrayBuffer();
         
-        // base64 보관 (서버 openpyxl 분석용)
+        // 서버 분석을 위한 base64를 보관합니다.
         const reader = new FileReader();
         reader.onload = () => {
           const res = String(reader.result || '');
@@ -492,7 +895,12 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
         if (rows && rows.length > 0) {
           const rawHeaders = (rows[0] || []).map(h => String(h ?? '').trim());
           const headers = rawHeaders.length > 0 ? rawHeaders : ['열1', '열2', '열3'];
-          const sampleRows = rows.slice(1, 8).map(r => headers.map((_, i) => String(r[i] ?? '')));
+          const sampleRows = rows.slice(1, 16).map(r => headers.map((_, i) => String(r[i] ?? '')));
+          const jsonSnippet = JSON.stringify(
+            sampleRows.map(r => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? '']))),
+            null,
+            2
+          );
 
           setSamplePreview({
             format: 'xlsx',
@@ -501,70 +909,63 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
             rows: sampleRows,
             totalRows: Math.max(0, rows.length - 1),
             totalCols: headers.length,
+            jsonSnippet,
           });
           setEstimatedTotalRows(Math.max(1, rows.length - 1));
+          setPreviewTab('table');
 
-          // 엑셀 시트를 표준 CSV 텍스트로 변환하여 payload_text로 활용
+          // 2. CSV/TSV 파일을 인코딩을 보존하여 파싱합니다.
           const csvContent = XLSX.utils.sheet_to_csv(worksheet);
           setRawText(csvContent);
         } else {
           setRawText('엑셀 시트에 데이터가 비어 있습니다.');
         }
       } else if (normFormat === 'csv' || normFormat === 'tsv') {
-        // 2. CSV / TSV 파일 (PapaParse로 정밀 파싱)
-        const text = await file.text();
+        // 2. CSV/TSV 파일은 EUC-KR/CP949와 UTF-8을 자동 판별합니다.
+        const arrayBuf = await file.arrayBuffer();
+        const text = decodeKoreanText(arrayBuf);
         const parsed = Papa.parse<string[]>(text, {
           delimiter: normFormat === 'tsv' ? '\t' : undefined,
           skipEmptyLines: 'greedy',
         });
         if (parsed.data && parsed.data.length > 0) {
           const headers = (parsed.data[0] || []).map(h => String(h ?? '').trim());
-          const sampleRows = parsed.data.slice(1, 8).map(r => headers.map((_, i) => String(r[i] ?? '')));
+          const sampleRows = parsed.data.slice(1, 16).map(r => headers.map((_, i) => String(r[i] ?? '')));
+          const jsonSnippet = JSON.stringify(
+            sampleRows.map(r => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? '']))),
+            null,
+            2
+          );
           setSamplePreview({
             format: normFormat,
             headers,
             rows: sampleRows,
             totalRows: Math.max(0, parsed.data.length - 1),
             totalCols: headers.length,
+            jsonSnippet,
           });
           setEstimatedTotalRows(Math.max(1, parsed.data.length - 1));
+          setPreviewTab('table');
         }
         setRawText(text);
       } else if (normFormat === 'json' || normFormat === 'jsonld') {
-        // 3. JSON / JSON-LD 파일
-        const text = await file.text();
+        // 3. JSON/JSON-LD 파일을 파싱합니다.
+        const arrayBuf = await file.arrayBuffer();
+        const text = decodeKoreanText(arrayBuf);
         try {
           const parsed = JSON.parse(text);
-          const list = Array.isArray(parsed) ? parsed : (parsed.data || parsed.items || parsed.records || [parsed]);
-          if (Array.isArray(list) && list.length > 0 && typeof list[0] === 'object' && list[0] !== null) {
-            const headers = Object.keys(list[0]);
-            const sampleRows = list.slice(0, 7).map(item => headers.map(k => String(item[k] ?? '')));
-            setSamplePreview({
-              format: normFormat,
-              headers,
-              rows: sampleRows,
-              totalRows: list.length,
-              totalCols: headers.length,
-            });
-            setEstimatedTotalRows(list.length);
-          } else {
-            const keys = Object.keys(parsed);
-            setSamplePreview({
-              format: normFormat,
-              headers: ['속성(Key)', '값(Value)'],
-              rows: keys.slice(0, 7).map(k => [k, typeof parsed[k] === 'object' ? JSON.stringify(parsed[k]) : String(parsed[k] ?? '')]),
-              totalRows: keys.length,
-              totalCols: 2,
-            });
-            setEstimatedTotalRows(keys.length);
-          }
+          const previewData = extractJsonPreviewData(parsed, normFormat as 'json' | 'jsonld');
+          setSamplePreview(previewData);
+          setEstimatedTotalRows(previewData.totalRows);
           setRawText(JSON.stringify(parsed, null, 2));
+          setPreviewTab('json');
         } catch {
           setRawText(text);
         }
       } else if (normFormat === 'xml') {
-        // 4. XML 파일 (백엔드 표 파서 및 로컬 DOMParser 연동)
-        const text = await file.text();
+        // XML 파일은 서버 파싱을 우선하고 브라우저 DOMParser를 보조로 사용합니다.
+        const arrayBuf = await file.arrayBuffer();
+        const text = decodeKoreanText(arrayBuf);
         setRawText(text);
         try {
           const docRes = await parseGovDocument({
@@ -579,7 +980,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
             setSamplePreview({
               format: 'xml',
               headers: grid.headers,
-              rows: grid.rows.slice(0, 7),
+              rows: grid.rows.slice(0, 15),
               totalRows: grid.rows.length,
               totalCols: grid.headers.length,
             });
@@ -592,7 +993,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
           if (records.length > 0) {
             const first = records[0];
             const headers = Array.from(first.children).map(c => c.tagName);
-            const sampleRows = Array.from(records).slice(0, 7).map(rec => {
+            const sampleRows = Array.from(records).slice(0, 15).map(rec => {
               return headers.map(h => rec.querySelector(h)?.textContent || '');
             });
             setSamplePreview({
@@ -606,7 +1007,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
           }
         }
       } else if (normFormat === 'docx' || normFormat === 'hwpx') {
-        // 5. DOCX / HWPX 공공 기술검토 문서 파싱 (XML/JSON 응답 및 표 자동 추출)
+        // 5. DOCX/HWPX 문서의 공공데이터 표를 추출합니다.
         const reader = new FileReader();
         reader.onload = async () => {
           const res = String(reader.result || '');
@@ -632,7 +1033,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
                 setSamplePreview({
                   format: normFormat,
                   headers: primaryTable.headers,
-                  rows: primaryTable.rows.slice(0, 7),
+                  rows: primaryTable.rows.slice(0, 15),
                   totalRows: primaryTable.rows.length,
                   totalCols: primaryTable.headers.length,
                 });
@@ -652,7 +1053,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
                 })));
               }
             } catch (err) {
-              setErrorNotice(err instanceof Error ? err.message : '공문서 표 파싱 실패');
+              setErrorNotice(err instanceof Error ? err.message : '공문서 파싱에 실패했습니다.');
             }
           }
         };
@@ -664,67 +1065,60 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     }
   };
 
-  // 특정 컬럼의 룰 프로퍼티를 갱신함
-  const handleUpdateRule = (index: number, partial: Partial<ColumnRule>) => {
-    setRules(prev => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], ...partial };
-      return copy;
-    });
-  };
-
-  // 생성된 AI 친화 가이드 마크다운 전문
+  // 생성된 AI 친화 가이드 Markdown 문서
   const generatedMarkdownGuide = useMemo(() => {
-    if (customMarkdownGuide) {
-      return customMarkdownGuide;
-    }
-    const activeCols = rules.filter(r => r.include);
-    let md = `# [AI 친화 가이드] ${documentTitle}\n\n`;
-    md += `## 1. 데이터 개요 및 AI 친화도 진단\n`;
-    md += `- **데이터 범주**: ${dataCategory === 'file' ? '[파일] 파일데이터 (CSV/TSV)' : '[API] API 데이터 (JSON/XML)'}\n`;
-    md += `- **관측 값 완전성**: ${aiReadinessScore}점 / 100점\n`;
-    md += `- **문서 양식 프리셋**: ${currentPreset.name}\n`;
-    md += `- **용지 방향**: ${orientation === 'landscape' ? '가로 (Landscape / A4)' : '세로 (Portrait / A4)'}\n`;
-    md += `- **추정 레코드 수**: ${estimatedTotalRows.toLocaleString()}행 (용량: ${(fileSizeBytes / 1024).toFixed(1)} KB)\n\n`;
+    if (customMarkdownGuide) return customMarkdownGuide;
+    const activeCols = rules.filter(rule => rule.include);
+    let markdown = `# AI 친화 데이터 가이드
 
-    if (largeDataGuide) {
-      md += `${largeDataGuide}\n---\n\n`;
-    }
+`;
+    markdown += `## 1. 데이터 개요 및 AI 친화도 진단
+`;
+    markdown += `- **데이터 범주**: ${dataCategory === 'file' ? '파일데이터 (CSV/TSV/XLSX)' : 'API 데이터 (JSON/XML)'}
+`;
+    markdown += `- **관측값 완전성**: ${aiReadinessScore}%
+`;
+    markdown += `- **예상 레코드 수**: ${estimatedTotalRows.toLocaleString()}건
 
-    md += `## 2. 공문서 HWPX 표준 표(Table) 서식 롤\n\n`;
-    md += `| 원본 필드 | 표시명 | 데이터형 | 정렬 | 너비 비율 | 출력 서식 |\n`;
-    md += `| :--- | :--- | :---: | :---: | :---: | :--- |\n`;
-    if (showRowNumber) {
-      md += `| \`(시스템연번)\` | 연번 | number | center | 6% | 순번(1, 2, 3...) |\n`;
-    }
-    activeCols.forEach(col => {
-      md += `| \`${col.key}\` | **${col.label}** | ${col.inferredType} | ${col.align} | ${col.widthPercent}% | ${col.formatType} |\n`;
+`;
+    if (largeDataGuide) markdown += `${largeDataGuide}
+
+`;
+    markdown += `## 2. 데이터 사전
+
+`;
+    markdown += `| 원본 필드 | 표시명 | 데이터 유형 | 정렬 | 너비 | 출력 형식 |
+`;
+    markdown += `| :--- | :--- | :---: | :---: | :---: | :--- |
+`;
+    activeCols.forEach(rule => {
+      markdown += `| \`${rule.key}\` | **${rule.label}** | ${rule.inferredType} | ${rule.align} | ${rule.widthPercent}% | ${rule.formatType} |
+`;
     });
-
-    md += `\n## 3. AI 친화도 점검 체크리스트\n\n`;
-    aiReadinessChecklist.forEach(chk => {
-      const icon = chk.status === 'pass' ? '✅' : chk.status === 'warn' ? '⚠️' : '❌';
-      md += `- ${icon} **${chk.item}**: ${chk.message}\n`;
+    markdown += `
+## 3. AI 품질 점검
+`;
+    aiReadinessChecklist.forEach(check => {
+      const icon = check.status === 'pass' ? '✅' : check.status === 'warn' ? '⚠️' : '❌';
+      markdown += `- ${icon} **${check.item}**: ${check.message}
+`;
     });
+    return markdown;
+  }, [customMarkdownGuide, documentTitle, dataCategory, aiReadinessScore, estimatedTotalRows, fileSizeBytes, largeDataGuide, rules, aiReadinessChecklist]);
 
-    return md;
-  }, [
-    customMarkdownGuide, isAiPowered, documentTitle, dataCategory, aiReadinessScore,
-    currentPreset, orientation, estimatedTotalRows, fileSizeBytes, largeDataGuide,
-    showRowNumber, rules, aiReadinessChecklist
-  ]);
-
-  // AI-Ready 메타데이터 JSON-LD (DCAT 3.0 / DCT / RAI / DQV 표준) 자동 생성
+  // AI-Ready
+  // AI-Ready 메타데이터 JSON-LD
   const generatedJsonLd = serverJsonLd || '{}';
 
-  // 공공데이터 AI 품질평가 보고서 마크다운 생성
-  const generatedQualityReport = `# 품질 관측 보고서
-${documentTitle}
-관측 값 완전성: ${aiReadinessScore}% (종합 적합도 점수가 아님)
-${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
-개인정보·권리·정확성·편향: 기관 확인 필요`;
+  // 공공데이터 AI 품질 점검 보고서
+  const generatedQualityReport = `# 공공데이터 AI 품질 점검 보고서: ${documentTitle}
 
+관측값 완전성: ${aiReadinessScore}%
+${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\\n')}
 
+대표성·편향·개인정보·권리 관계는 기관 검토가 필요합니다.`;
+
+  // 클립보드 복사
   // 클립보드 복사
   const handleCopyClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -734,53 +1128,149 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
   };
 
   // 파일 다운로드
-  const handleDownloadFile = (content: string, filename: string, mimeType: string) => {
-    const blob = new Blob([content], { type: mimeType });
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    // Chromium can cancel a download when the object URL is revoked in the
+    // same task as click(). Keep it alive until the browser has consumed it.
+    window.setTimeout(() => {
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }, 1000);
+  };
+
+  const handleDownloadFile = (content: string, filename: string, mimeType: string) => {
+    downloadBlob(new Blob([content], { type: mimeType }), filename);
+  };
+
+  const textToBase64 = (value: string) => {
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    }
+    return btoa(binary);
+  };
+
+  const handleDownloadBase64 = (content: string, filename: string, mimeType: string) => {
+    if (!content) throw new Error('다운로드할 파일 내용이 없습니다.');
+    const cleanB64 = content.replace(/\s+/g, '');
+    const raw = atob(cleanB64);
+    const bytes = new Uint8Array(raw.length);
+    for (let index = 0; index < raw.length; index += 1) bytes[index] = raw.charCodeAt(index);
+    downloadBlob(new Blob([bytes], { type: mimeType }), filename);
+  };
+
+  const handleCreateFinalGuideAndDownload = async () => {
+    if (!rawText && !fileBase64) {
+      setErrorNotice('먼저 데이터 파일을 선택하거나 샘플 데이터를 불러오세요.');
+      return;
+    }
+
+    const stem = documentTitle.replace(/[\/:*?"<>|]+/g, '_').trim() || 'AI_guide';
+    if (zipDocumentBase64) {
+      try {
+        handleDownloadBase64(zipDocumentBase64, zipFilename || `${stem}_전체산출물.zip`, 'application/zip');
+        setDownloadSuccessNotice('ZIP 파일을 다운로드했습니다.');
+      } catch (error) {
+        setErrorNotice(error instanceof Error ? error.message : 'ZIP 다운로드에 실패했습니다.');
+      }
+      return;
+    }
+
+    setIsGeneratingFinal(true);
+    setErrorNotice(null);
+    setDownloadSuccessNotice(null);
+    try {
+      const ext = inputFormat || 'csv';
+      let filename = uploadedFile?.name || `${documentTitle}.${ext}`;
+      if (!filename.includes('.')) {
+        filename = `${filename}.${ext}`;
+      }
+      let sourceBase64 = fileBase64 || textToBase64(rawText);
+      if ((inputFormat === 'docx' || inputFormat === 'hwpx') && docParseResult) {
+        const table = docParseResult.payload_data_tables[0]
+          || docParseResult.parameter_tables[0]
+          || docParseResult.overview_tables[0];
+        if (!table) throw new Error('문서에서 데이터 표를 찾지 못했습니다.');
+        sourceBase64 = textToBase64(Papa.unparse([table.headers, ...table.rows]));
+        filename = `${documentTitle}.csv`;
+      }
+
+      const cleanMetadata: Record<string, string> = {};
+      for (const [key, value] of Object.entries(templateMetadata)) {
+        cleanMetadata[key] = value == null ? '' : String(value);
+      }
+      const cleanAnnotations: Record<string, { english_name: string; label: string; description: string; unit: string; codes: string }> = {};
+      for (const [fieldPath, annotation] of Object.entries(fieldAnnotations)) {
+        cleanAnnotations[fieldPath] = {
+          english_name: annotation?.english_name ?? '',
+          label: annotation?.label ?? '',
+          description: annotation?.description ?? '',
+          unit: annotation?.unit ?? '',
+          codes: annotation?.codes ?? '',
+        };
+      }
+
+      const result = await generateAiGuideDocuments({
+        sources: [{ filename, file_base64: sourceBase64 }],
+        document_title: documentTitle,
+        user_metadata: cleanMetadata,
+        field_annotations: cleanAnnotations,
+        human_format: humanFormat,
+        provider: AI_GUIDE_REMOTE_INFERENCE_ENABLED ? 'openai' : 'local',
+      });
+      setCustomMarkdownGuide(result.markdown_guide);
+      setCustomJsonRule(result.canonical_json);
+      setMetadataXml(result.metadata_xml);
+      setServerJsonLd(result.json_ld);
+      setHumanDocumentBase64(result.human_document_base64);
+      setHumanDocumentFilename(result.human_filename);
+      setAllDocumentsBase64(result.all_documents_base64 || {});
+      setZipDocumentBase64(result.zip_document_base64 || '');
+      const finalZipName = result.zip_filename || `${stem}_전체산출물.zip`;
+      setZipFilename(finalZipName);
+      setIsAiPowered(result.ai_powered);
+      setAiModel(result.ai_model || null);
+      setAiSummary(result.ai_powered
+        ? `${result.ai_model || 'OpenAI 4 mini'}가 데이터와 입력 정보를 반영해 초안을 생성했습니다.`
+        : '로컬 분석 결과와 직접 입력한 값을 바탕으로 초안을 생성했습니다.');
+
+      if (result.zip_document_base64) {
+        handleDownloadBase64(result.zip_document_base64, finalZipName, 'application/zip');
+      } else {
+        const zip = new JSZip();
+        const documents = result.all_documents_base64 || {};
+        if (documents.hwpx) zip.file(`${stem}_AI_가이드.hwpx`, documents.hwpx, { base64: true });
+        if (documents.docx) zip.file(`${stem}_AI_가이드.docx`, documents.docx, { base64: true });
+        if (documents.html) zip.file(`${stem}_AI_가이드.html`, documents.html, { base64: true });
+        if (documents.md) zip.file(`${stem}_AI_가이드.md`, documents.md, { base64: true });
+        if (!zip.file(`${stem}_AI_가이드.md`)) zip.file(`${stem}_AI_가이드.md`, result.markdown_guide);
+        if (result.canonical_json) zip.file(`${stem}_메타데이터.json`, result.canonical_json);
+        if (result.metadata_xml) zip.file(`${stem}_메타데이터.xml`, result.metadata_xml);
+        if (result.json_ld) zip.file(`${stem}_메타데이터.jsonld`, result.json_ld);
+        if (documents.ttl) zip.file(`${stem}_온톨로지.ttl`, documents.ttl, { base64: true });
+        zip.file(`${stem}_품질보고서.md`, generatedQualityReport);
+        const blob = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(blob, finalZipName);
+      }
+      setDownloadSuccessNotice('HWPX·DOCX·HTML·MD 문서와 JSON·XML·JSON-LD 메타데이터를 ZIP으로 다운로드했습니다.');
+    } catch (error) {
+      setErrorNotice(error instanceof Error ? error.message : '최종 AI 가이드와 ZIP 생성에 실패했습니다.');
+    } finally {
+      setIsGeneratingFinal(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* 2단계 이상일 때 상단 단계 네비게이션 및 이전/다음 버튼 */}
-      {currentStep > 1 && (
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-muted border border-subtle">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-fg">
-              {currentStep === 2 && '2단계: 데이터 자동 분석 (구조 경로·관측 타입·결측)'}
-              {currentStep === 3 && '3단계: AI-Ready 메타데이터 검토 (DCAT/DCT/RAI 메타데이터 & HWPX 서식)'}
-              {currentStep === 4 && '4단계: 가이드 생성 및 내보내기 (HWPX · JSON · JSON-LD · 품질보고서)'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleStepTransition(currentStep - 1)}
-              className="ui-button-secondary text-xs px-3 py-1.5 cursor-pointer flex items-center gap-1.5"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              이전 단계
-            </button>
-            {currentStep < 4 && (
-              <button
-                onClick={() => handleStepTransition(currentStep + 1)}
-                className="ui-button-primary text-xs px-3.5 py-1.5 cursor-pointer flex items-center gap-1.5 font-bold"
-              >
-                {currentStep === 2 && '메타데이터 검토'}
-                {currentStep === 3 && '가이드 생성·내보내기'}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 에러 발생 알림 */}
+      {/* 오류 알림 */}
       {errorNotice && (
         <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0 text-rose-500" />
@@ -788,71 +1278,9 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
         </div>
       )}
 
-      {/* AI 친화도 종합 스코어카드 배너 (2단계 이상) */}
-      {currentStep > 1 && (
-        <div className="ui-panel p-5 space-y-4 border-l-4 border-l-accent">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-black text-fg">AI 친화도 표준 평가 결과</h3>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                    dataCategory === 'file'
-                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                      : 'bg-sky-500/15 text-sky-700 dark:text-sky-300'
-                  }`}>
-                    {dataCategory === 'file' ? '[파일] 파일데이터 모드 (XLSX/CSV/TSV)' : '[API] API 데이터 모드 (JSON/JSON-LD/XML)'}
-                  </span>
-                  {isLargeDataset && (
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center gap-1">
-                      <Zap className="w-3 h-3" />
-                      대용량 최적화
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-fg-muted mt-0.5">
-                  행정안전부·NIA 공공데이터 AI 친화도 가이드라인 및 HWPX 공문서 서식 지침 기준 평가
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 self-end sm:self-auto bg-surface-muted px-4 py-2 rounded-xl border border-subtle">
-              <div className="text-right">
-                <div className="text-2xs text-fg-muted uppercase font-mono font-semibold">관측 값 완전성</div>
-                <div className="text-2xl font-black text-accent">{aiReadinessScore} <span className="text-xs text-fg-muted font-normal">/ 100</span></div>
-              </div>
-              <div className="w-12 h-12 rounded-full border-4 border-accent/20 border-t-accent flex items-center justify-center font-black text-xs text-accent">
-                {'관측'}
-              </div>
-            </div>
-          </div>
-
-          {/* 세부 점검 체크리스트 */}
-          {aiReadinessChecklist.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-3 border-t border-subtle">
-              {aiReadinessChecklist.map((chk, idx) => (
-                <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-surface-muted/50 text-xs">
-                  {chk.status === 'pass' ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  )}
-                  <div className="min-w-0">
-                    <span className="font-bold text-fg">{chk.item}:</span>{' '}
-                    <span className="text-fg-muted">{chk.message}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ========================================================================= */}
-      {/* 1단계: 단일 파일 업로드 및 포맷 자동 감지 뷰 */}
+      {/* 1단계: 데이터 적재 및 기본 기관 정보 입력 */}
       {/* ========================================================================= */}
       {currentStep === 1 && (
         <div className="space-y-6">
@@ -860,8 +1288,8 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
             {!uploadedFile ? (
               <div className="space-y-4">
                 <UnifiedFileUploader
-                  title="AI 친화 가이드 생성을 위한 데이터 업로드"
-                  subtitle="XLSX, CSV, TSV, JSON, XML 정형 데이터를 업로드하여 AI 친화도 표준 평가 및 HWPX 가이드를 생성하세요."
+                  title="AI 친화 공공데이터 가이드 생성에 사용할 데이터 업로드"
+                  subtitle="XLSX, CSV, TSV, JSON, XML 형식 데이터를 업로드하여 AI 친화도 표준 진단 및 HWPX 가이드를 생성하세요."
                   accept=".xlsx,.csv,.tsv,.json,.jsonld,.xml"
                   formatsHint="XLSX · CSV · TSV · JSON · JSON-LD · XML (최대 32 MiB)"
                   onFilesSelected={([file]) => {
@@ -872,7 +1300,7 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
               </div>
             ) : (
               <div className="ui-panel p-6 space-y-5">
-                {/* 선택된 파일 정보 카드 */}
+                {/* 선택한 파일 정보 */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-surface-muted border border-subtle">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-12 h-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
@@ -884,22 +1312,9 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-accent/15 text-accent uppercase whitespace-nowrap">
                           {inputFormat}
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap ${
-                          dataCategory === 'file'
-                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                            : 'bg-sky-500/15 text-sky-700 dark:text-sky-300'
-                        }`}>
-                          {dataCategory === 'file' ? '[파일] 파일데이터 모드' : '[API] API 데이터 모드'}
-                        </span>
-                        {isLargeDataset && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center gap-1">
-                            <Zap className="w-3 h-3" />
-                            대용량 스트리밍 모드
-                          </span>
-                        )}
                       </div>
                       <p className="text-xs text-fg-muted mt-0.5">
-                        용량: {(uploadedFile.size / 1024).toFixed(1)} KB · 추정 레코드: {estimatedTotalRows.toLocaleString()}행
+                        파일 크기: {(uploadedFile.size / 1024).toFixed(1)} KB · 예상 레코드: {estimatedTotalRows.toLocaleString()}건
                       </p>
                     </div>
                   </div>
@@ -916,17 +1331,7 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
                   </button>
                 </div>
 
-                {/* 대용량 데이터 감지 안내 배너 */}
-                {isLargeDataset && (
-                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
-                    <Zap className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold">대용량 데이터 분석:</span> 브라우저 멈춤을 방지하기 위해 파일 전체를 서버에서 분석합니다. 분석 한도를 초과하면 유효한 레코드 단위로 분할해 주세요.
-                    </div>
-                  </div>
-                )}
-
-                {/* 정돈된 표 형태의 데이터 샘플 미리보기 (XLSX, CSV, TSV, JSON, XML 글자 깨짐 0%) */}
+                {/* 데이터 샘플 미리보기 */}
                 {samplePreview ? (
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -942,57 +1347,129 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
                           {samplePreview.format}
                         </span>
                       </div>
-                      <span className="text-2xs text-fg-muted font-mono">
-                        총 {samplePreview.totalCols}개 컬럼 · 상위 {samplePreview.rows.length}행 미리보기 (전체 약 {samplePreview.totalRows.toLocaleString()}행)
-                      </span>
-                    </div>
 
-                    <div className="rounded-xl border border-subtle overflow-hidden bg-surface shadow-2xs">
-                      <div className="overflow-x-auto max-h-72">
-                        <table className="w-full text-left text-xs border-collapse font-mono">
-                          <thead className="sticky top-0 bg-surface-muted border-b border-subtle z-10">
-                            <tr>
-                              <th className="py-2 px-3 text-2xs font-bold text-fg-muted uppercase w-12 text-center border-r border-subtle/50">
-                                #
-                              </th>
-                              {samplePreview.headers.map((h, i) => (
-                                <th key={i} className="py-2 px-3 text-xs font-bold text-fg whitespace-nowrap border-r border-subtle/50 last:border-r-0">
-                                  {h || `열${i + 1}`}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-subtle/60 text-fg">
-                            {samplePreview.rows.map((row, rIdx) => (
-                              <tr key={rIdx} className="hover:bg-surface-muted/40 transition-colors">
-                                <td className="py-1.5 px-3 text-2xs text-fg-muted text-center bg-surface-muted/30 border-r border-subtle/50">
-                                  {rIdx + 1}
-                                </td>
-                                {samplePreview.headers.map((_, cIdx) => (
-                                  <td
-                                    key={cIdx}
-                                    className="py-1.5 px-3 text-xs whitespace-nowrap max-w-[260px] truncate border-r border-subtle/50 last:border-r-0"
-                                    title={row[cIdx] || ''}
-                                  >
-                                    {row[cIdx] !== undefined && row[cIdx] !== '' ? (
-                                      row[cIdx]
-                                    ) : (
-                                      <span className="text-fg-muted/40 italic">null</span>
-                                    )}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="flex items-center gap-3">
+                        {/* 보기 모드 탭 (표 미리보기 vs JSON 구조) */}
+                        <div className="flex items-center gap-1 bg-surface-muted p-0.5 rounded-lg border border-subtle">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewTab('table')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 text-2xs font-medium rounded-md transition-colors cursor-pointer ${
+                              previewTab === 'table'
+                                ? 'bg-surface text-fg shadow-2xs font-bold'
+                                : 'text-fg-muted hover:text-fg'
+                            }`}
+                          >
+                            <Table className="w-3.5 h-3.5" />
+                            <span>표 미리보기</span>
+                          </button>
+                          {samplePreview.jsonSnippet && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewTab('json')}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 text-2xs font-medium rounded-md transition-colors cursor-pointer ${
+                                previewTab === 'json'
+                                  ? 'bg-surface text-accent shadow-2xs font-bold'
+                                  : 'text-fg-muted hover:text-fg'
+                              }`}
+                            >
+                              <Braces className="w-3.5 h-3.5 text-accent" />
+                              <span>JSON 구조 (상위 15건)</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <span className="text-2xs text-fg-muted font-mono hidden sm:inline">
+                          {samplePreview.totalCols}개 컬럼 · 상위 {samplePreview.rows.length}건 (전체 {samplePreview.totalRows.toLocaleString()}건)
+                        </span>
                       </div>
                     </div>
+
+                    {previewTab === 'json' && samplePreview.jsonSnippet ? (
+                      <div className="rounded-xl border border-slate-200/90 dark:border-subtle overflow-hidden bg-white dark:bg-surface shadow-2xs">
+                        <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 dark:bg-surface-muted/60 border-b border-slate-200/80 dark:border-subtle">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xs font-bold text-slate-800 dark:text-fg">JSON 구조 미리보기 (상위 15건)</span>
+                            <span className="text-[10px] text-slate-600 dark:text-fg-muted font-mono bg-white dark:bg-surface px-2 py-0.5 rounded border border-slate-200 dark:border-subtle">
+                              전체 {samplePreview.totalRows.toLocaleString()}건 중 상위 {Math.min(15, samplePreview.totalRows)}건
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCopyJsonSnippet}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-surface hover:bg-slate-100 dark:hover:bg-surface-muted text-slate-700 dark:text-fg text-2xs border border-slate-300/80 dark:border-subtle transition-colors cursor-pointer font-medium shadow-2xs"
+                            title="상위 15건 JSON 복사"
+                          >
+                            {jsonSnippetCopied ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">복사 완료</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-fg-muted" />
+                                <span>JSON 복사</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <pre
+                          className="p-4 font-mono text-xs overflow-x-auto max-h-84 leading-relaxed bg-[#f8fafc] text-slate-800 dark:bg-[#0f172a]/20 dark:text-fg whitespace-pre selection:bg-blue-100 selection:text-blue-900 border-t border-slate-200/40 dark:border-subtle/30"
+                          dangerouslySetInnerHTML={{ __html: highlightJsonToHtml(samplePreview.jsonSnippet) }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-subtle overflow-hidden bg-surface shadow-2xs">
+                        <div className="overflow-x-auto max-h-72">
+                          <table className="w-full text-left text-xs border-collapse font-mono">
+                            <thead className="sticky top-0 bg-surface-muted border-b border-subtle z-10">
+                              <tr>
+                                <th className="py-2 px-3 text-2xs font-bold text-fg-muted uppercase w-12 text-center border-r border-subtle/50">
+                                  #
+                                </th>
+                                {samplePreview.headers.map((h, i) => (
+                                  <th key={i} className="py-2 px-3 text-xs font-bold text-fg whitespace-nowrap border-r border-subtle/50 last:border-r-0">
+                                    {h || `열${i + 1}`}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-subtle/60 text-fg">
+                              {samplePreview.rows.map((row, rIdx) => (
+                                <tr key={rIdx} className="hover:bg-surface-muted/40 transition-colors">
+                                  <td className="py-1.5 px-3 text-2xs text-fg-muted text-center bg-surface-muted/30 border-r border-subtle/50">
+                                    {rIdx + 1}
+                                  </td>
+                                  {samplePreview.headers.map((_, cIdx) => (
+                                    <td
+                                      key={cIdx}
+                                      className="py-1.5 px-3 text-xs whitespace-nowrap max-w-[260px] truncate border-r border-subtle/50 last:border-r-0"
+                                      title={typeof row[cIdx] === 'object' ? JSON.stringify(row[cIdx]) : String(row[cIdx] || '')}
+                                    >
+                                      {row[cIdx] !== undefined && row[cIdx] !== '' ? (
+                                        typeof row[cIdx] === 'object' ? (
+                                          <span className="font-mono text-fg-muted">{JSON.stringify(row[cIdx])}</span>
+                                        ) : (
+                                          row[cIdx]
+                                        )
+                                      ) : (
+                                        <span className="text-fg-muted/40 italic">null</span>
+                                      )}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : rawText ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-fg">데이터 텍스트 샘플</span>
-                      <span className="text-2xs text-fg-muted font-mono">{rawText.split('\n').length}행</span>
+                      <span className="text-2xs text-fg-muted font-mono">{rawText.split('\n').length}</span>
                     </div>
                     <pre className="p-3.5 rounded-xl bg-surface-muted/60 border border-subtle font-mono text-xs text-fg-muted overflow-x-auto max-h-56 whitespace-pre-wrap">
                       {rawText.slice(0, 1200)}
@@ -1001,64 +1478,224 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
                   </div>
                 ) : null}
 
-                {/* 문서 제목 및 행안부·NIA 표준 가이드라인 템플릿 고정 안내 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-subtle">
-                  <div>
-                    <label className="text-xs font-bold text-fg block mb-1.5">문서 제목</label>
-                    <input
-                      type="text"
-                      value={documentTitle}
-                      onChange={e => setDocumentTitle(e.target.value)}
-                      className="ui-input w-full text-xs font-medium"
-                      placeholder="생성될 문서 제목을 입력하세요"
-                    />
-                  </div>
-                  <div className="p-3 rounded-xl bg-surface-muted/70 border border-subtle flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
-                        <ShieldCheck className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-fg">행안부·NIA 표준 가이드라인 템플릿</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                            규격 고정
-                          </span>
-                        </div>
-                        <p className="text-2xs text-fg-muted truncate mt-0.5">
-                          공문서 표준 HWPX 서식 및 A4 규격이 자동으로 적용됩니다.
-                        </p>
+                {/* 기관 및 데이터 기본 정보 */}
+                <div className="space-y-3 pt-4">
+                  <h4 className="text-sm font-bold text-fg">기본 정보</h4>
+
+                  <div className="border-t border-b border-subtle py-2.5 space-y-3 text-xs">
+                    {/* 문서 제목 */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 items-center gap-2">
+                      <span className="md:col-span-2 font-bold text-fg shrink-0">문서 제목</span>
+                      <div className="md:col-span-10">
+                        <input
+                          type="text"
+                          required
+                          value={documentTitle}
+                          onChange={event => setDocumentTitle(event.target.value)}
+                          className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg font-medium outline-none transition-colors"
+                          placeholder="생성할 문서 제목을 입력하세요"
+                        />
                       </div>
                     </div>
-                    <div
-                      className="inline-flex items-center gap-1.5 text-2xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-lg border border-emerald-500/20 shrink-0 font-medium select-none"
-                      title="서버 환경변수(.env) 기반 AI 엔진이 자동으로 적용됩니다."
-                    >
-                      <Bot className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>AI 엔진 활성화됨</span>
+
+                    {/* 분류체계 및 제공기관 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-x-8 gap-y-3">
+                      <div className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">분류체계</span>
+                        <div className="col-span-8">
+                          <TaxonomySelects
+                            value={templateMetadata.theme_label || ''}
+                            onChange={value => setTemplateMetadata({...templateMetadata, theme_label: value})}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">제공기관</span>
+                        <div className="col-span-8">
+                          <input
+                            type="text"
+                            value={templateMetadata.publisher || ''}
+                            onChange={event => setTemplateMetadata({...templateMetadata, publisher: event.target.value})}
+                            className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
+                            placeholder="예: 식품의약품안전처"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 소관부서 및 담당자 연락처 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-x-8 gap-y-3">
+                      <div className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">소관부서</span>
+                        <div className="col-span-8">
+                          <input
+                            type="text"
+                            value={templateMetadata.creator || ''}
+                            onChange={event => setTemplateMetadata({...templateMetadata, creator: event.target.value})}
+                            className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
+                            placeholder="예: 식품의약품안전처 의약품관리과"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">담당자 연락처 / 이메일</span>
+                        <div className="col-span-8">
+                          <input
+                            type="text"
+                            value={templateMetadata.contact_name || ''}
+                            onChange={event => setTemplateMetadata({...templateMetadata, contact_name: event.target.value})}
+                            className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
+                            placeholder="예: 043-719-2700 / 담당자 이메일"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 보유근거 및 수집방법 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-x-8 gap-y-3">
+                      <div className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">보유근거</span>
+                        <div className="col-span-8">
+                          <input
+                            type="text"
+                            value={templateMetadata.legal_basis || ''}
+                            onChange={event => setTemplateMetadata({...templateMetadata, legal_basis: event.target.value})}
+                            className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
+                            placeholder="관련 법령 또는 데이터 구축 근거"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">수집방법</span>
+                        <div className="col-span-8">
+                          <input
+                            type="text"
+                            value={templateMetadata.collection_process || ''}
+                            onChange={event => setTemplateMetadata({...templateMetadata, collection_process: event.target.value})}
+                            className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
+                            placeholder="수집방법을 입력하세요 (선택)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 업데이트 주기 및 차기 등록 예정 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-x-8 gap-y-3">
+                      <div className="grid grid-cols-12 items-start gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0 pt-1.5">업데이트 주기</span>
+                        <div className="col-span-8 flex flex-col gap-1.5">
+                          <select
+                            value={
+                              UPDATE_FREQUENCY_OPTIONS.find(
+                                opt => opt.value === templateMetadata.update_frequency || opt.label === templateMetadata.update_frequency
+                              )?.value || 'OTHER'
+                            }
+                            onChange={event => {
+                              const selectedVal = event.target.value;
+                              const matched = UPDATE_FREQUENCY_OPTIONS.find(opt => opt.value === selectedVal);
+                              if (matched && matched.value !== 'OTHER') {
+                                setTemplateMetadata({ ...templateMetadata, update_frequency: matched.label });
+                              } else {
+                                setTemplateMetadata({ ...templateMetadata, update_frequency: '기타' });
+                              }
+                            }}
+                            className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors cursor-pointer"
+                          >
+                            {UPDATE_FREQUENCY_OPTIONS.map(item => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                          {/* '기타' 선택 시 또는 표준 옵션 외의 커스텀 주기 입력 시 직접 입력 input 표시 */}
+                          {(
+                            !UPDATE_FREQUENCY_OPTIONS.some(
+                              opt => opt.value !== 'OTHER' && (opt.value === templateMetadata.update_frequency || opt.label === templateMetadata.update_frequency)
+                            )
+                          ) && (
+                            <input
+                              type="text"
+                              value={templateMetadata.update_frequency === '기타' ? '' : (templateMetadata.update_frequency || '')}
+                              onChange={event => setTemplateMetadata({ ...templateMetadata, update_frequency: event.target.value || '기타' })}
+                              className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1 text-xs text-fg outline-none transition-colors"
+                              placeholder="주기를 직접 입력하세요 (예: 1시간 주기 자동 계측 수집)"
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">차기 등록 예정</span>
+                        <div className="col-span-8">
+                          <input
+                            type="text"
+                            value={templateMetadata.next_registration_date || ''}
+                            onChange={event => setTemplateMetadata({...templateMetadata, next_registration_date: event.target.value})}
+                            className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
+                            placeholder="차기 등록 예정일 (선택)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 이용 조건 (공공누리 유형 및 공식 마크 배지) */}
+                    <div className="pt-2 border-t border-subtle/40">
+                      <div className="grid grid-cols-12 items-start gap-2">
+                        <span className="col-span-12 sm:col-span-2 font-bold text-fg shrink-0 pt-1.5">이용조건 (공공누리)</span>
+                        <div className="col-span-12 sm:col-span-10 flex flex-col gap-2.5">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <select
+                              value={templateMetadata.license_type || 'KOGL_TYPE_1'}
+                              onChange={event => setTemplateMetadata({...templateMetadata, license_type: event.target.value})}
+                              className="bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors max-w-sm"
+                            >
+                              {Object.values(KOGL_TYPES).map(item => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                            <KoglBadge typeKey={templateMetadata.license_type || 'KOGL_TYPE_1'} />
+                          </div>
+                          {/* 권리 칩 태그 */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                            {(KOGL_TYPES[templateMetadata.license_type || 'KOGL_TYPE_1'] || KOGL_TYPES.KOGL_TYPE_1).tags.map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className={`px-2 py-0.5 rounded-full font-medium ${
+                                  tag.includes('금지') || tag.includes('불가')
+                                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                    : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                                }`}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* 단일 통합 분석 실행 액션 버튼 */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-subtle">
+                {/* 입력 정보 기반 AI 분석 */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
                   <div className="flex items-center gap-2">
                     {isAiLoading ? (
                       <div className="flex items-center gap-2 text-xs text-sky-600 dark:text-sky-400 font-medium">
                         <Loader2 className="h-4 w-4 animate-spin text-sky-500" />
-                        <span>데이터 스키마와 AI 친화도 품질을 정밀 분석하는 중입니다...</span>
+                        <span>데이터 구조를 분석하고 AI 가이드 초안을 생성하는 중입니다...</span>
                       </div>
                     ) : (
                       <p className="text-xs text-fg-muted">
-                        추측 금지 및 무환각 원칙에 따라 정밀 프로파일링 및 메타데이터를 자동 생성합니다.
+                        입력한 기본 정보를 반영해 AI가 영문 컬럼명과 설명을 추천합니다.
                       </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2.5 justify-end">
                     <button
                       type="button"
-                      disabled={isAiLoading || (!rawText.trim() && !samplePreview)}
-                      onClick={() => handleParseData(rawText, inputFormat, dataCategory, true)}
+                      disabled={isAiLoading || (!rawText.trim() && !samplePreview) || !documentTitle.trim()}
+                      onClick={() => handleParseData(rawText, inputFormat, dataCategory)}
                       className="ui-button-primary px-6 py-2.5 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
                     >
                       {isAiLoading ? (
@@ -1066,7 +1703,7 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      <span>AI-Ready 데이터 자동 분석 시작</span>
+                      <span>입력 정보 기반 AI 가이드 초안 생성</span>
                       <ArrowRight className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -1078,168 +1715,23 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
       )}
 
       {/* ========================================================================= */}
-      {/* 2단계: 데이터 구조 및 컬럼 스키마 확인 */}
+      {/* 2단계: AI 추천 검토 및 문서 설정 */}
+      {/* ========================================================================= */}
+      {/* AI 추천 메타데이터와 필드 설명을 검토하고 수정합니다. */}
       {/* ========================================================================= */}
       {currentStep === 2 && (
         <div className="space-y-6">
-          <div className="ui-panel p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-subtle pb-4">
-              <div>
-                <h3 className="text-sm font-bold text-fg">추출된 필드 스키마 및 데이터 자동 분석</h3>
-                <p className="text-xs text-fg-muted mt-0.5">
-                  총 {rules.length}개 필드의 구조 경로·관측 타입·결측을 분석했습니다. 불필요한 필드는 제외하거나 정렬/너비를 조정하세요.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleStepTransition(3)}
-                  className="ui-button-primary px-4 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
-                >
-                  메타데이터 검토
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* 컬럼 목록 카드 그리드 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {rules.map((rule, idx) => {
-                const kLower = rule.key.toLowerCase();
-                const isCandidate = kLower.includes('코드') || kLower.includes('번호') || kLower.includes('id') || kLower.includes('연번') || kLower.includes('seq') || kLower.includes('no');
-                return (
-                <div
-                  key={rule.key}
-                  className={`p-3.5 rounded-xl border transition-all ${
-                    rule.include
-                      ? 'bg-surface border-subtle shadow-2xs'
-                      : 'bg-surface-muted/50 border-subtle/50 opacity-60'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={rule.include}
-                        onChange={e => handleUpdateRule(idx, { include: e.target.checked })}
-                        className="rounded border-subtle text-accent focus:ring-accent"
-                      />
-                      <span className="font-mono text-xs font-bold text-fg truncate" title={rule.key}>
-                        {rule.key}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {isCandidate ? (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                          식별자 이름 후보 (미검증)
-                        </span>
-                      ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted whitespace-nowrap">
-                          일반 속성
-                        </span>
-                      )}
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 whitespace-nowrap">
-                        통계는 가이드 참조
-                      </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted whitespace-nowrap">
-                        {rule.inferredType}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-xs">
-                    <div>
-                      <label className="text-2xs text-fg-muted block mb-0.5">표시 헤더명</label>
-                      <input
-                        type="text"
-                        value={rule.label}
-                        onChange={e => handleUpdateRule(idx, { label: e.target.value })}
-                        className="ui-input w-full py-1 text-xs"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-2xs text-fg-muted block mb-0.5">정렬</label>
-                        <select
-                          value={rule.align}
-                          onChange={e => handleUpdateRule(idx, { align: e.target.value as any })}
-                          className="ui-input w-full py-1 text-xs"
-                        >
-                          <option value="left">왼쪽 (left)</option>
-                          <option value="center">가운데 (center)</option>
-                          <option value="right">오른쪽 (right)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-2xs text-fg-muted block mb-0.5">너비 비율</label>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="3"
-                            max="60"
-                            value={rule.widthPercent}
-                            onChange={e => handleUpdateRule(idx, { widthPercent: parseInt(e.target.value) || 10 })}
-                            className="ui-input w-full py-1 text-xs"
-                          />
-                          <span className="text-xs text-fg-muted">%</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {rule.sampleValues && rule.sampleValues.length > 0 && (
-                      <div className="pt-1.5 border-t border-subtle">
-                        <span className="text-2xs text-fg-muted block mb-0.5">샘플값:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {rule.sampleValues.slice(0, 2).map((s, sIdx) => (
-                            <span key={sIdx} className="text-[10px] bg-surface-muted px-1.5 py-0.5 rounded truncate max-w-[140px]" title={s}>
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 3단계: AI-Ready 메타데이터 검토 및 HWPX 서식 지침 */}
-      {/* ========================================================================= */}
-      {currentStep === 3 && (
-        <div className="space-y-6">
           <div className="ui-panel p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-subtle pb-4">
-              <div>
-                <h3 className="text-sm font-bold text-fg">AI-Ready 메타데이터 검토 및 HWPX 서식 지침</h3>
-                <p className="text-xs text-fg-muted mt-0.5">
-                  분석 결과를 검토하고 샘플 템플릿에 반영할 기관 정보·필드 설명·단위·코드를 입력합니다.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleStepTransition(4)}
-                className="ui-button-primary px-4 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                가이드 생성·내보내기
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            {/* 1. AI-Ready 표준 메타데이터 명세 패널 */}
+            {/* 공공 표준 메타데이터 요약 */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Database className="w-4 h-4 text-accent" />
-                  <h4 className="text-xs font-bold text-fg">공공 AI-Ready 표준 메타데이터 자동 생성 (DCAT 3.0 / Dublin Core / RAI)</h4>
+                  <h4 className="text-xs font-bold text-fg">공공 표준 메타데이터 요약 (DCAT 3.0)</h4>
                 </div>
                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  REVIEW_REQUIRED 기관 확인 필요
+                  기관 확인 필요 항목을 검토해 주세요
                 </span>
               </div>
 
@@ -1250,14 +1742,14 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
                 </div>
                 <div className="space-y-1">
                   <span className="text-2xs text-fg-muted font-mono block">dct:format (수집·개방 규격)</span>
-                  <p className="font-mono text-fg font-bold uppercase">{inputFormat} ({dataCategory === 'file' ? '파일데이터' : 'API 데이터'})</p>
+                  <p className="font-mono text-fg font-bold uppercase">{inputFormat} ({dataCategory === 'file' ? 'file data' : 'API data'})</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-2xs text-fg-muted font-mono block">dcat:theme (데이터 분류)</span>
-                  <p className="font-semibold text-fg">기관 확인 필요</p>
+                  <p className="font-semibold text-fg">{templateMetadata.theme_label || '기관 확인 필요'}</p>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-2xs text-fg-muted font-mono block">rai:transparency (책임감 있는 AI)</span>
+                  <span className="text-2xs text-fg-muted font-mono block">rai:transparency (책임 있는 AI)</span>
                   <div className="flex items-center gap-1.5">
                     <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 font-bold text-2xs">미검증</span>
                     <span className="text-2xs text-fg-muted">비식별화·개인정보 검토 필요</span>
@@ -1265,572 +1757,195 @@ ${aiReadinessChecklist.map(c => `- ${c.item}: ${c.message}`).join('\n')}
                 </div>
                 <div className="space-y-1">
                   <span className="text-2xs text-fg-muted font-mono block">dqv:QualityMeasurement (품질 지표)</span>
-                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">관측 값 완전성 {aiReadinessScore}% · 기타 품질 검토 필요</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-2xs text-fg-muted font-mono block">유효 필드 및 속성</span>
-                  <p className="font-semibold text-fg">총 {rules.filter(r => r.include).length}개 관측 필드</p>
+                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">관측값 완전성 {aiReadinessScore}% · 대표성·편향·정확성은 별도 검토</p>
                 </div>
               </div>
             </div>
 
             <AiGuideTemplatePanel canonical={canonicalMetadata} metadata={templateMetadata}
-              onMetadataChange={setTemplateMetadata} annotations={fieldAnnotations} onAnnotationsChange={setFieldAnnotations} />
+              onMetadataChange={value => { setTemplateMetadata(value); setHumanDocumentBase64(''); setZipDocumentBase64(''); setDownloadSuccessNotice(null); }}
+              annotations={fieldAnnotations}
+              onAnnotationsChange={value => { setFieldAnnotations(value); setHumanDocumentBase64(''); setZipDocumentBase64(''); setDownloadSuccessNotice(null); }} />
 
-            {/* 2. 공공 HWPX 공문서 서식 옵션 */}
-            <div className="space-y-3 pt-4 border-t border-subtle">
-              <div className="flex items-center gap-2">
-                <Table className="w-4 h-4 text-accent" />
-                <h4 className="text-xs font-bold text-fg">표 미리보기 옵션 (HWPX는 샘플 템플릿 서식 사용)</h4>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {STYLE_PRESETS.map(preset => (
-                  <div
-                    key={preset.id}
-                    onClick={() => setSelectedPresetId(preset.id)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                      selectedPresetId === preset.id
-                        ? 'border-accent ring-2 ring-accent/20 bg-accent/5'
-                        : 'border-subtle bg-surface hover:bg-surface-muted/40'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-xs text-fg">{preset.name}</span>
-                      {selectedPresetId === preset.id && <Check className="w-4 h-4 text-accent" />}
-                    </div>
-                    <p className="text-xs text-fg-muted leading-relaxed mb-3">{preset.description}</p>
-                    <div className="space-y-1.5 text-2xs text-fg-muted font-mono pt-2 border-t border-subtle">
-                      <div>헤더 음영: <span className="font-bold" style={{ color: preset.headerTextColor }}>{preset.headerBgColor}</span></div>
-                      <div>본문 폰트: {preset.bodyFontSizePt}pt / 헤더: {preset.headerFontSizePt}pt</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 표 세부 제어 옵션 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-subtle">
-                <label className="flex items-center gap-3 p-3 rounded-xl bg-surface-muted cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={repeatHeader}
-                    onChange={e => setRepeatHeader(e.target.checked)}
-                    className="rounded border-subtle text-accent focus:ring-accent"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-fg">페이지 넘김 시 표 머리글 자동 반복</div>
-                    <div className="text-2xs text-fg-muted">행이 많은 대용량 표에서 다음 페이지 상단에 헤더를 재표시합니다.</div>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 p-3 rounded-xl bg-surface-muted cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showRowNumber}
-                    onChange={e => setShowRowNumber(e.target.checked)}
-                    className="rounded border-subtle text-accent focus:ring-accent"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-fg">첫 번째 열에 연번(순번) 자동 부여</div>
-                    <div className="text-2xs text-fg-muted">표 좌측에 시스템 순번(1, 2, 3...) 컬럼을 6% 너비로 자동 삽입합니다.</div>
-                  </div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4단계: 완성된 AI 친화 가이드 및 서식 롤 확인 & 내보내기 */}
-      {/* ========================================================================= */}
-      {currentStep === 4 && (
-        <div className="space-y-6">
-          <div className="ui-panel p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-subtle pb-4">
-              <div>
-                <h3 className="text-sm font-bold text-fg">AI 친화 가이드 완성 및 내보내기</h3>
-                <p className="text-xs text-fg-muted mt-0.5">
-                  샘플 템플릿 HWPX와 구조 분석 JSON·XML·JSON-LD를 다운로드할 수 있습니다.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleCopyClipboard(generatedMarkdownGuide)}
-                  className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 cursor-pointer"
-                >
-                  {copySuccess ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copySuccess ? '복사 완료' : '가이드 복사'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleDownloadFile(
-                      generatedMarkdownGuide,
-                      `${documentTitle}_AI친화가이드.md`,
-                      'text/markdown;charset=utf-8'
-                    )
-                  }
-                  className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 cursor-pointer font-semibold"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>가이드 MD</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleDownloadFile(
-                      generatedJsonLd,
-                      `${documentTitle}_DCAT_Metadata.jsonld`,
-                      'application/ld+json;charset=utf-8'
-                    )
-                  }
-                  className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 cursor-pointer font-semibold"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>JSON-LD 메타데이터</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleDownloadFile(
-                      generatedQualityReport,
-                      `${documentTitle}_품질보고서.md`,
-                      'text/markdown;charset=utf-8'
-                    )
-                  }
-                  className="ui-button-primary text-xs px-3.5 py-1.5 flex items-center gap-1.5 cursor-pointer font-bold shadow-xs"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>품질보고서</span>
-                </button>
-              </div>
+            <div className="space-y-2 pt-4 border-t border-subtle">
+              <label className="ui-label" htmlFor="ai-guide-human-format">AI 가이드 문서 형식</label>
+              <select id="ai-guide-human-format" className="ui-input w-full md:w-80 text-sm"
+                value={humanFormat} onChange={event => { setHumanFormat(event.target.value as AiGuideHumanFormat); setHumanDocumentBase64(''); setZipDocumentBase64(''); setDownloadSuccessNotice(null); }}>
+                <option value="hwpx">한글 표준 문서 (.hwpx)</option>
+                <option value="docx">Word 문서 (.docx)</option>
+                <option value="html">HTML (.html)</option>
+                <option value="md">Markdown (.md)</option>
+              </select>
+              <p className="text-xs text-fg-muted">
+                ZIP 일괄 다운로드를 선택하면 문서 4종(HWPX·DOCX·HTML·MD), 메타데이터 3종(JSON·XML·JSON-LD), 품질보고서를 함께 제공합니다.
+              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="ui-button-primary"
-                disabled={isExportingDocx}
-                onClick={async () => {
-                  setIsExportingDocx(true);
-                  setErrorNotice(null);
-                  try {
-                    const blob = await exportParsedDocx({
-                      file_base64: fileBase64,
-                      text_content: rawText,
-                      format: inputFormat,
-                      filename: uploadedFile?.name || `${documentTitle}.${inputFormat}`,
-                    });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${documentTitle}_표파싱보고서.docx`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  } catch (err) {
-                    setErrorNotice(err instanceof Error ? err.message : 'DOCX 보고서 생성 실패');
-                  } finally {
-                    setIsExportingDocx(false);
-                  }
-                }}
-              >
-                {isExportingDocx ? 'DOCX 생성 중…' : '표 파싱 보고서 (DOCX 표준 디자인 다운로드)'}
-              </button>
-              <button className="ui-button-secondary" disabled={!canonicalMetadata || isExportingTemplate} onClick={async () => {
-                if (!canonicalMetadata) return;
-                setIsExportingTemplate(true); setErrorNotice(null);
-                try {
-                  const blob = await exportAiGuideTemplate({canonical_metadata: canonicalMetadata, metadata: templateMetadata, field_annotations: fieldAnnotations});
-                  const url = URL.createObjectURL(blob); const a = document.createElement('a');
-                  a.href=url; a.download=`${documentTitle}_템플릿가이드.hwpx`; a.click(); URL.revokeObjectURL(url);
-                } catch (err) { setErrorNotice(err instanceof Error ? err.message : 'HWPX 생성 실패'); }
-                finally { setIsExportingTemplate(false); }
-              }}>{isExportingTemplate ? '템플릿 문서 생성 중…' : '샘플 템플릿 HWPX 다운로드'}</button>
-              <button className="ui-button-secondary" onClick={() => handleDownloadFile(customJsonRule || '{}', `${documentTitle}.json`, 'application/json;charset=utf-8')}>구조 분석 JSON 다운로드</button>
-              <button className="ui-button-secondary" onClick={() => handleDownloadFile(metadataXml, `${documentTitle}.xml`, 'application/xml;charset=utf-8')}>XML 다운로드 (내부 규격)</button>
-            </div>
-
-            {/* 서브 탭 전환 */}
-            <div className="flex flex-wrap items-center gap-1 p-1 bg-surface-muted rounded-xl border border-subtle w-fit">
-              <button
-                type="button"
-                onClick={() => setPreviewSubTab('hwpx_render')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  previewSubTab === 'hwpx_render'
-                    ? 'bg-accent text-accent-fg shadow-xs'
-                    : 'text-fg-muted hover:text-fg hover:bg-surface'
-                }`}
-              >
-                <Table className="w-3.5 h-3.5" />
-                <span>데이터 표 미리보기</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewSubTab('ai_guide')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  previewSubTab === 'ai_guide'
-                    ? 'bg-accent text-accent-fg shadow-xs'
-                    : 'text-fg-muted hover:text-fg hover:bg-surface'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>AI 친화 가이드 전문</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewSubTab('json_ld')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  previewSubTab === 'json_ld'
-                    ? 'bg-accent text-accent-fg shadow-xs'
-                    : 'text-fg-muted hover:text-fg hover:bg-surface'
-                }`}
-              >
-                <Database className="w-3.5 h-3.5" />
-                <span>AI-Ready 메타데이터 (JSON-LD)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewSubTab('quality_report')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  previewSubTab === 'quality_report'
-                    ? 'bg-accent text-accent-fg shadow-xs'
-                    : 'text-fg-muted hover:text-fg hover:bg-surface'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>AI 품질보고서</span>
-              </button>
-              {isLargeDataset && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewSubTab('large_data')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    previewSubTab === 'large_data'
-                      ? 'bg-accent text-accent-fg shadow-xs'
-                      : 'text-fg-muted hover:text-fg hover:bg-surface'
-                  }`}
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-500" />
-                  <span>대용량 최적화 가이드</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setPreviewSubTab('json')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  previewSubTab === 'json'
-                    ? 'bg-accent text-accent-fg shadow-xs'
-                    : 'text-fg-muted hover:text-fg hover:bg-surface'
-                }`}
-              >
-                <Code2 className="w-3.5 h-3.5" />
-                <span>구조 분석 JSON</span>
-              </button>
-              {docParseResult && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewSubTab('parsed_tables')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    previewSubTab === 'parsed_tables'
-                      ? 'bg-accent text-accent-fg shadow-xs'
-                      : 'text-fg-muted hover:text-fg hover:bg-surface'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5 text-blue-500" />
-                  <span>문서 추출 표 ({docParseResult.total_tables_count}개)</span>
-                </button>
-              )}
-            </div>
-
-
-            <button className="ui-button-secondary" onClick={() => setPreviewSubTab('xml')}>XML 미리보기</button>
-            {previewSubTab === 'xml' && <pre className="p-4 bg-surface-muted overflow-auto max-h-[500px] text-xs">{metadataXml}</pre>}
-            {/* 1. 데이터 표 미리보기 (HWPX는 샘플 서식) */}
-            {previewSubTab === 'hwpx_render' && (
-              <div className="p-4 rounded-xl border border-subtle bg-surface overflow-x-auto space-y-3">
-                <div className="text-center font-bold text-sm text-fg pb-2 border-b border-subtle">
-                  {documentTitle}
-                </div>
-                <p className="text-xs text-fg-muted">경로별 관측값 예시입니다. 같은 행의 값이 실제 동일 레코드에 속한다는 의미는 아닙니다.</p>
-                <table className="w-full text-xs border-collapse border border-subtle">
-                  <thead>
-                    <tr style={{ backgroundColor: currentPreset.headerBgColor, color: currentPreset.headerTextColor }}>
-                      {showRowNumber && (
-                        <th className="border border-subtle px-2.5 py-2 text-center font-bold w-[6%]">연번</th>
-                      )}
-                      {rules
-                        .filter(r => r.include)
-                        .map(r => (
-                          <th
-                            key={r.key}
-                            style={{ width: `${r.widthPercent}%` }}
-                            className="border border-subtle px-2.5 py-2 text-center font-bold"
-                          >
-                            {r.label}
-                          </th>
-                        ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.rows.slice(0, 5).map((row, rIdx) => (
-                      <tr key={rIdx} className="hover:bg-surface-muted/40 transition-colors">
-                        {showRowNumber && (
-                          <td className="border border-subtle px-2 py-1.5 text-center text-fg-muted font-mono">
-                            {rIdx + 1}
-                          </td>
-                        )}
-                        {rules
-                          .filter(r => r.include)
-                          .map(r => {
-                            const val = row[r.key] || '';
-                            const alignClass =
-                              r.align === 'right' ? 'text-right' : r.align === 'center' ? 'text-center' : 'text-left';
-                            return (
-                              <td key={r.key} className={`border border-subtle px-2.5 py-1.5 ${alignClass}`}>
-                                {r.formatType === 'badge' ? (
-                                  <span className="inline-block px-1.5 py-0.5 rounded text-[11px] bg-accent/10 text-accent font-medium">
-                                    {val}
-                                  </span>
-                                ) : (
-                                  val
-                                )}
-                              </td>
-                            );
-                          })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* 공공 기술검토 문서 파싱 표 렌더러 (Data Grid & Parameters) */}
-            {previewSubTab === 'parsed_tables' && docParseResult && (
-              <div className="p-4 rounded-xl border border-subtle bg-surface overflow-x-auto space-y-6">
-                <div className="text-center font-bold text-base text-fg pb-2 border-b border-subtle">
-                  [{docParseResult.title}] 공공 기술문서 표 파싱 보고서 (총 {docParseResult.total_tables_count}개 표)
-                </div>
-
-                {/* 1. XML/JSON 파싱 데이터 그리드 표 */}
-                {docParseResult.payload_data_tables.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                      <Table className="w-4 h-4" />
-                      <span>XML·JSON 응답 파싱 데이터 그리드 표 (Data Grid)</span>
-                    </h3>
-                    <p className="text-xs text-fg-muted">원문 문서에 텍스트로 수록되어 있던 XML/JSON 응답 페이로드를 행·열 2차원 표로 정밀 전개한 결과입니다.</p>
-                    {docParseResult.payload_data_tables.map((tbl, idx) => (
-                      <div key={idx} className="space-y-2 border border-subtle rounded-lg p-3 bg-surface-muted/30">
-                        <div className="font-semibold text-xs text-fg">□ {tbl.title}</div>
-                        <table className="w-full text-xs border-collapse border border-subtle">
-                          <thead>
-                            <tr style={{ backgroundColor: '#EBF2FA', color: '#1F2937' }}>
-                              {tbl.headers.map((h, i) => (
-                                <th key={i} className="border border-subtle px-2.5 py-1.5 text-center font-bold">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tbl.rows.slice(0, 10).map((r, rIdx) => (
-                              <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-surface-muted/50' : ''}>
-                                {r.map((val, cIdx) => (
-                                  <td key={cIdx} className={`border border-subtle px-2.5 py-1.5 ${cIdx === 0 ? 'bg-slate-50 dark:bg-slate-900/50 font-medium' : ''}`}>{val}</td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 2. 파라미터 명세 표 */}
-                {docParseResult.parameter_tables.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <Code2 className="w-4 h-4" />
-                      <span>API 파라미터 및 필드 스키마 명세 표</span>
-                    </h3>
-                    {docParseResult.parameter_tables.map((tbl, idx) => (
-                      <div key={idx} className="space-y-2 border border-subtle rounded-lg p-3 bg-surface-muted/30">
-                        <div className="font-semibold text-xs text-fg">□ {tbl.title}</div>
-                        <table className="w-full text-xs border-collapse border border-subtle">
-                          <thead>
-                            <tr style={{ backgroundColor: '#EBF2FA', color: '#1F2937' }}>
-                              {tbl.headers.map((h, i) => (
-                                <th key={i} className="border border-subtle px-2.5 py-1.5 text-center font-bold">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tbl.rows.slice(0, 10).map((r, rIdx) => (
-                              <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-surface-muted/50' : ''}>
-                                {r.map((val, cIdx) => (
-                                  <td key={cIdx} className={`border border-subtle px-2.5 py-1.5 ${cIdx === 0 ? 'bg-slate-50 dark:bg-slate-900/50 font-medium' : ''}`}>{val}</td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 3. 에러코드 명세 표 */}
-                {docParseResult.error_code_tables.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4" />
-                      <span>오류 및 에러 코드 명세 표</span>
-                    </h3>
-                    {docParseResult.error_code_tables.map((tbl, idx) => (
-                      <div key={idx} className="space-y-2 border border-subtle rounded-lg p-3 bg-surface-muted/30">
-                        <div className="font-semibold text-xs text-fg">□ {tbl.title}</div>
-                        <table className="w-full text-xs border-collapse border border-subtle">
-                          <thead>
-                            <tr style={{ backgroundColor: '#EBF2FA', color: '#1F2937' }}>
-                              {tbl.headers.map((h, i) => (
-                                <th key={i} className="border border-subtle px-2.5 py-1.5 text-center font-bold">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tbl.rows.slice(0, 10).map((r, rIdx) => (
-                              <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-surface-muted/50' : ''}>
-                                {r.map((val, cIdx) => (
-                                  <td key={cIdx} className={`border border-subtle px-2.5 py-1.5 ${cIdx === 0 ? 'bg-slate-50 dark:bg-slate-900/50 font-medium' : ''}`}>{val}</td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 4. 서비스 및 데이터셋 개요 표 */}
-                {docParseResult.overview_tables.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4" />
-                      <span>서비스 및 데이터셋 일반 개요 표</span>
-                    </h3>
-                    {docParseResult.overview_tables.map((tbl, idx) => (
-                      <div key={idx} className="space-y-2 border border-subtle rounded-lg p-3 bg-surface-muted/30">
-                        <div className="font-semibold text-xs text-fg">□ {tbl.title}</div>
-                        <table className="w-full text-xs border-collapse border border-subtle">
-                          <thead>
-                            <tr style={{ backgroundColor: '#EBF2FA', color: '#1F2937' }}>
-                              {tbl.headers.map((h, i) => (
-                                <th key={i} className="border border-subtle px-2.5 py-1.5 text-center font-bold">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tbl.rows.slice(0, 10).map((r, rIdx) => (
-                              <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-surface-muted/50' : ''}>
-                                {r.map((val, cIdx) => (
-                                  <td key={cIdx} className={`border border-subtle px-2.5 py-1.5 ${cIdx === 0 ? 'bg-slate-50 dark:bg-slate-900/50 font-medium' : ''}`}>{val}</td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-
-            {/* 2. AI 친화 가이드 마크다운 전문 */}
-            {previewSubTab === 'ai_guide' && (
-              <pre className="p-4 rounded-xl bg-surface-muted font-mono text-xs text-fg overflow-x-auto max-h-[500px] whitespace-pre-wrap leading-relaxed">
-                {generatedMarkdownGuide}
-              </pre>
-            )}
-
-            {/* 3. AI-Ready 메타데이터 JSON-LD (DCAT 3.0) */}
-            {previewSubTab === 'json_ld' && (
-              <div className="p-4 rounded-xl border border-subtle bg-surface-muted/50 space-y-3">
-                <div className="flex items-center justify-between">
+            {/* 최종 산출물 ZIP 다운로드 */}
+            <div className="pt-6 border-t border-subtle space-y-4">
+              {downloadSuccessNotice && (
+                <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-700 dark:text-emerald-300 flex items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-center gap-2">
-                    <Database className="w-4 h-4 text-accent" />
-                    <span className="text-xs font-bold text-fg">DCAT 어휘 기반 JSON-LD (기관 메타데이터 확인 필요)</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="font-medium">{downloadSuccessNotice}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleDownloadFile(generatedJsonLd, `${documentTitle}_DCAT_Metadata.jsonld`, 'application/ld+json;charset=utf-8')}
-                    className="ui-button-secondary text-2xs px-2.5 py-1 cursor-pointer"
+                    onClick={() => setDownloadSuccessNotice(null)}
+                    className="text-2xs text-fg-muted hover:text-fg underline cursor-pointer"
                   >
-                    JSON-LD 다운로드
+                    닫기
                   </button>
                 </div>
-                <pre className="font-mono text-xs text-fg-muted overflow-x-auto p-3.5 bg-surface rounded-xl border border-subtle max-h-[460px] leading-relaxed">
-                  {generatedJsonLd}
-                </pre>
-              </div>
-            )}
+              )}
 
-            {/* 4. AI 품질보고서 */}
-            {previewSubTab === 'quality_report' && (
-              <div className="p-4 rounded-xl border border-subtle bg-surface-muted/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                    <span className="text-xs font-bold text-fg">공공데이터 AI 품질평가 진단 보고서</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-accent/10 border border-accent/25">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-accent text-accent-fg flex items-center justify-center shrink-0 shadow-xs">
+                    <Archive className="w-5 h-5" />
                   </div>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold text-fg">완성본 전체 다운로드 (ZIP)</h4>
+                    <p className="text-xs text-fg-muted mt-0.5">
+                      문서 4종(HWPX·DOCX·HTML·MD) · 메타데이터 3종(JSON·XML·JSON-LD) · 품질보고서
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => handleDownloadFile(generatedQualityReport, `${documentTitle}_품질진단보고서.md`, 'text/markdown;charset=utf-8')}
-                    className="ui-button-secondary text-2xs px-2.5 py-1 cursor-pointer"
+                    onClick={handleCreateFinalGuideAndDownload}
+                    disabled={isGeneratingFinal}
+                    className="ui-button-primary px-6 py-3 text-sm font-bold flex items-center gap-2 cursor-pointer shadow-md hover:shadow-lg transition-all"
                   >
-                    품질보고서 다운로드
+                    {isGeneratingFinal ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>산출물 생성 및 ZIP 압축 중…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        <span>ZIP 일괄 다운로드</span>
+                      </>
+                    )}
                   </button>
                 </div>
-                <pre className="font-mono text-xs text-fg-muted overflow-x-auto p-3.5 bg-surface rounded-xl border border-subtle max-h-[460px] whitespace-pre-wrap leading-relaxed">
-                  {generatedQualityReport}
-                </pre>
               </div>
-            )}
 
-            {/* 5. 대용량 최적화 가이드 */}
-            {previewSubTab === 'large_data' && (
-              <div className="p-4 rounded-xl bg-surface-muted space-y-4">
-                <div className="flex items-center gap-2 text-sm font-bold text-fg">
-                  <Zap className="w-4 h-4 text-amber-500" />
-                  <span>대용량 데이터셋 처리 파이프라인 권고</span>
+              {/* 진행 상태 및 피드백 알림 (버튼 바로 아래 표시) */}
+              {isGeneratingFinal && (
+                <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-2.5 animate-pulse">
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0 text-indigo-600 dark:text-indigo-400" />
+                  <span>문서 4종(HWPX·DOCX·HTML·MD) 및 메타데이터 3종(JSON·XML·JSON-LD)을 실시간 생성하고 압축하고 있습니다. (데이터 건수에 따라 약 10~25초 소요됩니다)</span>
                 </div>
-                <pre className="p-3.5 rounded-lg bg-surface border border-subtle font-mono text-xs text-fg-muted whitespace-pre-wrap leading-relaxed">
-                  {largeDataGuide || '대용량 데이터 최적화 가이드가 없습니다.'}
-                </pre>
-              </div>
-            )}
+              )}
+              {errorNotice && (
+                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <span>{errorNotice}</span>
+                </div>
+              )}
+              {downloadSuccessNotice && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2.5">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span>{downloadSuccessNotice}</span>
+                </div>
+              )}
 
-            {/* 6. 구조 분석 JSON */}
-            {previewSubTab === 'json' && (
-              <pre className="p-4 rounded-xl bg-surface-muted font-mono text-xs text-fg overflow-x-auto max-h-[500px] leading-relaxed">
-                {customJsonRule ||
-                  JSON.stringify(
-                    {
-                      documentTitle,
-                      dataCategory,
-                      aiReadinessScore,
-                      selectedPresetId,
-                      orientation,
-                      repeatHeader,
-                      showRowNumber,
-                      rules: rules.filter(r => r.include),
-                    },
-                    null,
-                    2
-                  )}
-              </pre>
-            )}
+              {/* 생성 완료 후 개별 문서와 메타데이터 다운로드 */}
+              {(zipDocumentBase64 || humanDocumentBase64) && (
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-surface-muted/60 border border-subtle">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-2xs font-bold text-fg-muted mr-1">개별 문서 다운로드:</span>
+                    <button
+                      type="button"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      onClick={() => {
+                        const b64 = allDocumentsBase64['hwpx'] || (humanFormat === 'hwpx' ? humanDocumentBase64 : '');
+                        if (b64) handleDownloadBase64(b64, `${documentTitle}_AI_가이드.hwpx`, 'application/hwp+zip');
+                      }}
+                      title="한글 표준 문서 (HWPX)"
+                    >
+                      <Download className="w-3 h-3" /> HWPX
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      onClick={() => {
+                        const b64 = allDocumentsBase64['docx'] || (humanFormat === 'docx' ? humanDocumentBase64 : '');
+                        if (b64) handleDownloadBase64(b64, `${documentTitle}_AI_가이드.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                      }}
+                      title="Word 문서 (DOCX)"
+                    >
+                      <Download className="w-3 h-3" /> DOCX
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      onClick={() => {
+                        const b64 = allDocumentsBase64['md'] || (humanFormat === 'md' ? humanDocumentBase64 : '');
+                        if (b64) handleDownloadBase64(b64, `${documentTitle}_AI_가이드.md`, 'text/markdown;charset=utf-8');
+                        else handleDownloadFile(customMarkdownGuide || generatedMarkdownGuide, `${documentTitle}_AI_가이드.md`, 'text/markdown;charset=utf-8');
+                      }}
+                      title="마크다운 문서 (MD)"
+                    >
+                      <Download className="w-3 h-3" /> MD
+                    </button>
+
+                    <button
+                      type="button"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      onClick={() => {
+                        const b64 = allDocumentsBase64['html'] || (humanFormat === 'html' ? humanDocumentBase64 : '');
+                        if (b64) handleDownloadBase64(b64, `${documentTitle}_AI_Guide.html`, 'text/html;charset=utf-8');
+                      }}
+                      title="HTML 문서"
+                    >
+                      <Download className="w-3 h-3" /> HTML
+                    </button>
+
+                    <span className="text-subtle mx-1">|</span>
+                    <span className="text-2xs font-bold text-fg-muted mr-1">메타데이터</span>
+
+                    <button
+                      type="button"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      onClick={() => handleDownloadFile(customJsonRule || '{}', `${documentTitle}_메타데이터.json`, 'application/json;charset=utf-8')}
+                      title="표준 JSON 메타데이터"
+                    >
+                      <Download className="w-3 h-3" /> JSON
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      onClick={() => handleDownloadFile(metadataXml, `${documentTitle}_메타데이터.xml`, 'application/xml;charset=utf-8')}
+                      title="표준 XML 메타데이터"
+                    >
+                      <Download className="w-3 h-3" /> XML
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      onClick={() => handleDownloadFile(serverJsonLd || generatedJsonLd, `${documentTitle}_메타데이터.jsonld`, 'application/ld+json;charset=utf-8')}
+                      title="W3C DCAT 3.0 JSON-LD"
+                    >
+                      <Download className="w-3 h-3" /> JSON-LD
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyClipboard(customMarkdownGuide || generatedMarkdownGuide)}
+                    className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {copySuccess ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-fg-muted" />}
+                    <span>{copySuccess ? '복사 완료' : 'Markdown 가이드 복사'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

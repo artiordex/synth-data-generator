@@ -13,8 +13,51 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from synthetic_api.main import app
+from synthetic_api.application.services.ai_guide_analysis import analyze
+from synthetic_api.application.services.ai_guide_document.binding import Contract, canonical, validate
+from synthetic_api.application.services.ai_guide_document.profile import profile_bytes
 
 client = TestClient(app)
+
+
+def test_analysis_processing_candidates() -> None:
+    result = analyze(
+        'timestamp,value,quality_flag\n2025-01-01,1,Y\n,2,N',
+        'csv',
+    )
+    processing = result['processing']
+    assert processing['integration']['is_integrated'] is False
+    assert processing['missing_value_processing'][0]['method'] is None
+    assert processing['missing_value_processing'][0]['target_field_ids'] == ['/*/timestamp']
+    assert processing['derived_fields'][0]['derivation_type'] == 'observed'
+    assert any(flag['flag_field'] == '/*/quality_flag' for flag in processing['quality_flags'])
+
+
+def test_binding_processing_contract() -> None:
+    profile = profile_bytes(
+        b'timestamp,value,quality_flag\n2025-01-01,1,Y\n,2,N',
+        'csv',
+        'generic.csv',
+    )
+    model = canonical([profile], 'Generic data', Contract())
+    validate(model, Contract())
+    assert model['processing']['integration']['is_integrated'] is False
+    assert model['processing']['missing_value_processing']
+    assert all(field['value_origin'] == 'observed' for field in model['fields'])
+    assert any(item['bindingPath'].startswith('/processing/') for item in model['canonicalItems'])
+
+
+def test_canonical_processing_is_reviewable_without_invented_rules() -> None:
+    profile = profile_bytes(b'id,value\n1,10\n2,20', 'csv', 'values.csv')
+    model = canonical([profile], 'Values', Contract())
+    rules = model['processing']['missing_value_processing']
+    assert rules == []
+    assert model['processing']['outlier_processing'] == []
+    assert not any(
+        item['bindingPath'].startswith('/processing/missing_value_processing/')
+        and item['status'] == 'AUTO_CONFIRMED'
+        for item in model['canonicalItems']
+    )
 
 
 # CSV 파일데이터 기반 AI 친화 가이드 생성 요청이 정상 처리되는지 검증함
@@ -271,16 +314,65 @@ def test_ai_only_adds_notes_and_receives_complete_structure(monkeypatch):
         # 컨텍스트 매니저 종료 메서드임
         def __exit__(self,*args): pass
         # 모의 응답 바이트를 반환함
-        def read(self): return json.dumps({'choices':[{'message':{'content':json.dumps({'summary':'검토 초안','columns':[{'key':'invented'}]})}}]}).encode()
+        def read(self):
+            content={'summary':'검토 초안','metadata':{'description':'수치 관측 데이터'},
+                     'fields':[{'path':'/data/*/x','english_name':'observedValue','label':'관측값',
+                                'description':'관측된 수치','unit':'','codes':''},
+                               {'path':'/invented','english_name':'invented','label':'임의','description':'임의','unit':'','codes':''}]}
+            return json.dumps({'choices':[{'message':{'content':json.dumps(content,ensure_ascii=False)}}]}).encode()
     # 가짜 HTTP 요청 핸들러 함수임
     def fake(request,**kwargs):
         requests.append(json.loads(request.data)); return Result()
     monkeypatch.setattr(ai_guide.urllib.request,'urlopen',fake)
-    response=client.post('/api/v1/ai-guide/generate-rule',json={'format':'json','payload_text':'{"data":[{"x":1}]}','provider':'openai','api_key':'test'})
+    response=client.post('/api/v1/ai-guide/generate-rule',json={
+        'format':'json','payload_text':'{"data":[{"x":1}]}','provider':'openai','api_key':'test',
+        'user_metadata':{'publisher':'테스트 제공기관','creator':'테스트 소관부서','contact_name':'담당자 연락처'},
+    })
     assert response.status_code==200
     result=response.json()
     assert result['ai_powered'] is True
     assert 'invented' not in result['json_rule']
+    assert result['suggested_metadata']['description']=='수치 관측 데이터'
+    assert result['suggested_field_annotations']['/data/*/x']['english_name']=='observedValue'
+    assert '/invented' not in result['suggested_field_annotations']
     payload=json.loads(requests[0]['messages'][1]['content'])
+    assert payload['institution_context']['publisher']=='테스트 제공기관'
+    assert payload['institution_context']['creator']=='테스트 소관부서'
     assert any(f['path']=='/data/*/x' for f in payload['fields'])
     assert all('examples' not in f for f in payload['fields'])
+
+
+def test_generate_documents_calls_ai_after_user_input_and_returns_required_outputs(monkeypatch):
+    from synthetic_api.routes.v1 import ai_guide
+    requests=[]
+    class Result:
+        def __enter__(self): return self
+        def __exit__(self,*args): pass
+        def read(self):
+            content={'dataset_purpose':'AI 데이터 개방 목적 초안','ai_purpose':'분류 활용 초안',
+                     'known_limitations':'제공 표본 범위 한계','fields':[{'path':'/*/id','english_name':'itemId','name_ko':'식별자','description':'식별자 초안'}]}
+            return json.dumps({'choices':[{'message':{'content':json.dumps(content,ensure_ascii=False)}}]}).encode()
+    def fake(request,**kwargs):
+        requests.append(json.loads(request.data));return Result()
+    monkeypatch.setenv('OPENAI_API_KEY','test-key')
+    monkeypatch.setattr(ai_guide.urllib.request,'urlopen',fake)
+    payload=base64.b64encode(b'[{"id":1}]').decode()
+    response=client.post('/api/v1/ai-guide/generate-documents',json={
+        'sources':[{'filename':'sample.json','file_base64':payload}],
+        'document_title':'기관 데이터',
+        'user_metadata':{'publisher':'사용자 입력 기관'},
+        'field_annotations':{},
+        'human_format':'odt',
+        'provider':'openai',
+    })
+    assert response.status_code==200
+    result=response.json()
+    assert result['ai_powered'] is True
+    assert result['human_format']=='odt' and result['human_document_base64']
+    assert json.loads(result['canonical_json'])['dataset']['publisher']=='사용자 입력 기관'
+    assert next(field for field in json.loads(result['canonical_json'])['fields'] if field['path']=='/*/id')['name']=='itemId'
+    assert '사용자 입력 기관' in result['metadata_xml']
+    assert '사용자 입력 기관' in result['json_ld']
+    prompt=json.loads(requests[0]['messages'][1]['content'])
+    assert prompt['dataset']['publisher']=='사용자 입력 기관'
+    assert 'lowerCamelCase' in prompt['instructions']

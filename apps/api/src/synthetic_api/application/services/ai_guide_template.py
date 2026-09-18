@@ -54,15 +54,39 @@ METADATA_FIELDS = {
     'imputation': ('결측 보정 방법·플래그 의미', '내부 계보 항목'),
     'training_split': ('AI 목적·학습/검증 분리·정보 누출 방지', '내부 AI 활용 항목'),
     'limitations': ('대표성·편향·개인정보·이용 한계', '내부 검토 항목'),
+    'service_name': ('API 서비스명', 'dct:title'),
     'endpoint': ('API URL', 'dcat:endpointURL'),
+    'interface_type': ('인터페이스 표준', 'dcat:endpointDescription'),
     'http_method': ('HTTP method', '내부 API 계약'),
+    'http_methods': ('HTTP methods', '내부 API 계약'),
+    'mime_types': ('교환 데이터 형식', 'dcat:mediaType'),
+    'character_encoding': ('문자 인코딩', '내부 API 계약'),
+    'https': ('HTTPS 사용 여부', '내부 API 계약'),
+    'access_rights': ('서비스 접근 권한', 'dct:accessRights'),
+    'service_start': ('서비스 시작일', 'dct:issued'),
+    'last_modified': ('서비스 최종 수정일', 'dct:modified'),
+    'auth_type': ('인증 유형', '내부 API 계약'),
     'authentication': ('인증 방식 (실제 키 입력 금지)', '내부 API 계약'),
+    'auth_type_desc': ('인증 적용 설명', '내부 API 계약'),
     'request_parameters': ('요청 파라미터·필수·기본값', '내부 API 계약'),
     'pagination': ('페이지네이션·호출 제한', '내부 API 계약'),
     'error_codes': ('오류 코드·재시도', '내부 API 계약'),
     'response_path': ('업무 레코드 경로', '내부 API 계약'),
+    'specification_url': ('API 명세 URL', 'dcat:endpointDescription'),
+    'api_version': ('API 버전', 'owl:versionInfo'),
+    'rate_limit': ('호출 제한', '내부 API 계약'),
+    'sample_request': ('요청 메시지 샘플', '내부 API 계약'),
+    'sample_response_xml': ('XML 응답 샘플', '내부 API 계약'),
+    'sample_response_json': ('JSON 응답 샘플', '내부 API 계약'),
 }
-API_KEYS = {'endpoint', 'http_method', 'authentication', 'request_parameters', 'pagination', 'error_codes', 'response_path'}
+API_FIELD_ORDER = [
+    'service_name', 'endpoint', 'specification_url', 'api_version', 'service_start',
+    'last_modified', 'interface_type', 'http_method', 'http_methods', 'mime_types',
+    'character_encoding', 'https', 'access_rights', 'auth_type', 'authentication', 'auth_type_desc',
+    'request_parameters', 'pagination', 'rate_limit', 'response_path', 'error_codes',
+    'sample_request', 'sample_response_xml', 'sample_response_json',
+]
+API_KEYS = set(API_FIELD_ORDER)
 
 
 class FieldAnnotation(BaseModel):
@@ -285,7 +309,7 @@ def render_template(req: TemplateGuideRequest) -> bytes:
             result = REVIEW
         rows.append([metric.get('category', ''), metric.get('scope', '업무 기준·정답·기준일 필요'), metric.get('status', 'REVIEW_REQUIRED'), result])
     table(['품질지표', '측정 범위/근거', '상태', '결과'], rows, 38)
-    paragraph('관측값 완전성은 원천 결측 보정 건수나 정확성을 의미하지 않습니다. 중복·보정 플래그·기간·업무 규칙은 실제 검사를 실행한 경우에만 확정할 수 있습니다.')
+    paragraph('입력값 채움률은 업로드 데이터에서 null·빈 문자열이 아닌 관측값의 비율이며 정확성이나 대표성을 의미하지 않습니다. 중복·보정 플래그·기간·업무 규칙은 실제 검사를 실행한 경우에만 확정할 수 있습니다.')
     for warning in model.get('warnings', []):
         paragraph(warning)
 
@@ -312,9 +336,32 @@ def render_template(req: TemplateGuideRequest) -> bytes:
     if model.get('namespace_bindings'):
         table(['접두사', 'Namespace URI', '범위', '검토'], [[item['prefix'], item['uri'], '관측 namespace', 'QName 기준 구분'] for item in model['namespace_bindings']])
     if model['data_category'] == 'api':
-        heading('API 서비스·요청·응답·오류 계약')
-        table(['항목명', '속성', '상태', '작성 내용'], [[item['label'], item['property'], item['status'], item['value'] or REVIEW] for key, item in contract['metadata'].items() if key in API_KEYS])
-        paragraph('응답 데이터만으로 서비스 URL·인증·요청 필수값을 확정하지 않습니다. 실제 비밀키는 이 문서에 포함하지 않습니다.')
+        heading('1.1 공공데이터 오픈API 조회 서비스')
+        heading('가. API 서비스 개요')
+        table(['항목명', '속성', '구분', '작성 내용'], [
+            [contract['metadata'][key]['label'], contract['metadata'][key]['property'],
+             contract['metadata'][key]['status'], val(key)]
+            for key in API_FIELD_ORDER
+        ])
+        heading('나. 응답 필드 및 샘플데이터')
+        response_rows = []
+        for field in contract['dictionary']:
+            annotation = field['annotation']
+            sample = _value_text(field.get('examples', []))[:160]
+            response_rows.append([
+                annotation['label'] or field['path'], field['path'],
+                ' | '.join(field['types']) + '\n단위: ' + (annotation['unit'] or REVIEW),
+                sample + '\n' + (annotation['description'] or REVIEW),
+            ])
+        table(['항목명(영문/표시명)', '응답 경로', '관측 타입·단위', '샘플데이터·항목설명'], response_rows)
+        heading('다. 요청·응답·오류 계약')
+        table(['항목명', '속성', '상태', '작성 내용'], [
+            [contract['metadata'][key]['label'], contract['metadata'][key]['property'],
+             contract['metadata'][key]['status'], val(key)]
+            for key in ('request_parameters', 'pagination', 'rate_limit', 'response_path', 'error_codes',
+                        'sample_request', 'sample_response_xml', 'sample_response_json')
+        ])
+        paragraph('응답 데이터만으로 서비스 URL·인증·요청 필수값을 확정하지 않습니다. 실제 비밀키·토큰·개인정보는 샘플에서 제거하고 기관 계약 확인 상태를 유지합니다.')
     else:
         heading('파일 적재·변환 지침')
         paragraph('CSV/TSV는 구분자·인용 개행·UTF-8 처리를 확인하고 XLSX는 시트와 헤더를 유지합니다. 수식을 임의 계산하거나 null·빈값을 0으로 대체하지 않습니다.')

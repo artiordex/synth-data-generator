@@ -11,7 +11,7 @@ import unittest
 from lxml import etree as ET
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3] / "apps" / "api" / "src" / "synthetic_api" / "data" / "ai_guide" / "templates"
 NS = {"m": "urn:synthetic-data:ai-ready:v2:"}
 NIL = "{http://www.w3.org/2001/XMLSchema-instance}nil"
 PARSER = ET.XMLParser(resolve_entities=False, no_network=True, remove_comments=True)
@@ -30,7 +30,7 @@ def put(element, value):
 
 def fixture(category="api"):
     """전체 구조를 보존하고 미확정 값을 nil로 채운 검증 전용 표본."""
-    root = ET.parse(str(ROOT / "AI친화_메타데이터_템플릿.xml"), PARSER).getroot()
+    root = ET.parse(str(ROOT / "ai_ready_metadata_template.xml"), PARSER).getroot()
     for element in root.iter():
         if element.text and "{{" in element.text:
             put(element, None)
@@ -54,6 +54,8 @@ def fixture(category="api"):
         "document/isDraft": "true",
         "document/reviewNotice": "임시 검토본 - 기관 공식 확인 필요",
         "structure/dataCategory": category,
+        "structure/hasFileData": "true" if category in {"file", "hybrid"} else "false",
+        "structure/hasApiData": "true" if category in {"api", "hybrid"} else "false",
         "structure/rootType": "object" if category == "api" else "table",
         "dataset/title": '검증용 <데이터> & "표본"',
         "dataset/byteSize": "100",
@@ -107,7 +109,7 @@ def fixture(category="api"):
 class MetadataSchemaTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.schema = ET.XMLSchema(ET.parse(str(ROOT / "AI친화_메타데이터_스키마.xsd"), PARSER))
+        cls.schema = ET.XMLSchema(ET.parse(str(ROOT / "ai_ready_metadata_schema.xsd"), PARSER))
 
     def test_file_and_api_profiles_with_all_modality_blocks(self):
         for category in ("file", "api"):
@@ -174,7 +176,7 @@ class MetadataSchemaTests(unittest.TestCase):
         self.assertFalse(self.schema.validate(root))
 
     def test_template_is_not_a_rendered_instance(self):
-        self.assertFalse(self.schema.validate(ET.parse(str(ROOT / "AI친화_메타데이터_템플릿.xml"), PARSER)))
+        self.assertFalse(self.schema.validate(ET.parse(str(ROOT / "ai_ready_metadata_template.xml"), PARSER)))
 
 
 if __name__ == "__main__":

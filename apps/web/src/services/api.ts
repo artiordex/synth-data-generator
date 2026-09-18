@@ -4,11 +4,29 @@
  * 목적: 프론트엔드의 백엔드 API 호출과 응답 타입을 제공함
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-16
+ * 수정일: 2026-09-17
  */
 import { DatasetProfile, JobStatus, SynthesisRequest, AuditLogEntry, ColumnDistribution, BatchStatus, BatchUploadItem, JobAssessmentReport, SyntheticPreviewData } from '../types';
 
 const BASE_URL = '/api/v1';
+
+// 응답 본문 스트림을 한 번만 읽어 안전하게 오류 메시지를 추출함
+async function extractErrorMessage(res: Response, fallbackMessage: string): Promise<string> {
+  try {
+    const text = await res.text();
+    if (!text.trim()) return fallbackMessage;
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed.detail === 'string') return parsed.detail;
+      if (typeof parsed.message === 'string') return parsed.message;
+    } catch {
+      return text;
+    }
+  } catch {
+    // 응답 스트림 읽기 실패 시 기본 메시지 유지
+  }
+  return fallbackMessage;
+}
 
 // 여러 데이터 파일을 일괄 업로드하고 프로파일 정보를 수신함
 export async function uploadDatasets(files: File[]): Promise<BatchUploadItem[]> {
@@ -322,6 +340,46 @@ export async function deleteSelectedHistory(items: Array<{ type: string; id: str
   return res.json();
 }
 
+export interface FieldNameSuggestion {
+  original_name: string;
+  english_name: string;
+  status: 'AUTO_CONFIRMED' | 'AUTO_INFERRED' | 'USER_CONFIRMED' | 'REVIEW_REQUIRED' | 'NOT_APPLICABLE';
+  sourceType: string;
+  confidence: number | null;
+  reason: string;
+}
+
+export interface FieldNamesResponse {
+  fields: FieldNameSuggestion[];
+  ai_powered: boolean;
+  model: string | null;
+  warning: string | null;
+  sheets: string[];
+  sheet_name: string | null;
+  rows_count: number;
+}
+
+/** 원천 값은 외부 모델에 보내지 않고 컬럼명으로 영문 변수명 초안을 추천함
+ * @param file 업로드할 CSV 또는 엑셀 파일
+ * @param sheetName 추천 대상 엑셀 시트명
+ * @param signal 화면 전환 시 오래된 요청을 취소할 신호
+ * @param encoding CSV 문자 인코딩
+ * @returns 추천명과 검토 상태, 시트 목록
+ */
+export async function suggestConverterFieldNames(file: File, sheetName?: string, signal?: AbortSignal, encoding = 'utf-8'): Promise<FieldNamesResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('use_ai', 'true');
+  form.append('encoding', encoding);
+  if (sheetName) form.append('sheet_name', sheetName);
+  const res = await fetch(`${BASE_URL}/converter/field-names`, { method: 'POST', body: form, signal });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || '영문 변수명 추천에 실패했습니다.');
+  }
+  return res.json();
+}
+
 export interface ConvertResponse {
   status: string;
   category: 'document' | 'dataset';
@@ -339,6 +397,12 @@ export interface ConvertResponse {
   preview?: Record<string, any>[];
   markdown_preview?: string;
   html_preview?: string;
+  dataset_profile?: 'public_data' | 'records';
+  field_mapping_url?: string;
+  record_path?: string;
+  warnings?: string[];
+  structured_preview?: string;
+  field_mappings?: FieldNameSuggestion[];
   document_structure?: {
     format: string;
     parser_engines: string[];
@@ -386,12 +450,22 @@ export async function convertFile(params: {
   targetFormat: string;
   encoding?: string;
   tableName?: string;
+  datasetProfile?: 'public_data' | 'records';
+  fieldNames?: Record<string, string>;
+  fieldNamesConfirmed?: boolean;
+  sheetName?: string;
+  recordPath?: string;
 }): Promise<ConvertResponse> {
   const formData = new FormData();
   formData.append('file', params.file);
   formData.append('target_format', params.targetFormat);
   if (params.encoding) formData.append('encoding', params.encoding);
   if (params.tableName) formData.append('table_name', params.tableName);
+  if (params.datasetProfile) formData.append('dataset_profile', params.datasetProfile);
+  if (params.fieldNames) formData.append('field_names', JSON.stringify(params.fieldNames));
+  if (params.fieldNamesConfirmed !== undefined) formData.append('field_names_confirmed', String(params.fieldNamesConfirmed));
+  if (params.sheetName) formData.append('sheet_name', params.sheetName);
+  if (params.recordPath !== undefined) formData.append('record_path', params.recordPath);
 
   const res = await fetch(`${BASE_URL}/converter/convert`, {
     method: 'POST',
@@ -501,9 +575,7 @@ export async function inspectSurveyModules(fileNames: string[]): Promise<SurveyI
     body: JSON.stringify({ file_names: fileNames }),
   });
   if (!res.ok) {
-    let errMsg = '설문 분석 실패';
-    try { const j = await res.json(); errMsg = j.detail || errMsg; } catch { errMsg = await res.text() || errMsg; }
-    throw new Error(errMsg);
+    throw new Error(await extractErrorMessage(res, '설문 분석 실패'));
   }
   return res.json();
 }
@@ -531,9 +603,7 @@ export async function generateSurveySynthesis(params: {
     body: JSON.stringify(params),
   });
   if (!res.ok) {
-    let errMsg = '설문 합성 시작 실패';
-    try { const j = await res.json(); errMsg = j.detail || errMsg; } catch { errMsg = await res.text() || errMsg; }
-    throw new Error(errMsg);
+    throw new Error(await extractErrorMessage(res, '설문 합성 시작 실패'));
   }
   return res.json();
 }
@@ -565,6 +635,7 @@ export interface GenerateAiRuleGuideRequest {
   api_key?: string;
   model?: string;
   provider?: 'gemini' | 'openai' | 'auto' | 'local';
+  user_metadata?: Record<string, string>;
 }
 
 export interface GenerateAiRuleGuideResponse {
@@ -594,6 +665,8 @@ export interface GenerateAiRuleGuideResponse {
   ai_readiness_score?: number;
   ai_readiness_checklist?: ReadinessCheckItem[];
   large_data_guide?: string | null;
+  suggested_metadata?: Record<string, string>;
+  suggested_field_annotations?: Record<string, AiGuideFieldAnnotation>;
 }
 
 // OpenAI API를 통해 CSV/JSON/XML 데이터 기반 HWPX 롤 가이드 생성을 요청함
@@ -606,14 +679,50 @@ export async function generateAiRuleGuide(
     body: JSON.stringify(params),
   });
   if (!res.ok) {
-    let errMsg = 'AI 롤 가이드 생성 실패';
-    try {
-      const j = await res.json();
-      errMsg = j.detail || errMsg;
-    } catch {
-      errMsg = (await res.text()) || errMsg;
-    }
-    throw new Error(errMsg);
+    throw new Error(await extractErrorMessage(res, 'AI 롤 가이드 생성 실패'));
+  }
+  return res.json();
+}
+
+export type AiGuideHumanFormat = 'md' | 'html' | 'hwpx' | 'odt' | 'docx';
+
+export interface GenerateAiGuideDocumentsRequest {
+  sources: Array<{ filename: string; file_base64: string }>;
+  document_title: string;
+  user_metadata: Record<string, string>;
+  field_annotations: Record<string, AiGuideFieldAnnotation>;
+  human_format: AiGuideHumanFormat;
+  provider: 'auto' | 'openai' | 'local';
+}
+
+export interface GenerateAiGuideDocumentsResponse {
+  canonical_metadata: Record<string, unknown>;
+  canonical_json: string;
+  metadata_xml: string;
+  json_ld: string;
+  markdown_guide: string;
+  human_format: AiGuideHumanFormat;
+  human_filename: string;
+  human_document_base64: string;
+  all_documents_base64?: Record<string, string>;
+  zip_document_base64?: string;
+  zip_filename?: string;
+  ai_powered: boolean;
+  ai_model?: string | null;
+  validation: Record<string, string | number>;
+}
+
+// 사용자 확인값을 먼저 반영한 뒤 선택적으로 OpenAI 추론과 다중 포맷 생성을 요청함
+export async function generateAiGuideDocuments(
+  params: GenerateAiGuideDocumentsRequest
+): Promise<GenerateAiGuideDocumentsResponse> {
+  const res = await fetch(`${BASE_URL}/ai-guide/generate-documents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    throw new Error(await extractErrorMessage(res, 'AI 친화 가이드 산출물 생성 실패'));
   }
   return res.json();
 }
@@ -630,6 +739,7 @@ export async function exportAiGuideHwpx(markdown: string): Promise<Blob> {
 }
 
 export interface AiGuideFieldAnnotation {
+  english_name: string;
   label: string;
   description: string;
   unit: string;
@@ -726,4 +836,3 @@ export async function exportParsedDocx(params: {
   }
   return res.blob();
 }
-

@@ -1,0 +1,398 @@
+@prefix ai: <urn:synthetic-data:ai-ready:v2:> .
+@prefix aig: <urn:synthetic-data:ai-ready:v2:> .
+@prefix api: <urn:synthetic-data:openapi:v1:> .
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix dqv: <http://www.w3.org/ns/dqv#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ai:ontology a owl:Ontology ;
+    dct:title "AI-Ready Public Data Canonical Metadata Ontology"@en ;
+    dct:description "Project extension vocabulary for the Canonical Metadata contract. It complements, and does not replace, DCAT, Dublin Core, DQV, PROV, Schema.org, or an institution's official profile."@en ;
+    owl:versionInfo "2.0" ;
+    owl:versionIRI <urn:synthetic-data:ai-ready:v2:ontology> .
+
+# Core resources
+
+ai:CanonicalMetadata a owl:Class ;
+    rdfs:label "Canonical metadata"@en ;
+    rdfs:comment "The normalized metadata graph from which JSON, JSON-LD, XML, and human-readable guides are rendered."@en ;
+    rdfs:subClassOf dcat:Resource .
+
+ai:Dataset a owl:Class ;
+    rdfs:label "AI-ready public dataset"@en ;
+    rdfs:subClassOf dcat:Dataset .
+
+ai:DatasetProfile a owl:Class ;
+    rdfs:label "Dataset profile"@en ;
+    rdfs:comment "Dataset-level catalog, access, lifecycle, and governance metadata."@en ;
+    rdfs:subClassOf ai:Dataset .
+
+ai:DistributionProfile a owl:Class ;
+    rdfs:label "Distribution profile"@en ;
+    rdfs:comment "A file or API distribution profile observed or declared for a dataset."@en ;
+    rdfs:subClassOf dcat:Distribution .
+
+ai:Field a owl:Class ;
+    rdfs:label "AI-ready dataset field"@en ;
+    rdfs:subClassOf dcat:Resource .
+
+ai:FieldProfile a owl:Class ;
+    rdfs:label "Field profile"@en ;
+    rdfs:comment "Observed and inferred metadata for a field, column, JSON property, XML element, or API parameter."@en ;
+    rdfs:subClassOf ai:Field .
+
+ai:DatasetProfileStatistics a owl:Class ;
+    rdfs:label "Dataset statistics"@en ;
+    rdfs:comment "Profiled record, field, missingness, distribution, and representativeness statistics."@en ;
+    rdfs:subClassOf prov:Entity .
+
+ai:QualityProfile a owl:Class ;
+    rdfs:label "Quality profile"@en ;
+    rdfs:comment "Quality measurements and evidence associated with the analyzed input."@en ;
+    rdfs:subClassOf dqv:QualityMeasurement .
+
+ai:PipelineStep a owl:Class ;
+    rdfs:label "Pipeline step"@en ;
+    rdfs:comment "A collection, parsing, transformation, profiling, inference, review, or publication step."@en ;
+    rdfs:subClassOf prov:Activity .
+
+# Processing and lineage vocabulary.  ``aig`` is an explicit alias for the
+# project namespace so external profiles can use the vocabulary name from
+# the machine-readable guide specification while legacy ``ai`` terms remain
+# interoperable.
+
+aig:Processing a owl:Class ;
+    rdfs:label "Processing activity"@en ;
+    rdfs:subClassOf prov:Activity .
+
+aig:DerivedField a owl:Class ;
+    rdfs:label "Derived field"@en ;
+    rdfs:subClassOf aig:Field .
+
+aig:MissingValueProcessing a owl:Class ;
+    rdfs:label "Missing value processing"@en ;
+    rdfs:subClassOf prov:Activity .
+
+aig:QualityFlag a owl:Class ;
+    rdfs:label "Quality flag"@en ;
+    rdfs:subClassOf dqv:QualityAnnotation .
+
+aig:processing a owl:ObjectProperty ;
+    rdfs:label "processing activity"@en ;
+    rdfs:domain aig:CanonicalMetadata ;
+    rdfs:range aig:Processing .
+
+aig:integration a owl:ObjectProperty ;
+    rdfs:label "integration activity"@en ;
+    rdfs:domain aig:Processing ;
+    rdfs:range aig:Processing .
+
+aig:derivedFields a owl:ObjectProperty ;
+    rdfs:label "derived fields"@en ;
+    rdfs:domain aig:Processing ;
+    rdfs:range aig:DerivedField .
+
+aig:missingValueProcessing a owl:ObjectProperty ;
+    rdfs:label "missing value processing rules"@en ;
+    rdfs:domain aig:Processing ;
+    rdfs:range aig:MissingValueProcessing .
+
+aig:qualityFlags a owl:ObjectProperty ;
+    rdfs:label "quality flags"@en ;
+    rdfs:domain aig:Processing ;
+    rdfs:range aig:QualityFlag .
+
+ai:AnalysisProfile a owl:Class ;
+    rdfs:label "Analysis profile"@en ;
+    rdfs:comment "Scope, sampling, boundaries, limitations, and source profiles used for analysis."@en ;
+    rdfs:subClassOf prov:Entity .
+
+ai:MetadataItem a owl:Class ;
+    rdfs:label "Metadata item"@en ;
+    rdfs:comment "A typed Canonical value with source, confidence, status, reason, and binding path."@en .
+
+ai:ReviewRecord a owl:Class ;
+    rdfs:label "AI-ready review record"@en ;
+    rdfs:comment "A Canonical metadata item that requires institutional review or confirmation."@en ;
+    rdfs:subClassOf ai:MetadataItem .
+
+ai:Reference a owl:Class ;
+    rdfs:label "Reference"@en ;
+    rdfs:comment "A source, standard, legal reference, or related resource used to explain the metadata."@en ;
+    rdfs:subClassOf prov:Entity .
+
+ai:ItemStatus a owl:Class ;
+    rdfs:label "Metadata item status"@en ;
+    rdfs:comment "The five-state review vocabulary used by the Canonical contract."@en .
+
+# API contract resources
+
+api:ServiceSpecification a owl:Class ;
+    rdfs:label "API service specification"@en ;
+    rdfs:comment "Institution-confirmed or review-required service, access, and operation contract."@en ;
+    rdfs:subClassOf dcat:Resource .
+
+api:Operation a owl:Class ;
+    rdfs:label "API operation"@en ;
+    rdfs:comment "A callable API operation with endpoint, method, parameters, samples, and errors."@en .
+
+api:Parameter a owl:Class ;
+    rdfs:label "API parameter"@en ;
+    rdfs:comment "A request or response parameter, including location, type, constraints, and sample value."@en .
+
+api:ErrorCode a owl:Class ;
+    rdfs:label "API error code"@en ;
+    rdfs:comment "An API or HTTP error code and its recovery guidance."@en .
+
+# Graph structure and traceability
+
+ai:ontologyDocument a owl:ObjectProperty ;
+    rdfs:label "ontology document"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range owl:Ontology .
+
+ai:dataset a owl:ObjectProperty ;
+    rdfs:label "dataset profile"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:DatasetProfile .
+
+ai:distribution a owl:ObjectProperty ;
+    rdfs:label "distribution profile"@en ;
+    rdfs:domain ai:DatasetProfile ;
+    rdfs:range ai:DistributionProfile .
+
+ai:field a owl:ObjectProperty ;
+    rdfs:label "field profile"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:FieldProfile .
+
+ai:statistics a owl:ObjectProperty ;
+    rdfs:label "statistics profile"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:DatasetProfileStatistics .
+
+ai:quality a owl:ObjectProperty ;
+    rdfs:label "quality profile"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:QualityProfile .
+
+ai:qualityMetric a owl:ObjectProperty ;
+    rdfs:subPropertyOf dqv:hasQualityMeasurement ;
+    rdfs:label "quality metric"@en ;
+    rdfs:range ai:QualityProfile .
+
+ai:pipeline a owl:ObjectProperty ;
+    rdfs:label "pipeline step"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:PipelineStep .
+
+ai:analysis a owl:ObjectProperty ;
+    rdfs:label "analysis profile"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:AnalysisProfile .
+
+ai:canonicalItems a owl:ObjectProperty ;
+    rdfs:label "canonical item"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:MetadataItem .
+
+ai:reviewRequired a owl:ObjectProperty ;
+    rdfs:label "required review item"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:ReviewRecord .
+
+ai:reference a owl:ObjectProperty ;
+    rdfs:label "reference"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range ai:Reference .
+
+ai:provenance a owl:ObjectProperty ;
+    rdfs:label "provenance profile"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range prov:Entity .
+
+api:specification a owl:ObjectProperty ;
+    rdfs:label "API service specification"@en ;
+    rdfs:domain ai:DatasetProfile ;
+    rdfs:range api:ServiceSpecification .
+
+api:operations a owl:ObjectProperty ;
+    rdfs:label "API operations"@en ;
+    rdfs:domain api:ServiceSpecification ;
+    rdfs:range api:Operation .
+
+api:requestParameters a owl:ObjectProperty ;
+    rdfs:label "request parameters"@en ;
+    rdfs:domain api:Operation ;
+    rdfs:range api:Parameter .
+
+api:responseParameters a owl:ObjectProperty ;
+    rdfs:label "response parameters"@en ;
+    rdfs:domain api:Operation ;
+    rdfs:range api:Parameter .
+
+api:errorCodes a owl:ObjectProperty ;
+    rdfs:label "error codes"@en ;
+    rdfs:domain api:ServiceSpecification ;
+    rdfs:range api:ErrorCode .
+
+# Value, review, and provenance properties
+
+ai:schemaVersion a owl:DatatypeProperty ;
+    rdfs:label "schema version"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range xsd:string .
+
+ai:templateVersion a owl:DatatypeProperty ;
+    rdfs:label "template version"@en ;
+    rdfs:domain ai:CanonicalMetadata ;
+    rdfs:range xsd:string .
+
+ai:bindingPath a owl:DatatypeProperty ;
+    rdfs:label "binding path"@en ;
+    rdfs:comment "RFC 6901-compatible structural path into the Canonical JSON model."@en ;
+    rdfs:domain ai:MetadataItem ;
+    rdfs:range xsd:string .
+
+ai:property a owl:DatatypeProperty ;
+    rdfs:label "semantic property"@en ;
+    rdfs:domain ai:MetadataItem ;
+    rdfs:range xsd:string .
+
+ai:valueType a owl:DatatypeProperty ;
+    rdfs:label "value type"@en ;
+    rdfs:domain ai:MetadataItem ;
+    rdfs:range xsd:string .
+
+ai:sourceType a owl:DatatypeProperty ;
+    rdfs:label "source type"@en ;
+    rdfs:domain ai:MetadataItem ;
+    rdfs:range xsd:string .
+
+ai:confidence a owl:DatatypeProperty ;
+    rdfs:label "confidence"@en ;
+    rdfs:domain ai:MetadataItem ;
+    rdfs:range xsd:decimal .
+
+ai:status a owl:DatatypeProperty ;
+    rdfs:label "review status"@en ;
+    rdfs:comment "Serialized status code. The controlled individuals ai:AUTO_CONFIRMED, ai:AUTO_INFERRED, ai:USER_CONFIRMED, ai:REVIEW_REQUIRED, and ai:NOT_APPLICABLE provide the corresponding vocabulary resources."@en ;
+    rdfs:range xsd:string .
+
+ai:reviewStatus a owl:DatatypeProperty ;
+    rdfs:label "document review status"@en ;
+    rdfs:range xsd:string .
+
+ai:reason a owl:DatatypeProperty ;
+    rdfs:label "reason"@en ;
+    rdfs:domain ai:MetadataItem ;
+    rdfs:range xsd:string .
+
+ai:updatedAt a owl:DatatypeProperty ;
+    rdfs:label "updated at"@en ;
+    rdfs:domain ai:MetadataItem ;
+    rdfs:range xsd:dateTime .
+
+ai:sourceReference a owl:DatatypeProperty ;
+    rdfs:label "source reference"@en ;
+    rdfs:domain ai:MetadataItem ;
+    rdfs:range xsd:string .
+
+# Processing, derivation, imputation, and quality flag properties
+
+aig:derivationType a owl:DatatypeProperty ;
+    rdfs:label "derivation type"@en ;
+    rdfs:domain aig:DerivedField ;
+    rdfs:range xsd:string .
+
+aig:sourceField a owl:ObjectProperty ;
+    rdfs:label "source field"@en ;
+    rdfs:domain aig:DerivedField ;
+    rdfs:range aig:Field .
+
+aig:valueOrigin a owl:DatatypeProperty ;
+    rdfs:label "value origin"@en ;
+    rdfs:domain aig:Field ;
+    rdfs:range xsd:string .
+
+aig:imputationMethod a owl:DatatypeProperty ;
+    rdfs:label "imputation method"@en ;
+    rdfs:domain aig:MissingValueProcessing ;
+    rdfs:range xsd:string .
+
+aig:qualityFlagField a owl:ObjectProperty ;
+    rdfs:label "quality flag field"@en ;
+    rdfs:domain aig:MissingValueProcessing ;
+    rdfs:range aig:Field .
+
+aig:flagValueMeaning a owl:DatatypeProperty ;
+    rdfs:label "quality flag value meaning"@en ;
+    rdfs:domain aig:QualityFlag ;
+    rdfs:range xsd:string .
+
+# API service properties
+
+api:base_url a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:anyURI .
+api:service_name a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:interface_type a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:http_methods a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range rdf:JSON .
+api:mime_types a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range rdf:JSON .
+api:character_encoding a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:https a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:boolean .
+api:access_rights a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:service_start a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:date .
+api:last_modified a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:date .
+api:auth_type a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:contract_status a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:specification_url a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:anyURI .
+api:version a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:rate_limit a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range rdf:JSON .
+api:authentication_description a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:pagination a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range rdf:JSON .
+api:payload_path a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:path_syntax a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range xsd:string .
+api:namespaces a owl:DatatypeProperty ; rdfs:domain api:ServiceSpecification ; rdfs:range rdf:JSON .
+
+# API operation and parameter properties
+
+api:operation_id a owl:DatatypeProperty ; rdfs:domain api:Operation ; rdfs:range xsd:string .
+api:operation_name a owl:DatatypeProperty ; rdfs:domain api:Operation ; rdfs:range xsd:string .
+api:operation_type a owl:DatatypeProperty ; rdfs:domain api:Operation ; rdfs:range xsd:string .
+api:description a owl:DatatypeProperty ; rdfs:range xsd:string .
+api:endpoint_path a owl:DatatypeProperty ; rdfs:domain api:Operation ; rdfs:range xsd:string .
+api:http_method a owl:DatatypeProperty ; rdfs:domain api:Operation ; rdfs:range xsd:string .
+api:data_formats a owl:DatatypeProperty ; rdfs:domain api:Operation ; rdfs:range rdf:JSON .
+api:param_name a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:string .
+api:name_ko a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:string .
+api:location a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:string .
+api:data_type a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:string .
+api:length a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:string .
+api:cardinality a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:string .
+api:required a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:boolean .
+api:sample_value a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:string .
+api:allowed_values a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range rdf:JSON .
+api:default_value a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range rdf:JSON .
+api:path a owl:DatatypeProperty ; rdfs:domain api:Parameter ; rdfs:range xsd:string .
+api:sample_messages a owl:ObjectProperty ; rdfs:domain api:Operation ; rdfs:range prov:Entity .
+api:xml_sample a owl:DatatypeProperty ; rdfs:range rdf:XMLLiteral .
+api:json_sample a owl:DatatypeProperty ; rdfs:range rdf:JSON .
+api:code a owl:DatatypeProperty ; rdfs:domain api:ErrorCode ; rdfs:range xsd:string .
+api:message a owl:DatatypeProperty ; rdfs:domain api:ErrorCode ; rdfs:range xsd:string .
+api:http_status a owl:DatatypeProperty ; rdfs:domain api:ErrorCode ; rdfs:range xsd:integer .
+
+# Controlled status resources
+
+ai:AUTO_CONFIRMED a ai:ItemStatus ; rdfs:label "Automatically confirmed"@en .
+ai:AUTO_INFERRED a ai:ItemStatus ; rdfs:label "Automatically inferred"@en .
+ai:USER_CONFIRMED a ai:ItemStatus ; rdfs:label "User confirmed"@en .
+ai:REVIEW_REQUIRED a ai:ItemStatus ; rdfs:label "Review required"@en .
+ai:NOT_APPLICABLE a ai:ItemStatus ; rdfs:label "Not applicable"@en .
+
+# The project vocabulary intentionally does not assert that this file is a
+# national standard or a complete Schema.org/DCAT profile.
+dct:title rdfs:domain ai:Dataset .
