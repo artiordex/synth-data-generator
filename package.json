@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/web",
-    "build": "npm run build --workspace=apps/web",
+    "build": "npm run build --workspace=packages/contracts && npm run build --workspace=apps/web",
     "lint": "npm run lint --workspace=apps/web",
     "tree": "python scripts/tree.py",
     "tree:cli": "tree-node-cli -L 3 -I \"node_modules|.git|.venv|__pycache__|storage|dist\""

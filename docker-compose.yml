@@ -24,6 +24,8 @@ services:
       # 백엔드 API 및 합성 엔진 소스 바인딩 (코드 변경 시 즉각 반영)
       - ./apps/api/src:/app/apps/api/src
       - ./packages/synthetic_engine/synthetic_engine:/app/packages/synthetic_engine/synthetic_engine
+      # OCR 공통 패키지의 최신 앙상블·구조 모델을 컨테이너에서도 동일하게 사용
+      - ./packages/ocr/ocr:/app/packages/ocr/ocr
     restart: unless-stopped
 
   # 사내망 진입점: 웹 UI와 API를 통합 서버로 전달한다.

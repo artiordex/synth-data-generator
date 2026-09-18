@@ -44,6 +44,7 @@ export interface DatasetProfile {
   detected_pii: Record<string, any>;
   suggested_categorical: string[];
   suggested_numerical: string[];
+  notebook_preset?: { name: string | null; options: Partial<SynthesisRequest> };
 }
 
 export interface SynthesisRequest {
@@ -109,4 +110,105 @@ export interface AuditLogEntry {
   actor: string;
   detail: string;
   created_at: string;
+}
+
+export interface BatchUploadItem {
+  original_filename: string;
+  filename?: string;
+  profile?: DatasetProfile;
+  error: string | null;
+}
+
+export interface BatchStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "completed_with_errors" | "failed" | "canceled";
+  total: number;
+  finished: number;
+  completed: number;
+  failed: number;
+  canceled: number;
+  progress: number;
+  jobs: JobStatus[];
+  package_zip: string | null;
+  documents_zip?: string | null;
+  error: string | null;
+}
+
+export interface AssessmentIssue {
+  code: string;
+  label: string;
+  severity?: "pass" | "review" | "fail" | string;
+  detail: string;
+  value?: number | null;
+  threshold?: number | null;
+  errors?: Record<string, string>;
+}
+
+export interface JobAssessmentReport {
+  job_id: string;
+  assessment: {
+    overall_status?: string;
+    overall_label?: string;
+    score?: number | null;
+    grade?: string | null;
+    passed?: boolean;
+    recommendation?: string;
+    note?: string;
+    issues?: AssessmentIssue[];
+    summary?: Record<string, any>;
+  } | null;
+  quality_score?: number | null;
+  safety?: Record<string, any>;
+  utility?: Record<string, any>;
+  guardrails?: Record<string, any>;
+  config?: Record<string, any>;
+}
+
+export interface DistributionBin {
+  label: string;
+  low?: number | null;
+  high?: number | null;
+  original_count: number;
+  synthetic_count: number;
+  original_pct: number;
+  synthetic_pct: number;
+  diff_pct: number;
+}
+
+export interface NumericStats {
+  count: number;
+  null_count?: number;
+  mean: number | null;
+  std: number;
+  median: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+export interface CategoricalStats {
+  count: number;
+  unique: number;
+  top: string;
+  top_pct: number;
+}
+
+export interface ColumnDistribution {
+  name: string;
+  type: "numerical" | "categorical";
+  jsd: number;
+  similarity_pct: number;
+  stats: {
+    original: NumericStats | CategoricalStats;
+    synthetic: NumericStats | CategoricalStats;
+  };
+  bins: DistributionBin[];
+}
+
+export interface SyntheticPreviewData {
+  job_id: string;
+  total_rows: number;
+  columns: string[];
+  synthetic_rows: Record<string, any>[];
+  original_rows?: Record<string, any>[];
+  filename?: string;
 }

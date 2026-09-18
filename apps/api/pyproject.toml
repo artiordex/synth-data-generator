@@ -15,10 +15,12 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.2.0",
+    "jsonschema>=4.23.0",
     "python-multipart>=0.0.9",
     "sqlalchemy>=2.0.0",
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
+    "xlrd>=2.0.2",
     "pyarrow>=15.0.0",
     "python-docx>=1.2.0",
     "pypdf>=6.17.0",
@@ -53,7 +55,13 @@ where = ["src"]
 include = ["synthetic_api*"]
 
 [tool.setuptools.package-data]
-synthetic_api = ["data/*.json", "data/ai_guide_template.hwpx"]
+synthetic_api = [
+    "data/*.json",
+    "data/ai_guide_template.hwpx",
+    "data/ai_guide/templates/*",
+    "data/ai_guide/templates/schemas/*",
+    "data/ai_guide/runtime/*",
+]
 
 [tool.uv.sources]
 synthetic-engine = { workspace = true }

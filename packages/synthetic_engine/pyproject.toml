@@ -12,14 +12,18 @@ description = "Core AI Synthetic Data Generation, Differential Privacy, Anonymet
 readme = "합성엔진안내.md"
 requires-python = ">=3.10"
 dependencies = [
+    "ocr-pipeline>=0.1.0",
     "markdown>=3.6",
     "lxml>=5.0",
     "python-docx>=1.1",
     "beautifulsoup4>=4.12",
+    "soupsieve>=2.5",
+    "tinycss2>=1.2",
     "pdfplumber>=0.11",
     "pandas>=2.2.0",
     "numpy>=1.26.0",
     "openpyxl>=3.1.0",
+    "xlrd>=2.0.2",
     "faker>=25.0.0",
     "sdv>=1.13.0",
     "torch>=2.0.0",
@@ -39,7 +43,23 @@ dependencies = [
     "statsmodels>=0.14.0",
     "duckdb>=1.0.0",
     "rapidfuzz>=3.0.0",
+    "pyyaml>=6.0",
 ]
+
+[project.optional-dependencies]
+rendering = [
+    "playwright>=1.62.0",
+    "weasyprint>=69.0",
+]
+windows = [
+    "pywin32>=310; sys_platform == 'win32'",
+]
+
+[tool.setuptools.package-data]
+synthetic_engine = ["common/domain_catalog.json", "rules/profiles.yaml"]
+
+[tool.uv.sources]
+ocr-pipeline = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
