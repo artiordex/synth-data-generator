@@ -5,7 +5,7 @@
 # 목적: PDF, HWPX, DOCX, HTML 등 다중 포맷 고충실도 변환을 오케스트레이션함
 # 작성자: 개발팀
 # 작성일: 2026-09-09
-# 수정일: 2026-09-16
+# 수정일: 2026-09-17
 # =============================================================================
 """Document conversion orchestration and legacy format adapters; no route dependency."""
 from __future__ import annotations
@@ -1633,6 +1633,10 @@ def _build_structured_document_parse(src_path: Path, raw_ext: str, original_file
         'warnings': ocr_quality['warnings'],
         'requires_review': ocr_quality['requires_review'],
     })
+    if raw_ext in IMAGE_SOURCES and detected_engine == "hybrid_ai_escalated":
+        # Keep the quality card honest when the local gate escalated a page to
+        # GPT-4o-mini Vision after a failed/low-confidence OCR attempt.
+        structure['quality']['ocr_engine'] = "gpt-4o-mini-vision"
 
     return {
         "body_html": body_html,
@@ -1793,6 +1797,11 @@ def _read_xml_table(path: Path) -> pd.DataFrame:
         raise ValueError("XML 노드 수가 허용 범위를 초과했습니다.")
     children = list(root)
     records = children if children and len({_xml_local_name(c.tag) for c in children}) == 1 else [root]
+    if _xml_local_name(root.tag) == 'response':
+        body = next((c for c in children if _xml_local_name(c.tag) == 'body'), None)
+        items = next((c for c in body if _xml_local_name(c.tag) == 'items'), None) if body is not None else None
+        if items is not None:
+            records = [c for c in items if _xml_local_name(c.tag) == 'item']
 
     # flatten 작업을 수행함
     def flatten(element: ET.Element, prefix: str = "") -> Dict[str, Any]:
@@ -1809,7 +1818,11 @@ def _read_xml_table(path: Path) -> pd.DataFrame:
         for name, values in grouped.items():
             key = f"{prefix}{name}"
             if all(not list(value) for value in values):
-                row[key] = " | ".join((value.text or "").strip() for value in values)
+                if len(values)==1:
+                    value=values[0]
+                    row[key]=None if value.attrib.get('{http://www.w3.org/2001/XMLSchema-instance}nil') in {'true','1'} else (value.text or '')
+                else:
+                    row[key] = " | ".join((value.text or "").strip() for value in values)
             else:
                 for index, value in enumerate(values):
                     suffix = f"[{index}]." if len(values) > 1 else "."
@@ -2530,6 +2543,11 @@ def _execute_conversion(
     table_name: Optional[str] = "converted_data",
     engine: str = "legacy",
     strict: bool = False,
+    dataset_profile: str = 'auto',
+    field_names: Optional[Dict[str, str]] = None,
+    field_names_confirmed: bool = False,
+    sheet_name: Optional[str] = None,
+    record_path: Optional[str] = None,
 ):
     """데이터셋 또는 문서 파일을 지정한 형식으로 변환함
 
@@ -2544,6 +2562,8 @@ def _execute_conversion(
         raise ConversionError(status_code=400, detail="파일명이 필요합니다.")
     if engine not in {"legacy", "ir"}:
         raise ConversionError(status_code=400, detail="알 수 없는 변환 엔진입니다.")
+    if dataset_profile not in {'auto', 'public_data', 'records'}:
+        raise ConversionError(status_code=400, detail='알 수 없는 데이터 응답 구조입니다.')
 
     conv_dir = settings.OUTPUT_DIR / "converted"
     conv_dir.mkdir(parents=True, exist_ok=True)
@@ -3071,8 +3091,51 @@ def _execute_conversion(
 
     # 3. Tabular Dataset Conversion branch
     elif raw_ext in data_exts:
+        from synthetic_api.application.services.public_data_conversion import (
+            INPUTS, read_source, recommend_names, public_payload, public_xml,
+            read_structured_source, table_rows, write_public_csv,
+        )
+        # JSON/XML 입력은 구조 보존 경로를 고정하여 일반 레코드 옵션으로 응답이 평탄화되지 않도록 함
+        use_public = (
+            (dataset_profile != 'records' and target_fmt in {'json','xml'} and raw_ext in INPUTS)
+            or (raw_ext in {'.json','.xml'} and target_fmt in {'json','xml','csv'})
+        )
+        if dataset_profile == 'public_data' and not use_public:
+            raise ConversionError(status_code=400, detail='공공데이터 구조는 CSV·엑셀의 JSON/XML 출력 및 JSON·XML의 JSON/XML/CSV 출력에 적용됩니다.')
+        field_mappings = []
+        payload = None
         try:
-            df = _read_xml_table(src_path) if raw_ext == ".xml" else read_table(src_path)
+            if use_public:
+                structured = raw_ext in {'.json', '.xml'}
+                source = read_structured_source(src_path.read_bytes(), file.filename, record_path) if structured else read_source(src_path.read_bytes(), file.filename, encoding or 'utf-8', sheet_name)
+                if field_names is not None and not field_names_confirmed:
+                    raise ValueError('영문 변수명을 확인한 후 field_names_confirmed=true로 변환하세요.')
+                if field_names is None and not structured:
+                    initial = recommend_names(source['headers'], use_ai=False)
+                    if any(f['status'] != 'AUTO_CONFIRMED' for f in initial['fields']):
+                        raise ValueError('영문 변수명 추천·수정 후 확인하세요. /converter/field-names에서 초안을 받을 수 있습니다.')
+                    field_names = {h:h for h in source['headers']}
+                payload = public_payload(source, field_names)
+                if structured:
+                    source = dict(source, items=payload['response']['body']['items'],
+                                  headers=[field_names[h] if field_names else h for h in source['headers']])
+                    source['rows'] = [[row.get(k) for k in source['headers']] for row in source['items']]
+                    df = pd.DataFrame(table_rows(source), columns=source['headers'], dtype=object)
+                else:
+                    df = pd.DataFrame(payload['response']['body']['items'], columns=[field_names[h] for h in source['headers']], dtype=object)
+                now = datetime.now().astimezone().isoformat()
+                field_mappings = [dict(original_name=h, english_name=field_names[h] if field_names else h,
+                    status='USER_CONFIRMED' if field_names_confirmed else 'AUTO_CONFIRMED',
+                    sourceType='USER_INPUT' if field_names_confirmed else 'FILE_HEADER',
+                    confidence=None, reason='사용자가 영문 변수명을 확인함' if field_names_confirmed else '원천 필드명 유지',
+                    updatedAt=now) for h in (list(field_names) if field_names else source['headers'])]
+            else:
+                if raw_ext == '.json':
+                    raw_json=json.loads(src_path.read_text(encoding='utf-8-sig'))
+                    candidate=raw_json.get('response',{}).get('body',{}).get('items') if isinstance(raw_json,dict) and isinstance(raw_json.get('response'),dict) and isinstance(raw_json['response'].get('body'),dict) else None
+                    df=pd.DataFrame(candidate) if isinstance(candidate,list) and all(isinstance(row,dict) for row in candidate) else read_table(src_path)
+                else:
+                    df = _read_xml_table(src_path) if raw_ext == ".xml" else read_table(src_path)
         except Exception as exc:
             raise ConversionError(status_code=400, detail=f"데이터셋 파싱 실패: {str(exc)}")
 
@@ -3107,7 +3170,10 @@ def _execute_conversion(
             elif target_fmt == "csv":
                 out_name = f"{stem}_{uid}.csv"
                 out_path = conv_dir / out_name
-                df.to_csv(out_path, index=False, encoding="utf-8-sig")
+                if use_public:
+                    write_public_csv(source, out_path)
+                else:
+                    df.to_csv(out_path, index=False, encoding="utf-8-sig")
             elif target_fmt in ("xlsx", "xls"):
                 out_name = f"{stem}_{uid}.xlsx"
                 out_path = conv_dir / out_name
@@ -3119,7 +3185,10 @@ def _execute_conversion(
             elif target_fmt == "json":
                 out_name = f"{stem}_{uid}.json"
                 out_path = conv_dir / out_name
-                df.to_json(out_path, orient="records", force_ascii=False, indent=2)
+                if payload is not None:
+                    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf-8')
+                else:
+                    df.to_json(out_path, orient="records", force_ascii=False, indent=2)
             elif target_fmt == "jsonl":
                 out_name = f"{stem}_{uid}.jsonl"
                 out_path = conv_dir / out_name
@@ -3127,7 +3196,10 @@ def _execute_conversion(
             elif target_fmt == "xml":
                 out_name = f"{stem}_{uid}.xml"
                 out_path = conv_dir / out_name
-                _write_xml_table(df, out_path)
+                if payload is not None:
+                    out_path.write_bytes(public_xml(payload))
+                else:
+                    _write_xml_table(df, out_path)
             elif target_fmt in ("parquet", "pq"):
                 out_name = f"{stem}_{uid}.parquet"
                 out_path = conv_dir / out_name
@@ -3143,13 +3215,43 @@ def _execute_conversion(
                     status_code=400,
                     detail=f"지원하지 않는 대상 데이터 포맷입니다: {target_fmt}"
                 )
+        except ConversionError:
+            raise
+        except ValueError as exc:
+            raise ConversionError(status_code=400, detail=f"데이터 변환 입력 오류: {str(exc)}") from exc
         except Exception as exc:
             raise ConversionError(status_code=500, detail=f"데이터 변환 처리 실패: {str(exc)}")
 
         download_url = _to_download_url(out_path)
         _ensure_downloadable_output(out_path, "데이터")
         file_size = out_path.stat().st_size
-        preview_records = df.head(100).fillna("").to_dict(orient="records")
+        preview_records = payload['response']['body']['items'][:100] if payload is not None else df.head(100).fillna("").to_dict(orient="records")
+        profile_metadata = dict(dataset_profile='public_data' if use_public else 'records',
+                                field_mappings=field_mappings,
+                                sheet_name=source['sheet_name'] if use_public else None)
+        if use_public:
+            profile_metadata['record_path'] = source.get('record_path')
+            if target_fmt in {'json', 'xml'}:
+                # 미리보기에서도 실제 파일의 응답 구조를 사용하되 행은 100개로 제한함
+                preview_model = dict(payload, response=dict(payload['response'], body=dict(
+                    payload['response']['body'], items=payload['response']['body']['items'][:100])))
+                profile_metadata['structured_preview'] = json.dumps(preview_model, ensure_ascii=False, indent=2) if target_fmt == 'json' else public_xml(preview_model).decode('utf-8')
+            warnings = []
+            if target_fmt == 'csv':
+                warnings.append('CSV는 응답 헤더·페이지 정보·셀 타입을 담지 않습니다. null과 빈 문자열은 빈 셀로, 중첩 객체·배열은 JSON 텍스트로 저장됩니다. 원본 응답 정보는 매핑 파일에 보존됩니다.')
+            if target_fmt == 'xml' and any(k != 'response' for k in payload):
+                warnings.append('response 외의 최상위 메타데이터는 XML 응답 루트에 넣지 않고 매핑 파일에 보존됩니다.')
+            profile_metadata['warnings'] = warnings
+        if use_public:
+            mapping_path = out_path.with_name(out_path.name+'.field-mappings.json')
+            mapping_document = dict({k:v for k,v in profile_metadata.items() if k != 'structured_preview'}, response_metadata={
+                'header': payload['response']['header'],
+                'body': {k:v for k,v in payload['response']['body'].items() if k != 'items'},
+                'response_extra': {k:v for k,v in payload['response'].items() if k not in {'header','body'}},
+                'root_extra': {k:v for k,v in payload.items() if k != 'response'},
+            }, source_metadata=source.get('source_metadata'))
+            mapping_path.write_text(json.dumps(mapping_document,ensure_ascii=False,indent=2),encoding='utf-8')
+            profile_metadata['field_mapping_url'] = _to_download_url(mapping_path)
 
         entry = {
             "id": uid,
@@ -3164,6 +3266,7 @@ def _execute_conversion(
             "columns_count": len(df.columns),
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "download_url": download_url,
+            **{k:v for k,v in profile_metadata.items() if k != 'structured_preview'},
         }
         _record_history(conv_dir, entry)
 
@@ -3181,6 +3284,7 @@ def _execute_conversion(
             "rows_count": len(df),
             "columns_count": len(df.columns),
             "columns": list(df.columns),
+            **profile_metadata,
             "preview": preview_records,
             "markdown_preview": md_preview_text,
             "html_preview": html_preview_text,

@@ -197,7 +197,7 @@ def test_dataset_xml_round_trip_through_converter_api(tmp_path, monkeypatch):
         to_xml = client.post(
             '/api/v1/converter/convert',
             files={'file': ('records.csv', csv_payload, 'text/csv')},
-            data={'target_format': 'xml'},
+            data={'target_format': 'xml', 'dataset_profile': 'records'},
         )
         assert to_xml.status_code == 200, to_xml.text
         xml_path = next((settings.OUTPUT_DIR / 'converted').glob('records_*.xml'))

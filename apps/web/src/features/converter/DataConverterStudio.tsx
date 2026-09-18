@@ -4,7 +4,7 @@
  * 목적: 데이터·문서·스캔 이미지 변환 및 고정밀 OCR 작업 화면을 제공함
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-16
+ * 수정일: 2026-09-17
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -33,7 +33,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
-import { convertFile, ConvertResponse, getDownloadUrl, verifyDownloadUrl } from '../../services/api';
+import { convertFile, ConvertResponse, getDownloadUrl, verifyDownloadUrl, suggestConverterFieldNames, FieldNamesResponse } from '../../services/api';
 import { MarkdownPreviewStudio } from './MarkdownPreviewStudio';
 import { DatasetComparisonStudio } from './DatasetComparisonStudio';
 
@@ -114,6 +114,23 @@ export const DataConverterStudio: React.FC<Props> = ({
   const [isHtmlFullScreen, setIsHtmlFullScreen] = useState<boolean>(false);
   const [downloadCheckStatus, setDownloadCheckStatus] = useState<'idle' | 'checking' | 'ready' | 'missing' | 'failed'>('idle');
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [datasetProfile, setDatasetProfile] = useState<'public_data' | 'records'>('public_data');
+  const [fieldNames, setFieldNames] = useState<FieldNamesResponse | null>(null);
+  const [isSuggestingNames, setIsSuggestingNames] = useState(false);
+  const [namesConfirmed, setNamesConfirmed] = useState(false);
+  const [sheetName, setSheetName] = useState('');
+  const [recordPath, setRecordPath] = useState('');
+  const [csvEncoding, setCsvEncoding] = useState('utf-8');
+  const [nameRequestVersion, setNameRequestVersion] = useState(0);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const inputExtension = selectedFile?.name.split('.').pop()?.toLowerCase() || '';
+  const structuredInput = ['json', 'xml'].includes(inputExtension);
+  const supportsPublicData = Boolean(selectedFile && ['csv', 'xlsx', 'xls', 'json', 'xml'].includes(inputExtension));
+  const usesPublicData = supportsPublicData && (['json', 'xml'].includes(targetFormat) || (structuredInput && targetFormat === 'csv'));
+  const needsFieldNames = usesPublicData && !structuredInput && datasetProfile === 'public_data';
+  const editedNames = fieldNames?.fields.map(field => field.english_name) || [];
+  const validFieldNames = editedNames.length > 0 && editedNames.every(name => /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name) && !/^xml/i.test(name))
+    && new Set(editedNames.map(name => name.toLowerCase())).size === editedNames.length;
   const hasDocumentPreviewResult = Boolean(
     result?.category === 'document' && (result.markdown_preview || result.html_preview)
   );
@@ -121,6 +138,21 @@ export const DataConverterStudio: React.FC<Props> = ({
   useEffect(() => {
     onStepChange?.(result ? 4 : isConverting ? 3 : selectedFile ? 2 : 1);
   }, [isConverting, onStepChange, result, selectedFile]);
+
+  // 오래된 추천 응답이 다른 파일·시트의 변수명을 덮어쓰지 않도록 취소함
+  useEffect(() => {
+    if (!selectedFile || !needsFieldNames || result) return;
+    const controller = new AbortController();
+    setIsSuggestingNames(true);
+    setFieldNames(null);
+    setNamesConfirmed(false);
+    setNameError(null);
+    suggestConverterFieldNames(selectedFile, sheetName || undefined, controller.signal, csvEncoding)
+      .then(data => { if (!controller.signal.aborted) setFieldNames(data); })
+      .catch(error => { if (!controller.signal.aborted) setNameError(error.message || '변수명 추천 실패'); })
+      .finally(() => { if (!controller.signal.aborted) setIsSuggestingNames(false); });
+    return () => controller.abort();
+  }, [selectedFile, needsFieldNames, sheetName, csvEncoding, nameRequestVersion, result]);
 
   // 업로드된 이미지 파일의 썸네일 미리보기 URL을 생성 및 정리함
   useEffect(() => {
@@ -192,6 +224,13 @@ export const DataConverterStudio: React.FC<Props> = ({
     setErrorMsg(null);
     setResult(null);
     setSelectedFile(file);
+    setDatasetProfile('public_data');
+    setRecordPath('');
+    setFieldNames(null);
+    setNamesConfirmed(false);
+    setSheetName('');
+    setCsvEncoding('utf-8');
+    setNameError(null);
 
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     const cleanName = file.name
@@ -213,7 +252,9 @@ export const DataConverterStudio: React.FC<Props> = ({
       }
     } else {
       setFileCategory('dataset');
-      if (['csv', 'xlsx', 'xls', 'tsv'].includes(ext)) {
+      if (['csv', 'xlsx', 'xls', 'xml'].includes(ext)) {
+        setTargetFormat('json');
+      } else if (ext === 'tsv') {
         setTargetFormat('parquet');
       } else {
         setTargetFormat('csv');
@@ -224,6 +265,10 @@ export const DataConverterStudio: React.FC<Props> = ({
   // 선택된 파일과 설정값을 백엔드 API로 전송하여 포맷 변환을 비동기 수행함
   const handleConvert = async () => {
     if (!selectedFile) return;
+    if (needsFieldNames && (isSuggestingNames || !validFieldNames || !namesConfirmed || !fieldNames)) {
+      setErrorMsg('영문 변수명을 수정·확인한 뒤 변환하세요.');
+      return;
+    }
     setIsConverting(true);
     setErrorMsg(null);
     setResult(null);
@@ -234,6 +279,12 @@ export const DataConverterStudio: React.FC<Props> = ({
         file: selectedFile,
         targetFormat,
         tableName: fileCategory === 'dataset' ? tableName : undefined,
+        encoding: csvEncoding,
+        datasetProfile: usesPublicData ? datasetProfile : undefined,
+        recordPath: structuredInput && usesPublicData && datasetProfile === 'public_data' && recordPath ? recordPath : undefined,
+        fieldNames: needsFieldNames && fieldNames ? Object.fromEntries(fieldNames.fields.map(field => [field.original_name, field.english_name])) : undefined,
+        fieldNamesConfirmed: needsFieldNames ? namesConfirmed : undefined,
+        sheetName: needsFieldNames ? (sheetName || fieldNames?.sheet_name || undefined) : undefined,
       });
       setResult(res);
     } catch (err: any) {
@@ -255,6 +306,11 @@ export const DataConverterStudio: React.FC<Props> = ({
     setIsHtmlFullScreen(false);
     setDownloadCheckStatus('idle');
     setImagePreviewUrl(null);
+    setFieldNames(null);
+    setNamesConfirmed(false);
+    setIsSuggestingNames(false);
+    setNameError(null);
+    setSheetName('');
   };
 
   // 변환된 마크다운 텍스트를 클립보드에 복사하고 알림 상태를 2초간 유지함
@@ -917,7 +973,7 @@ export const DataConverterStudio: React.FC<Props> = ({
                     </span>
                   </div>
                   <p className="text-xs text-fg-muted">
-                    2스페이스 들여쓰기가 적용된 구조화된 JSON 레코드 배열 파일
+                    공공데이터 응답 구조(response/header/body/items) 또는 일반 레코드 배열
                   </p>
                 </button>
 
@@ -959,7 +1015,7 @@ export const DataConverterStudio: React.FC<Props> = ({
                     </span>
                   </div>
                   <p className="text-xs text-fg-muted">
-                    행과 컬럼 구조를 XML 레코드로 변환하여 공공·사내 시스템 간 데이터 교환에 사용
+                    공공데이터 응답 구조(response/body/items/item) 또는 일반 XML 레코드
                   </p>
                 </button>
 
@@ -987,6 +1043,102 @@ export const DataConverterStudio: React.FC<Props> = ({
             )}
           </div>
 
+          {usesPublicData && (
+            <div className="ui-panel space-y-4">
+              <h3 className="ui-section-title">응답 구조와 영문 변수명</h3>
+              <label className="block space-y-2 text-sm">
+                <span>출력 구조</span>
+                <select className="ui-field" value={datasetProfile} disabled={isConverting}
+                  onChange={event => setDatasetProfile(event.target.value as 'public_data' | 'records')}>
+                  <option value="public_data">공공데이터 응답 구조 (청주시 CCTV 예시)</option>
+                  {!structuredInput && <option value="records">기존 일반 레코드 구조 (원천 컬럼명 유지)</option>}
+                </select>
+              </label>
+              {structuredInput && datasetProfile === 'public_data' && (
+                <div className="space-y-2">
+                  <p className="ui-help-text">청주시 CCTV 원본처럼 JSON은 response.body.items 배열, XML은 body/items/item 반복 요소로 변환합니다. body.items.item[2].필드 같은 경로형 컬럼으로 평탄화하지 않습니다. 기존 응답 헤더와 페이지 정보를 유지합니다.</p>
+                  <label className="block space-y-2 text-sm">
+                    <span>데이터 목록 경로 (자동 인식이 모호한 경우)</span>
+                    <input className="ui-field" value={recordPath} disabled={isConverting}
+                      placeholder="예: /data/items 또는 /root/records/record"
+                      onChange={event => setRecordPath(event.target.value)} />
+                  </label>
+                  <p className="ui-help-text">CSV의 중첩 셀은 JSON 텍스트로 저장됩니다. CSV만으로는 응답 헤더, 타입, null과 빈 문자열을 구분할 수 없으며 응답 정보는 별도 매핑 파일에 보존됩니다.</p>
+                </div>
+              )}
+              {needsFieldNames && (
+                <>
+                  <p className="ui-help-text">
+                    원천 컬럼명만 GPT-4o-mini에 보내 추천하며 데이터 값은 보내지 않습니다.
+                    추천명은 검토용 초안입니다. 직접 수정하고 확인한 이름을 JSON과 XML에 동일하게 적용합니다.
+                    이는 예시의 구조를 적용하는 것이며 국가 표준 인증이나 운영 API 계약을 생성하는 것이 아닙니다.
+                  </p>
+                  {fileExt === 'csv' && (
+                    <label className="block space-y-2 text-sm">
+                      <span>CSV 인코딩</span>
+                      <select className="ui-field" value={csvEncoding} disabled={isConverting}
+                        onChange={event => setCsvEncoding(event.target.value)}>
+                        <option value="utf-8">UTF-8</option><option value="cp949">CP949 (한글 Windows)</option>
+                      </select>
+                    </label>
+                  )}
+                  {fieldNames && fieldNames.sheets.length > 0 && (
+                    <label className="block space-y-2 text-sm">
+                      <span>변환할 엑셀 시트</span>
+                      <select className="ui-field" value={sheetName || fieldNames.sheet_name || ''} disabled={isConverting}
+                        onChange={event => setSheetName(event.target.value)}>
+                        {fieldNames.sheets.map(sheet => <option key={sheet} value={sheet}>{sheet}</option>)}
+                      </select>
+                      <span className="ui-help-text block">선택한 시트만 변환합니다. 서로 다른 시트를 자동 합치지 않습니다.</span>
+                    </label>
+                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="ui-help-text">
+                      {isSuggestingNames ? '컬럼을 읽고 영문 변수명을 추천하는 중…' : fieldNames ? `${fieldNames.rows_count.toLocaleString()}행 · ${fieldNames.fields.length}컬럼` : '컬럼명 확인 필요'}
+                    </span>
+                    <button type="button" className="ui-button-secondary" disabled={isSuggestingNames || isConverting}
+                      onClick={() => setNameRequestVersion(version => version + 1)}>
+                      <Sparkles className="w-4 h-4" />영문명 다시 추천
+                    </button>
+                  </div>
+                  {nameError && <p className="ui-error" role="alert">{nameError}</p>}
+                  {fieldNames?.warning && <p className="ui-help-text" role="status">{fieldNames.warning}</p>}
+                  {fieldNames && (
+                    <div className="ui-table-shell">
+                      <table className="ui-table">
+                        <thead><tr><th>원천 컬럼명</th><th>적용할 영문 변수명</th><th>추천 상태·사유</th></tr></thead>
+                        <tbody>{fieldNames.fields.map((field, index) => (
+                          <tr key={field.original_name}>
+                            <td>{field.original_name}</td>
+                            <td><input className="ui-field font-mono min-w-44" value={field.english_name}
+                              aria-label={`${field.original_name} 영문 변수명`} disabled={isConverting || isSuggestingNames}
+                              onChange={event => {
+                                const name = event.target.value;
+                                setNamesConfirmed(false);
+                                setFieldNames(current => current ? { ...current, fields: current.fields.map((entry, i) => i === index
+                                  ? { ...entry, english_name: name, status: 'REVIEW_REQUIRED', sourceType: 'USER_INPUT', confidence: null, reason: '사용자가 수정한 변수명 초안. 확인 후 적용.' }
+                                  : entry) } : current);
+                              }} /></td>
+                            <td><span className="font-mono">{field.status}</span><p>{field.reason}</p></td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  )}
+                  {fieldNames && !validFieldNames && <p className="ui-error" role="alert">
+                    영문자로 시작하는 영문·숫자·밑줄 1~64자로 입력하세요. xml 접두사와 중복 이름은 사용할 수 없습니다.
+                  </p>}
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={namesConfirmed} disabled={!validFieldNames || isSuggestingNames || isConverting}
+                      onChange={event => setNamesConfirmed(event.target.checked)} />
+                    위 영문 변수명을 확인했습니다. 확인한 이름으로 변환합니다.
+                  </label>
+                  <p className="ui-help-text">실제 행 수를 totalCount와 numOfRows에 기록하고 pageNo=0인 단일 배포 묶음으로 생성합니다. 원천 데이터는 수정하지 않습니다.</p>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Optional: Table Name for SQL */}
           {fileCategory === 'dataset' && targetFormat === 'sql' && (
             <div className="p-4 rounded-xl bg-surface-muted border border-subtle space-y-2">
@@ -1010,7 +1162,7 @@ export const DataConverterStudio: React.FC<Props> = ({
           <div className="pt-2 flex items-center justify-end">
             <button
               onClick={handleConvert}
-              disabled={isConverting}
+              disabled={isConverting || (needsFieldNames && (isSuggestingNames || !validFieldNames || !namesConfirmed))}
               className={`px-8 py-3 text-sm font-bold shadow-md flex items-center gap-2 rounded-xl transition-all cursor-pointer ${
                 fileCategory === 'image'
                   ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
@@ -1405,6 +1557,16 @@ export const DataConverterStudio: React.FC<Props> = ({
                 다른 파일 변환
               </button>
 
+              {result.field_mapping_url && (
+                <a href={getDownloadUrl(result.field_mapping_url)} className="ui-button-secondary text-xs px-4 py-2.5">
+                  <Download className="w-4 h-4" />컬럼명 매핑 다운로드
+                </a>
+              )}
+              {result.warnings && result.warnings.length > 0 && (
+                <div className="ui-panel-muted text-sm">
+                  {result.warnings.map((warning, index) => <p key={index}>{warning}</p>)}
+                </div>
+              )}
               {downloadReady ? (
                 <a
                   href={getDownloadUrl(result.download_url)}
@@ -1452,11 +1614,14 @@ export const DataConverterStudio: React.FC<Props> = ({
                 originalUrl={result.original_file_url ? getDownloadUrl(result.original_file_url) : undefined}
                 originalFilename={result.original_filename || selectedFile?.name}
                 sourceFormat={result.source_format || 'CSV'}
+                sourceEncoding={csvEncoding}
+                sourceSheetName={fieldNames?.sheet_name || undefined}
                 targetFormat={result.target_format}
                 fileName={result.file_name}
                 downloadUrl={downloadReady ? getDownloadUrl(result.download_url) : undefined}
                 downloadReady={downloadReady}
                 rowsCount={result.rows_count}
+                structuredPreview={result.structured_preview}
                 columnsCount={result.columns_count}
                 columns={result.columns || []}
                 preview={result.preview || []}
