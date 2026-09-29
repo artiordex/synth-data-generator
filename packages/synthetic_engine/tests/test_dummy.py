@@ -11,6 +11,7 @@ import pytest
 import pandas as pd
 from synthetic_engine.common.catalog import DomainCatalog
 from synthetic_engine.generators.rule_based.dummy_generator import DummyDataGenerator
+from synthetic_engine.generators.rule_based.engine import RuleEngine
 
 # domain catalog load 기능의 정상 동작 및 제약조건을 테스트함
 def test_domain_catalog_load():
@@ -77,3 +78,24 @@ def test_dummy_sql_insert_export():
     assert "INSERT INTO `test_users`" in sql
     assert "`id`, `name`, `amount`" in sql
     assert "USR_" in sql
+
+
+# 정수 범위 샘플이 소수 경계를 벗어나지 않는지 검증함
+def test_integer_number_range_stays_within_fractional_bounds():
+    values = RuleEngine.apply_rule_column(
+        100,
+        {"type": "number_range", "min": 1.2, "max": 4.8, "integer": True},
+    )
+
+    assert all(isinstance(value, int) for value in values)
+    assert all(1.2 <= value <= 4.8 for value in values)
+    assert set(values) <= {2, 3, 4}
+
+
+# 정수 후보가 없는 범위를 명시적으로 거부하는지 검증함
+def test_integer_number_range_rejects_bounds_without_an_integer():
+    with pytest.raises(ValueError, match="no integer value"):
+        RuleEngine.apply_rule_column(
+            10,
+            {"type": "number_range", "min": 0.2, "max": 0.8, "integer": True},
+        )

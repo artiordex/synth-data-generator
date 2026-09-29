@@ -10,6 +10,7 @@ import os
 import uuid
 import shutil
 import threading
+import math
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -35,6 +36,19 @@ from synthetic_engine import (
     SyntheticPipeline,
     SynthesisConfig
 )
+
+
+def _validated_quality_score(report: dict[str, Any]) -> Optional[float]:
+    """Return only a measured normalized score; never substitute a presentation default."""
+    raw_score = report.get("overall_quality")
+    if raw_score is None or isinstance(raw_score, bool):
+        return None
+    try:
+        score = float(raw_score)
+    except (TypeError, ValueError):
+        return None
+    return score if math.isfinite(score) and 0 <= score <= 1 else None
+
 
 class SynthesisService:
     """단일 합성 작업의 생명주기와 파이프라인 실행을 관리함"""
@@ -177,7 +191,7 @@ class SynthesisService:
                 job.status = "completed"
                 job.progress = 100
                 job.message = '생성 완료 · ' + ('자동 점검 통과' if assessment.get('passed') else '검토 필요')
-                job.quality_score = float(report.get("overall_quality", 0.85))
+                job.quality_score = _validated_quality_score(report)
                 job.reid_risk = report.get('reid_risk')
                 job.assessment_passed = bool(assessment.get('passed', False))
                 job.assessment_grade = assessment.get('grade')

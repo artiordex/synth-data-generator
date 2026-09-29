@@ -8,6 +8,7 @@
 # 수정일: 2026-09-13
 # =============================================================================
 from __future__ import annotations
+import math
 import random
 from datetime import datetime, timedelta
 from typing import Any
@@ -61,9 +62,20 @@ class RuleEngine:
         if rule_type == "number_range":
             min_value = float(spec.get("min", 0))
             max_value = float(spec.get("max", 1))
+            if not math.isfinite(min_value) or not math.isfinite(max_value):
+                raise ValueError("number_range bounds must be finite numbers")
+            if min_value > max_value:
+                raise ValueError("number_range minimum cannot exceed its maximum")
             integer = bool(spec.get("integer", False))
-            values = [random.uniform(min_value, max_value) for _ in range(row_count)]
-            return [round(value) if integer else value for value in values]
+            if integer:
+                integer_min = math.ceil(min_value)
+                integer_max = math.floor(max_value)
+                if integer_min > integer_max:
+                    raise ValueError(
+                        f"integer number_range has no integer value in [{min_value}, {max_value}]"
+                    )
+                return [random.randint(integer_min, integer_max) for _ in range(row_count)]
+            return [random.uniform(min_value, max_value) for _ in range(row_count)]
 
         if rule_type == "date_between":
             start = datetime.fromisoformat(spec["start"])

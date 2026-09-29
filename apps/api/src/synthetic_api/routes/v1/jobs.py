@@ -22,6 +22,12 @@ from synthetic_engine import compute_column_distributions, read_table, infer_col
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
+def _report_quality_score(report: Dict[str, Any]) -> Any:
+    """Prefer an explicit score while preserving a valid zero value."""
+    score = report.get("quality_score")
+    return score if score is not None else report.get("overall_quality")
+
+
 def resolve_folder(folder_path: str | None) -> Path | None:
     """윈도우 및 도커(리눅스) 컨테이너 간 storage 경로 불일치를 자동 매핑함"""
     if not folder_path:
@@ -111,7 +117,7 @@ async def get_job_assessment(job_id: str, repo: JobRepository = Depends(get_job_
             return {
                 "job_id": job_id,
                 "assessment": data.get("auto_assessment") or data.get("assessment"),
-                "quality_score": data.get("quality_score") or data.get("overall_quality"),
+                "quality_score": _report_quality_score(data),
                 "safety": data.get("safety", {}),
                 "utility": data.get("utility", {}),
                 "guardrails": data.get("guardrails", {}),
