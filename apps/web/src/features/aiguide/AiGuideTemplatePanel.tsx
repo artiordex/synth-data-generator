@@ -12,7 +12,8 @@ import { TaxonomySelects } from './TaxonomySelects';
 import { UPDATE_FREQUENCY_OPTIONS } from './AiRuleGuideStudio';
 
 const INSTITUTION_FIELDS = [
-  ['publisher', '제공기관'], ['creator', '소관부서'], ['contact_name', '담당자 연락처 / 이메일'],
+  ['publisher', '제공기관'], ['creator', '소관부서'], ['contact_name', '담당자명'],
+  ['contact_email', '담당 부서 이메일'], ['contact_phone', '담당 부서 전화'],
 ] as const;
 const AI_SUGGESTED_FIELDS = [
   ['description', '데이터 설명 (대상·범위·구조·주요 내용)'], ['purpose', '구축·개방 목적 (배경·활용·공공적 가치)'], ['keywords', '검색 키워드'],
@@ -29,7 +30,8 @@ const OPTIONAL_CONFIRMATION_FIELDS = [
   ['contains_pii', '개인정보 포함 여부'], ['anonymization_method', '비식별화 방법'],
 ] as const;
 const API_FIELDS = [
-  ['endpoint', 'API 기본 URL·경로'], ['http_method', 'HTTP method'], ['authentication_type', '인증 유형'],
+  ['api_base_url', 'API 기본 URL'], ['operation_id', '기능 식별자'], ['operation_name', 'API 기능명'],
+  ['endpoint', '세부 경로'], ['http_method', 'HTTP method'], ['authentication_type', '인증 유형'],
   ['authentication', '인증 방식 설명 (실제 키 입력 금지)'], ['specification_url', 'OpenAPI·계약 명세 URL'],
   ['api_version', 'API 버전'], ['rate_limit', '호출 제한'],
   ['request_parameters', '요청 파라미터·필수·기본값'], ['pagination', '페이지네이션·호출 제한'],
@@ -39,6 +41,7 @@ const API_FIELDS = [
 interface Props {
   canonical: Record<string, unknown> | null;
   metadata: Record<string, string>;
+  metadataProvenance?: Record<string, string>;
   onMetadataChange: (value: Record<string, string>) => void;
   annotations: Record<string, AiGuideFieldAnnotation>;
   onAnnotationsChange: (value: Record<string, AiGuideFieldAnnotation>) => void;
@@ -52,7 +55,7 @@ function visibleFieldName(field: {path: string; name?: string}) {
 }
 
 // AI 가이드 템플릿 메타데이터 및 필드 주석 편집 패널 컴포넌트임
-export function AiGuideTemplatePanel({canonical, metadata, onMetadataChange, annotations, onAnnotationsChange}: Props) {
+export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = {}, onMetadataChange, annotations, onAnnotationsChange}: Props) {
   const fields = ((canonical?.fields ?? []) as {path: string; name?: string; types?: string[]; data_type?: string}[])
     .map(field => ({...field, types: field.types ?? String(field.data_type ?? '').split(' | ').filter(Boolean)}))
     .filter(field => field.types.some(type => !['object', 'array'].includes(type)));
@@ -82,7 +85,7 @@ export function AiGuideTemplatePanel({canonical, metadata, onMetadataChange, ann
         const currentOption = UPDATE_FREQUENCY_OPTIONS.find(
           opt => opt.value === metadata[key] || opt.label === metadata[key]
         );
-        const currentVal = currentOption ? currentOption.value : (metadata[key] ? 'OTHER' : 'DAILY_OR_MORE');
+        const currentVal = currentOption ? currentOption.value : (metadata[key] ? 'OTHER' : '');
         const isCustom = currentVal === 'OTHER' || (
           metadata[key] && !UPDATE_FREQUENCY_OPTIONS.some(opt => opt.value !== 'OTHER' && (opt.value === metadata[key] || opt.label === metadata[key]))
         );
@@ -95,12 +98,15 @@ export function AiGuideTemplatePanel({canonical, metadata, onMetadataChange, ann
                 const matched = UPDATE_FREQUENCY_OPTIONS.find(o => o.value === sel);
                 if (matched && matched.value !== 'OTHER') {
                   onMetadataChange({ ...metadata, [key]: matched.label });
+                } else if (!sel) {
+                  onMetadataChange({ ...metadata, [key]: '' });
                 } else {
                   onMetadataChange({ ...metadata, [key]: '기타' });
                 }
               }}
               className={baseSelectStyle}
             >
+              <option value="">선택하세요</option>
               {UPDATE_FREQUENCY_OPTIONS.map(item => (
                 <option key={item.value} value={item.value} className="bg-surface text-fg">
                   {item.label}
@@ -144,9 +150,16 @@ export function AiGuideTemplatePanel({canonical, metadata, onMetadataChange, ann
 
       return (
         <div key={key} className={`grid grid-cols-12 ${isLong ? 'items-start' : 'items-center'} gap-2`}>
-          <span className={`col-span-4 font-bold text-fg shrink-0 text-xs break-keep leading-snug ${isLong ? 'pt-1.5' : ''}`}>
-            {label}
-          </span>
+          <div className={`col-span-4 shrink-0 ${isLong ? 'pt-1.5' : ''}`}>
+            <span className="font-bold text-fg text-xs break-keep leading-snug">{label}</span>
+            {metadataProvenance[key] && (
+              <span className="mt-1 block w-fit rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                {metadataProvenance[key] === 'AUTO_INFERRED' ? 'AI 초안 · 검토 필요'
+                  : metadataProvenance[key] === 'SAMPLE_PRESET' ? '샘플 예시 · 실제값 확인'
+                    : '담당자 입력'}
+              </span>
+            )}
+          </div>
           <div className="col-span-8">
             {control}
           </div>

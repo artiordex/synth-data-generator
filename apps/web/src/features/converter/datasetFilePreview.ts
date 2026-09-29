@@ -137,7 +137,13 @@ export async function parseFilePreview(blob: Blob, format: string, sheetName?: s
     const parsed = Papa.parse<string[]>(text, { delimiter: normalized === 'tsv' ? '\t' : '', dynamicTyping: false,
       skipEmptyLines: true, preview: ROW_LIMIT + 1 });
     result.table = { headers: parsed.data[0] || [], rows: parsed.data.slice(1) };
-    result.notice = [result.notice, '실제 파일의 최대 200개 데이터 행을 표시합니다. CSV/TSV 원문도 확인할 수 있습니다.'].filter(Boolean).join(' ');
+    result.notice = [
+      result.notice,
+      '실제 파일의 최대 200개 데이터 행을 표시합니다. CSV/TSV 원문도 확인할 수 있습니다.',
+      parsed.errors.length > 0
+        ? `앞쪽 최대 200개 데이터 행에서 파싱 문제 ${parsed.errors.length}건을 감지했습니다. 행별 열 수와 따옴표를 확인하고 원문 코드도 검토하세요.`
+        : undefined,
+    ].filter(Boolean).join(' ');
   } else if (normalized === 'json' && !truncated) result.text = formatJsonText(text);
   return result;
 }

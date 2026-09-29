@@ -591,7 +591,7 @@ export async function generateSurveySynthesis(params: {
   seed?: number;
   apply_logic_rules?: boolean;
   preserve_likert_order?: boolean;
-  protect_k_anonymity?: boolean;
+  include_k_anonymity_risk_report?: boolean;
   dp_enabled?: boolean;
   eps?: number;
   department_name?: string;
@@ -609,8 +609,8 @@ export async function generateSurveySynthesis(params: {
 }
 
 // 설문 합성 작업의 비동기 진행 상태 및 로그를 조회함
-export async function getSurveyJobStatus(jobId: string): Promise<SurveyJobStatusResponse> {
-  const res = await fetch(`${BASE_URL}/survey/status/${encodeURIComponent(jobId)}`);
+export async function getSurveyJobStatus(jobId: string, signal?: AbortSignal): Promise<SurveyJobStatusResponse> {
+  const res = await fetch(`${BASE_URL}/survey/status/${encodeURIComponent(jobId)}`, { signal });
   if (!res.ok) throw new Error('작업 상태 조회 실패: ' + await res.text());
   return res.json();
 }
@@ -662,7 +662,7 @@ export interface GenerateAiRuleGuideResponse {
   ai_summary: string;
   data_category?: 'file' | 'api';
   is_large_dataset?: boolean;
-  ai_readiness_score?: number;
+  ai_readiness_score?: number | null;
   ai_readiness_checklist?: ReadinessCheckItem[];
   large_data_guide?: string | null;
   suggested_metadata?: Record<string, string>;
@@ -687,10 +687,12 @@ export async function generateAiRuleGuide(
 export type AiGuideHumanFormat = 'md' | 'html' | 'hwpx' | 'odt' | 'docx';
 
 export interface GenerateAiGuideDocumentsRequest {
-  sources: Array<{ filename: string; file_base64: string }>;
+  sources: Array<{ filename: string; file_base64: string; data_category?: 'file' | 'api' }>;
   document_title: string;
   user_metadata: Record<string, string>;
+  metadata_provenance?: Record<string, 'USER_CONFIRMED' | 'AUTO_INFERRED' | 'SAMPLE_PRESET'>;
   field_annotations: Record<string, AiGuideFieldAnnotation>;
+  field_annotation_provenance?: Record<string, Record<string, 'USER_CONFIRMED' | 'AUTO_INFERRED'>>;
   human_format: AiGuideHumanFormat;
   provider: 'auto' | 'openai' | 'local';
 }
@@ -744,6 +746,7 @@ export interface AiGuideFieldAnnotation {
   description: string;
   unit: string;
   codes: string;
+  data_type?: string;
 }
 
 export interface AiGuideTemplateRequest {

@@ -4,24 +4,29 @@
  * 목적: 공공데이터를 분석하고 기관 검토용 AI 친화 가이드를 생성합니다.
  * 작성일: 2026-09-16
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Sparkles, FileText, CheckCircle2,
-  Download, Copy, Table, Braces,
-  ArrowRight, Check, AlertTriangle,
+  Download, ArrowRight, AlertTriangle,
   Loader2, Globe, Database, Archive
 } from 'lucide-react';
 import {
   generateAiRuleGuide, generateAiGuideDocuments, AiGuideHumanFormat, AiGuideFieldAnnotation,
-  ReadinessCheckItem, parseGovDocument, GovDocParseResult, ParsedSimpleTable
+  ReadinessCheckItem, parseGovDocument, GovDocParseResult
 } from '../../services/api';
 import { AiGuideTemplatePanel } from './AiGuideTemplatePanel';
+import { AiGuideSamplePreview } from './AiGuideSamplePreview';
+import { AiGuideArtifactDownloads } from './AiGuideArtifactDownloads';
+import { AiGuideReadinessPanel } from './AiGuideReadinessPanel';
+import { AiGuideContextForm } from './AiGuideContextForm';
 import { TaxonomySelects } from './TaxonomySelects';
 import { UnifiedFileUploader } from '../shared/UnifiedFileUploader';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import JSZip from 'jszip';
 import DOMPurify from 'dompurify';
+import type { SamplePreviewData } from './aiGuidePreviewTypes';
+export type { SamplePreviewData } from './aiGuidePreviewTypes';
 
   // AI 가이드 생성 시 원격 AI 추론을 사용합니다.
 const AI_GUIDE_REMOTE_INFERENCE_ENABLED = true;
@@ -29,16 +34,9 @@ const AI_GUIDE_REMOTE_INFERENCE_ENABLED = true;
 export type SupportedFormat = 'csv' | 'tsv' | 'xlsx' | 'json' | 'jsonld' | 'xml' | 'docx' | 'hwpx';
 export type DataCategory = 'file' | 'api';
 export type AiProvider = 'gemini' | 'openai' | 'local';
-
-export interface SamplePreviewData {
-  format: string;
-  sheetName?: string;
-  headers: string[];
-  rows: string[][];
-  totalRows: number;
-  totalCols: number;
-  jsonSnippet?: string;
-}
+type MetadataProvenance = 'USER_CONFIRMED' | 'AUTO_INFERRED' | 'SAMPLE_PRESET';
+type FieldAnnotationProvenance = 'USER_CONFIRMED' | 'AUTO_INFERRED';
+type FieldAnnotationProvenanceMap = Record<string, Record<string, FieldAnnotationProvenance>>;
 
 export interface ColumnRule {
   key: string;
@@ -644,7 +642,10 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [isAiPowered, setIsAiPowered] = useState<boolean>(false);
   const [aiSummary, setAiSummary] = useState<string>('');
-  const [aiReadinessScore, setAiReadinessScore] = useState<number>(0);
+  const [aiReadinessScore, setAiReadinessScore] = useState<number | null>(null);
+  const aiReadinessScoreLabel = typeof aiReadinessScore === 'number' && Number.isFinite(aiReadinessScore)
+    ? `${aiReadinessScore}%`
+    : '미측정';
   const [aiReadinessChecklist, setAiReadinessChecklist] = useState<ReadinessCheckItem[]>([]);
   const [largeDataGuide, setLargeDataGuide] = useState<string | null>(null);
   const [customMarkdownGuide, setCustomMarkdownGuide] = useState<string | null>(null);
@@ -652,18 +653,14 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
 
   const [fileBase64, setFileBase64] = useState<string | undefined>();
   const [canonicalMetadata, setCanonicalMetadata] = useState<Record<string, unknown> | null>(null);
-  const [templateMetadata, setTemplateMetadata] = useState<Record<string, string>>({
-    publisher: '식품의약품안전처',
-    creator: '식품의약품안전처 의약품관리과',
-    contact_name: '043-719-2700',
-    theme_label: '보건 - 식품·의약품안전',
-    legal_basis: '공공데이터의 제공 및 이용 활성화에 관한 법률',
-    collection_process: '식품의약품안전처 행정정보시스템 및 공공데이터 연계',
-    update_frequency: '수시 (1일 1회 이상)',
-    next_registration_date: '',
-    license_type: 'KOGL_TYPE_1',
-  });
+  const [metadataDraft, setMetadataDraft] = useState<{
+    values: Record<string, string>;
+    provenance: Record<string, MetadataProvenance>;
+  }>({ values: {}, provenance: {} });
+  const templateMetadata = metadataDraft.values;
+  const metadataProvenance = metadataDraft.provenance;
   const [fieldAnnotations, setFieldAnnotations] = useState<Record<string, AiGuideFieldAnnotation>>({});
+  const [fieldAnnotationProvenance, setFieldAnnotationProvenance] = useState<FieldAnnotationProvenanceMap>({});
   const [docParseResult, setDocParseResult] = useState<GovDocParseResult | null>(null);
   const [metadataXml, setMetadataXml] = useState('');
   const [serverJsonLd, setServerJsonLd] = useState('');
@@ -675,6 +672,114 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
   const [zipFilename, setZipFilename] = useState<string>('');
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false);
   const [aiModel, setAiModel] = useState<string | null>(null);
+
+  const clearGeneratedArtifacts = () => {
+    setHumanDocumentBase64('');
+    setHumanDocumentFilename('');
+    setAllDocumentsBase64({});
+    setZipDocumentBase64('');
+    setZipFilename('');
+    setDownloadSuccessNotice(null);
+  };
+
+  const updateDataCategory = (value: DataCategory) => {
+    setDataCategory(value);
+    clearGeneratedArtifacts();
+  };
+
+  const replaceTemplateMetadata = (
+    values: Record<string, string>,
+    provenance: MetadataProvenance = 'SAMPLE_PRESET',
+  ) => {
+    setMetadataDraft({
+      values,
+      provenance: Object.fromEntries(Object.keys(values).map(key => [key, provenance])),
+    });
+    clearGeneratedArtifacts();
+  };
+
+  const updateTemplateMetadata = (key: string, value: string) => {
+    setMetadataDraft(current => ({
+      values: { ...current.values, [key]: value },
+      provenance: { ...current.provenance, [key]: 'USER_CONFIRMED' },
+    }));
+    clearGeneratedArtifacts();
+  };
+
+  const handleTemplateMetadataChange = (values: Record<string, string>) => {
+    setMetadataDraft(current => {
+      const provenance = { ...current.provenance };
+      for (const [key, value] of Object.entries(values)) {
+        if ((current.values[key] ?? '') !== (value ?? '')) provenance[key] = 'USER_CONFIRMED';
+      }
+      return { values, provenance };
+    });
+    clearGeneratedArtifacts();
+  };
+
+  const applySuggestedMetadata = (suggestions: Record<string, string>) => {
+    setMetadataDraft(current => {
+      const values = { ...current.values };
+      const provenance = { ...current.provenance };
+      for (const [key, value] of Object.entries(suggestions)) {
+        if (typeof value === 'string' && value.trim()
+            && provenance[key] !== 'USER_CONFIRMED'
+            && provenance[key] !== 'SAMPLE_PRESET') {
+          values[key] = value.trim();
+          provenance[key] = 'AUTO_INFERRED';
+        }
+      }
+      return { values, provenance };
+    });
+  };
+
+  const applySuggestedFieldAnnotations = (values: Record<string, AiGuideFieldAnnotation>) => {
+    setFieldAnnotations(current => {
+      const next = { ...current };
+      for (const [path, annotation] of Object.entries(values)) {
+        const existing = current[path] ?? {};
+        const provenance = fieldAnnotationProvenance[path] ?? {};
+        const merged: AiGuideFieldAnnotation = { ...existing };
+        for (const [key, value] of Object.entries(annotation)) {
+          if (provenance[key] !== 'USER_CONFIRMED' && value) {
+            Object.assign(merged, { [key]: value });
+          }
+        }
+        next[path] = merged;
+      }
+      return next;
+    });
+    setFieldAnnotationProvenance(current => {
+      const next = { ...current };
+      for (const [path, annotation] of Object.entries(values)) {
+        const pathProvenance = { ...(next[path] ?? {}) };
+        for (const [key, value] of Object.entries(annotation)) {
+          if (value && pathProvenance[key] !== 'USER_CONFIRMED') pathProvenance[key] = 'AUTO_INFERRED';
+        }
+        next[path] = pathProvenance;
+      }
+      return next;
+    });
+  };
+
+  const handleFieldAnnotationsChange = (values: Record<string, AiGuideFieldAnnotation>) => {
+    setFieldAnnotationProvenance(current => {
+      const provenance = { ...current };
+      for (const [path, value] of Object.entries(values)) {
+        const previous = fieldAnnotations[path] ?? {};
+        const next = { ...(provenance[path] ?? {}) };
+        for (const key of Object.keys(value ?? {})) {
+          if (previous[key as keyof AiGuideFieldAnnotation] !== value[key as keyof AiGuideFieldAnnotation]) {
+            next[key] = 'USER_CONFIRMED';
+          }
+        }
+        provenance[path] = next;
+      }
+      return provenance;
+    });
+    setFieldAnnotations(values);
+    clearGeneratedArtifacts();
+  };
 
   // 분석 실행 핸들러
   const handleParseData = async (
@@ -699,24 +804,16 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
         is_large_dataset: isLargeDataset,
         file_size_bytes: fileSizeBytes,
         provider: AI_GUIDE_REMOTE_INFERENCE_ENABLED ? 'openai' : 'local',
-        user_metadata: {
-          publisher: '공공기관',
-          creator: '데이터 관리부서',
-          contact_name: '02-000-0000',
-          ...templateMetadata,
-          ...(templateMetadata.publisher?.trim() ? { publisher: templateMetadata.publisher.trim() } : {}),
-          ...(templateMetadata.creator?.trim() ? { creator: templateMetadata.creator.trim() } : {}),
-          ...(templateMetadata.contact_name?.trim() ? { contact_name: templateMetadata.contact_name.trim() } : {}),
-        },
+        user_metadata: templateMetadata,
       });
       setCanonicalMetadata(aiRes.canonical_metadata);
-      setTemplateMetadata(previous => ({...previous, ...(aiRes.suggested_metadata ?? {})}));
-      setFieldAnnotations(aiRes.suggested_field_annotations ?? {});
+      applySuggestedMetadata(aiRes.suggested_metadata ?? {});
+      applySuggestedFieldAnnotations(aiRes.suggested_field_annotations ?? {});
       setRules(aiRes.columns);
       setParsedData({columns: aiRes.columns.map(c => c.key), rows: [0,1,2].map(i => Object.fromEntries(aiRes.columns.map(c => [c.key, c.sampleValues[i] ?? ''])))});
       setDataCategory(aiRes.data_category ?? category);
       setIsAiPowered(aiRes.ai_powered); setAiSummary(aiRes.ai_summary);
-      setAiReadinessScore(aiRes.ai_readiness_score ?? 0);
+      setAiReadinessScore(aiRes.ai_readiness_score ?? null);
       setAiReadinessChecklist(aiRes.ai_readiness_checklist ?? []);
       setLargeDataGuide(aiRes.large_data_guide ?? null);
       setCustomMarkdownGuide(aiRes.markdown_guide); setCustomJsonRule(aiRes.json_rule);
@@ -728,7 +825,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
   };
   // 공공 샘플 데이터 즉시 로드 핸들러
   const handleLoadSample = (type: SupportedFormat) => {
-    setCanonicalMetadata(null); setFieldAnnotations({});
+    setCanonicalMetadata(null); setFieldAnnotations({}); setFieldAnnotationProvenance({});
     setFileBase64(undefined); setIsLargeDataset(false);
     setInputFormat(type);
     const category: DataCategory = type === 'csv' ? 'file' : 'api';
@@ -741,16 +838,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     if (type === 'csv') {
       sample = getSampleCsv();
       title = '식약처 의약품 품목허가 표준 공시 데이터';
-      setTemplateMetadata({
-        publisher: '식품의약품안전처',
-        creator: '식품의약품안전처 의약품관리과',
-        contact_name: '043-719-2700',
-        theme_label: '보건 - 식품·의약품안전',
-        legal_basis: '공공데이터의 제공 및 이용 활성화에 관한 법률',
-        collection_process: '식품의약품안전처 행정정보시스템 및 공공데이터 연계',
-        update_frequency: '수시 (1일 1회 이상)',
-        next_registration_date: '',
-      });
+      replaceTemplateMetadata({ theme_label: '보건 - 식품·의약품안전' });
       const parsed = Papa.parse<string[]>(sample, { skipEmptyLines: 'greedy' });
       if (parsed.data.length > 0) {
         const headers = parsed.data[0] || [];
@@ -772,16 +860,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     } else if (type === 'json') {
       sample = getSampleJson();
       title = '건강기능식품 영양성분 공시 데이터';
-      setTemplateMetadata({
-        publisher: '식품의약품안전처',
-        creator: '식품의약품안전처 건강기능식품정책과',
-        contact_name: '043-719-2450',
-        theme_label: '보건 - 식품·의약품안전',
-        legal_basis: '건강기능식품에 관한 법률',
-        collection_process: '식품안전나라 시스템 연계 API',
-        update_frequency: '수시 (1일 1회 이상)',
-        next_registration_date: '',
-      });
+      replaceTemplateMetadata({ theme_label: '보건 - 식품·의약품안전' });
       const parsed = JSON.parse(sample);
       const previewData = extractJsonPreviewData(parsed, 'json');
       setSamplePreview(previewData);
@@ -789,16 +868,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     } else {
       sample = getSampleXml();
       title = '공공보건의료기관 현황 통계 데이터';
-      setTemplateMetadata({
-        publisher: '보건복지부',
-        creator: '공공의료과',
-        contact_name: '044-202-2530',
-        theme_label: '보건 - 보건의료',
-        legal_basis: '공공보건의료에 관한 법률',
-        collection_process: '국립중앙의료원 연계 API 수집',
-        update_frequency: '수시 (1일 1회 이상)',
-        next_registration_date: '',
-      });
+      replaceTemplateMetadata({ theme_label: '보건 - 보건의료' });
       const xmlDoc = new DOMParser().parseFromString(sample, 'text/xml');
       const items = xmlDoc.querySelectorAll('item, row, record');
       if (items.length > 0) {
@@ -818,8 +888,6 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
   const handleFileSelect = async (file: File) => {
     setCanonicalMetadata(null);
     const fileStem = file.name.replace(/\.[^/.]+$/, '');
-    const parts = fileStem.split('_');
-    const guessedPublisher = parts.length > 1 && parts[0].length >= 2 ? parts[0] : '';
     let guessedTheme = '';
     if (fileStem.includes('교통') || fileStem.includes('도로') || fileStem.includes('철도') || fileStem.includes('버스')) {
       guessedTheme = '교통 및 물류 - 도로';
@@ -832,17 +900,8 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     } else if (fileStem.includes('식품') || fileStem.includes('보건')) {
       guessedTheme = '보건 - 식품·의약품안전';
     }
-    setTemplateMetadata({
-      publisher: guessedPublisher,
-      creator: '',
-      contact_name: '',
-      theme_label: guessedTheme,
-      legal_basis: '',
-      collection_process: '',
-      update_frequency: '수시 (1일 1회 이상)',
-      next_registration_date: '',
-    });
-    setFieldAnnotations({});
+    replaceTemplateMetadata(guessedTheme ? { theme_label: guessedTheme } : {}, 'AUTO_INFERRED');
+    setFieldAnnotations({}); setFieldAnnotationProvenance({});
     setFileBase64(undefined);
     setUploadedFile(file);
     setErrorNotice(null);
@@ -877,7 +936,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
       if (normFormat === 'xlsx') {
         // 1. XLSX 파일을 SheetJS로 읽고 시트 데이터를 추출합니다.
         const arrayBuf = await file.arrayBuffer();
-        
+
         // 서버 분석을 위한 base64를 보관합니다.
         const reader = new FileReader();
         reader.onload = () => {
@@ -1076,7 +1135,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
 `;
     markdown += `- **데이터 범주**: ${dataCategory === 'file' ? '파일데이터 (CSV/TSV/XLSX)' : 'API 데이터 (JSON/XML)'}
 `;
-    markdown += `- **관측값 완전성**: ${aiReadinessScore}%
+    markdown += `- **관측값 완전성**: ${aiReadinessScoreLabel}
 `;
     markdown += `- **예상 레코드 수**: ${estimatedTotalRows.toLocaleString()}건
 
@@ -1104,7 +1163,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
 `;
     });
     return markdown;
-  }, [customMarkdownGuide, documentTitle, dataCategory, aiReadinessScore, estimatedTotalRows, fileSizeBytes, largeDataGuide, rules, aiReadinessChecklist]);
+  }, [customMarkdownGuide, documentTitle, dataCategory, aiReadinessScoreLabel, estimatedTotalRows, fileSizeBytes, largeDataGuide, rules, aiReadinessChecklist]);
 
   // AI-Ready
   // AI-Ready 메타데이터 JSON-LD
@@ -1113,7 +1172,7 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
   // 공공데이터 AI 품질 점검 보고서
   const generatedQualityReport = `# 공공데이터 AI 품질 점검 보고서: ${documentTitle}
 
-관측값 완전성: ${aiReadinessScore}%
+관측값 완전성: ${aiReadinessScoreLabel}
 ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\\n')}
 
 대표성·편향·개인정보·권리 관계는 기관 검토가 필요합니다.`;
@@ -1207,7 +1266,7 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
       for (const [key, value] of Object.entries(templateMetadata)) {
         cleanMetadata[key] = value == null ? '' : String(value);
       }
-      const cleanAnnotations: Record<string, { english_name: string; label: string; description: string; unit: string; codes: string }> = {};
+      const cleanAnnotations: Record<string, { english_name: string; label: string; description: string; unit: string; codes: string; data_type?: string }> = {};
       for (const [fieldPath, annotation] of Object.entries(fieldAnnotations)) {
         cleanAnnotations[fieldPath] = {
           english_name: annotation?.english_name ?? '',
@@ -1215,17 +1274,21 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
           description: annotation?.description ?? '',
           unit: annotation?.unit ?? '',
           codes: annotation?.codes ?? '',
+          data_type: annotation?.data_type ?? '',
         };
       }
 
       const result = await generateAiGuideDocuments({
-        sources: [{ filename, file_base64: sourceBase64 }],
+        sources: [{ filename, file_base64: sourceBase64, data_category: dataCategory }],
         document_title: documentTitle,
         user_metadata: cleanMetadata,
+        metadata_provenance: metadataProvenance,
         field_annotations: cleanAnnotations,
+        field_annotation_provenance: fieldAnnotationProvenance,
         human_format: humanFormat,
         provider: AI_GUIDE_REMOTE_INFERENCE_ENABLED ? 'openai' : 'local',
       });
+      setCanonicalMetadata(result.canonical_metadata);
       setCustomMarkdownGuide(result.markdown_guide);
       setCustomJsonRule(result.canonical_json);
       setMetadataXml(result.metadata_xml);
@@ -1331,152 +1394,15 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                   </button>
                 </div>
 
-                {/* 데이터 샘플 미리보기 */}
-                {samplePreview ? (
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Table className="w-4 h-4 text-accent" />
-                        <span className="text-xs font-bold text-fg">데이터 샘플 미리보기</span>
-                        {samplePreview.sheetName && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                            시트: {samplePreview.sheetName}
-                          </span>
-                        )}
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted uppercase">
-                          {samplePreview.format}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {/* 보기 모드 탭 (표 미리보기 vs JSON 구조) */}
-                        <div className="flex items-center gap-1 bg-surface-muted p-0.5 rounded-lg border border-subtle">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewTab('table')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 text-2xs font-medium rounded-md transition-colors cursor-pointer ${
-                              previewTab === 'table'
-                                ? 'bg-surface text-fg shadow-2xs font-bold'
-                                : 'text-fg-muted hover:text-fg'
-                            }`}
-                          >
-                            <Table className="w-3.5 h-3.5" />
-                            <span>표 미리보기</span>
-                          </button>
-                          {samplePreview.jsonSnippet && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewTab('json')}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 text-2xs font-medium rounded-md transition-colors cursor-pointer ${
-                                previewTab === 'json'
-                                  ? 'bg-surface text-accent shadow-2xs font-bold'
-                                  : 'text-fg-muted hover:text-fg'
-                              }`}
-                            >
-                              <Braces className="w-3.5 h-3.5 text-accent" />
-                              <span>JSON 구조 (상위 15건)</span>
-                            </button>
-                          )}
-                        </div>
-
-                        <span className="text-2xs text-fg-muted font-mono hidden sm:inline">
-                          {samplePreview.totalCols}개 컬럼 · 상위 {samplePreview.rows.length}건 (전체 {samplePreview.totalRows.toLocaleString()}건)
-                        </span>
-                      </div>
-                    </div>
-
-                    {previewTab === 'json' && samplePreview.jsonSnippet ? (
-                      <div className="rounded-xl border border-slate-200/90 dark:border-subtle overflow-hidden bg-white dark:bg-surface shadow-2xs">
-                        <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 dark:bg-surface-muted/60 border-b border-slate-200/80 dark:border-subtle">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xs font-bold text-slate-800 dark:text-fg">JSON 구조 미리보기 (상위 15건)</span>
-                            <span className="text-[10px] text-slate-600 dark:text-fg-muted font-mono bg-white dark:bg-surface px-2 py-0.5 rounded border border-slate-200 dark:border-subtle">
-                              전체 {samplePreview.totalRows.toLocaleString()}건 중 상위 {Math.min(15, samplePreview.totalRows)}건
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleCopyJsonSnippet}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-surface hover:bg-slate-100 dark:hover:bg-surface-muted text-slate-700 dark:text-fg text-2xs border border-slate-300/80 dark:border-subtle transition-colors cursor-pointer font-medium shadow-2xs"
-                            title="상위 15건 JSON 복사"
-                          >
-                            {jsonSnippetCopied ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">복사 완료</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-fg-muted" />
-                                <span>JSON 복사</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <pre
-                          className="p-4 font-mono text-xs overflow-x-auto max-h-84 leading-relaxed bg-[#f8fafc] text-slate-800 dark:bg-[#0f172a]/20 dark:text-fg whitespace-pre selection:bg-blue-100 selection:text-blue-900 border-t border-slate-200/40 dark:border-subtle/30"
-                          dangerouslySetInnerHTML={{ __html: highlightJsonToHtml(samplePreview.jsonSnippet) }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="rounded-xl border border-subtle overflow-hidden bg-surface shadow-2xs">
-                        <div className="overflow-x-auto max-h-72">
-                          <table className="w-full text-left text-xs border-collapse font-mono">
-                            <thead className="sticky top-0 bg-surface-muted border-b border-subtle z-10">
-                              <tr>
-                                <th className="py-2 px-3 text-2xs font-bold text-fg-muted uppercase w-12 text-center border-r border-subtle/50">
-                                  #
-                                </th>
-                                {samplePreview.headers.map((h, i) => (
-                                  <th key={i} className="py-2 px-3 text-xs font-bold text-fg whitespace-nowrap border-r border-subtle/50 last:border-r-0">
-                                    {h || `열${i + 1}`}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-subtle/60 text-fg">
-                              {samplePreview.rows.map((row, rIdx) => (
-                                <tr key={rIdx} className="hover:bg-surface-muted/40 transition-colors">
-                                  <td className="py-1.5 px-3 text-2xs text-fg-muted text-center bg-surface-muted/30 border-r border-subtle/50">
-                                    {rIdx + 1}
-                                  </td>
-                                  {samplePreview.headers.map((_, cIdx) => (
-                                    <td
-                                      key={cIdx}
-                                      className="py-1.5 px-3 text-xs whitespace-nowrap max-w-[260px] truncate border-r border-subtle/50 last:border-r-0"
-                                      title={typeof row[cIdx] === 'object' ? JSON.stringify(row[cIdx]) : String(row[cIdx] || '')}
-                                    >
-                                      {row[cIdx] !== undefined && row[cIdx] !== '' ? (
-                                        typeof row[cIdx] === 'object' ? (
-                                          <span className="font-mono text-fg-muted">{JSON.stringify(row[cIdx])}</span>
-                                        ) : (
-                                          row[cIdx]
-                                        )
-                                      ) : (
-                                        <span className="text-fg-muted/40 italic">null</span>
-                                      )}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : rawText ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-fg">데이터 텍스트 샘플</span>
-                      <span className="text-2xs text-fg-muted font-mono">{rawText.split('\n').length}</span>
-                    </div>
-                    <pre className="p-3.5 rounded-xl bg-surface-muted/60 border border-subtle font-mono text-xs text-fg-muted overflow-x-auto max-h-56 whitespace-pre-wrap">
-                      {rawText.slice(0, 1200)}
-                      {rawText.length > 1200 && '\n... (이하 생략)'}
-                    </pre>
-                  </div>
-                ) : null}
+                <AiGuideSamplePreview
+                  samplePreview={samplePreview}
+                  previewTab={previewTab}
+                  rawText={rawText}
+                  jsonSnippetCopied={jsonSnippetCopied}
+                  onPreviewTabChange={setPreviewTab}
+                  onCopyJsonSnippet={handleCopyJsonSnippet}
+                  renderHighlightedJson={highlightJsonToHtml}
+                />
 
                 {/* 기관 및 데이터 기본 정보 */}
                 <div className="space-y-3 pt-4">
@@ -1505,7 +1431,7 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                         <div className="col-span-8">
                           <TaxonomySelects
                             value={templateMetadata.theme_label || ''}
-                            onChange={value => setTemplateMetadata({...templateMetadata, theme_label: value})}
+                            onChange={value => updateTemplateMetadata('theme_label', value)}
                           />
                         </div>
                       </div>
@@ -1515,7 +1441,7 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                           <input
                             type="text"
                             value={templateMetadata.publisher || ''}
-                            onChange={event => setTemplateMetadata({...templateMetadata, publisher: event.target.value})}
+                            onChange={event => updateTemplateMetadata('publisher', event.target.value)}
                             className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
                             placeholder="예: 식품의약품안전처"
                           />
@@ -1531,24 +1457,41 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                           <input
                             type="text"
                             value={templateMetadata.creator || ''}
-                            onChange={event => setTemplateMetadata({...templateMetadata, creator: event.target.value})}
+                            onChange={event => updateTemplateMetadata('creator', event.target.value)}
                             className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
                             placeholder="예: 식품의약품안전처 의약품관리과"
                           />
                         </div>
                       </div>
                       <div className="grid grid-cols-12 items-center gap-2">
-                        <span className="col-span-4 font-bold text-fg shrink-0">담당자 연락처 / 이메일</span>
+                        <span className="col-span-4 font-bold text-fg shrink-0">담당자명</span>
                         <div className="col-span-8">
                           <input
                             type="text"
                             value={templateMetadata.contact_name || ''}
-                            onChange={event => setTemplateMetadata({...templateMetadata, contact_name: event.target.value})}
+                            onChange={event => updateTemplateMetadata('contact_name', event.target.value)}
                             className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
-                            placeholder="예: 043-719-2700 / 담당자 이메일"
+                            placeholder="예: 홍길동"
                           />
                         </div>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-x-8 gap-y-3">
+                      <label className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">담당 부서 이메일</span>
+                        <input type="email" value={templateMetadata.contact_email || ''}
+                          onChange={event => updateTemplateMetadata('contact_email', event.target.value)}
+                          className="col-span-8 w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
+                          placeholder="예: data@example.go.kr" />
+                      </label>
+                      <label className="grid grid-cols-12 items-center gap-2">
+                        <span className="col-span-4 font-bold text-fg shrink-0">담당 부서 전화</span>
+                        <input type="tel" value={templateMetadata.contact_phone || ''}
+                          onChange={event => updateTemplateMetadata('contact_phone', event.target.value)}
+                          className="col-span-8 w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
+                          placeholder="예: 02-0000-0000" />
+                      </label>
                     </div>
 
                     {/* 보유근거 및 수집방법 */}
@@ -1559,7 +1502,7 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                           <input
                             type="text"
                             value={templateMetadata.legal_basis || ''}
-                            onChange={event => setTemplateMetadata({...templateMetadata, legal_basis: event.target.value})}
+                            onChange={event => updateTemplateMetadata('legal_basis', event.target.value)}
                             className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
                             placeholder="관련 법령 또는 데이터 구축 근거"
                           />
@@ -1571,7 +1514,7 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                           <input
                             type="text"
                             value={templateMetadata.collection_process || ''}
-                            onChange={event => setTemplateMetadata({...templateMetadata, collection_process: event.target.value})}
+                            onChange={event => updateTemplateMetadata('collection_process', event.target.value)}
                             className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
                             placeholder="수집방법을 입력하세요 (선택)"
                           />
@@ -1585,22 +1528,23 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                         <span className="col-span-4 font-bold text-fg shrink-0 pt-1.5">업데이트 주기</span>
                         <div className="col-span-8 flex flex-col gap-1.5">
                           <select
-                            value={
-                              UPDATE_FREQUENCY_OPTIONS.find(
-                                opt => opt.value === templateMetadata.update_frequency || opt.label === templateMetadata.update_frequency
-                              )?.value || 'OTHER'
-                            }
+                            value={UPDATE_FREQUENCY_OPTIONS.find(
+                              opt => opt.value === templateMetadata.update_frequency || opt.label === templateMetadata.update_frequency
+                            )?.value || (templateMetadata.update_frequency ? 'OTHER' : '')}
                             onChange={event => {
                               const selectedVal = event.target.value;
                               const matched = UPDATE_FREQUENCY_OPTIONS.find(opt => opt.value === selectedVal);
                               if (matched && matched.value !== 'OTHER') {
-                                setTemplateMetadata({ ...templateMetadata, update_frequency: matched.label });
+                                updateTemplateMetadata('update_frequency', matched.label);
+                              } else if (!selectedVal) {
+                                updateTemplateMetadata('update_frequency', '');
                               } else {
-                                setTemplateMetadata({ ...templateMetadata, update_frequency: '기타' });
+                                updateTemplateMetadata('update_frequency', '기타');
                               }
                             }}
                             className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors cursor-pointer"
                           >
+                            <option value="">선택하세요</option>
                             {UPDATE_FREQUENCY_OPTIONS.map(item => (
                               <option key={item.value} value={item.value}>
                                 {item.label}
@@ -1608,31 +1552,17 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                             ))}
                           </select>
                           {/* '기타' 선택 시 또는 표준 옵션 외의 커스텀 주기 입력 시 직접 입력 input 표시 */}
-                          {(
-                            !UPDATE_FREQUENCY_OPTIONS.some(
+                          {Boolean(templateMetadata.update_frequency && !UPDATE_FREQUENCY_OPTIONS.some(
                               opt => opt.value !== 'OTHER' && (opt.value === templateMetadata.update_frequency || opt.label === templateMetadata.update_frequency)
-                            )
-                          ) && (
+                          )) && (
                             <input
                               type="text"
                               value={templateMetadata.update_frequency === '기타' ? '' : (templateMetadata.update_frequency || '')}
-                              onChange={event => setTemplateMetadata({ ...templateMetadata, update_frequency: event.target.value || '기타' })}
+                              onChange={event => updateTemplateMetadata('update_frequency', event.target.value || '기타')}
                               className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1 text-xs text-fg outline-none transition-colors"
                               placeholder="주기를 직접 입력하세요 (예: 1시간 주기 자동 계측 수집)"
                             />
                           )}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-12 items-center gap-2">
-                        <span className="col-span-4 font-bold text-fg shrink-0">차기 등록 예정</span>
-                        <div className="col-span-8">
-                          <input
-                            type="text"
-                            value={templateMetadata.next_registration_date || ''}
-                            onChange={event => setTemplateMetadata({...templateMetadata, next_registration_date: event.target.value})}
-                            className="w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors"
-                            placeholder="차기 등록 예정일 (선택)"
-                          />
                         </div>
                       </div>
                     </div>
@@ -1644,21 +1574,22 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                         <div className="col-span-12 sm:col-span-10 flex flex-col gap-2.5">
                           <div className="flex flex-wrap items-center gap-3">
                             <select
-                              value={templateMetadata.license_type || 'KOGL_TYPE_1'}
-                              onChange={event => setTemplateMetadata({...templateMetadata, license_type: event.target.value})}
+                              value={templateMetadata.license_type || ''}
+                              onChange={event => updateTemplateMetadata('license_type', event.target.value)}
                               className="bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg outline-none transition-colors max-w-sm"
                             >
+                              <option value="">선택하세요</option>
                               {Object.values(KOGL_TYPES).map(item => (
                                 <option key={item.id} value={item.id}>
                                   {item.name}
                                 </option>
                               ))}
                             </select>
-                            <KoglBadge typeKey={templateMetadata.license_type || 'KOGL_TYPE_1'} />
+                            {templateMetadata.license_type && <KoglBadge typeKey={templateMetadata.license_type} />}
                           </div>
                           {/* 권리 칩 태그 */}
                           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                            {(KOGL_TYPES[templateMetadata.license_type || 'KOGL_TYPE_1'] || KOGL_TYPES.KOGL_TYPE_1).tags.map((tag, idx) => (
+                            {(KOGL_TYPES[templateMetadata.license_type] || {tags: []}).tags.map((tag, idx) => (
                               <span
                                 key={idx}
                                 className={`px-2 py-0.5 rounded-full font-medium ${
@@ -1676,6 +1607,14 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                     </div>
                   </div>
                 </div>
+
+                <AiGuideContextForm
+                  metadata={templateMetadata}
+                  metadataProvenance={metadataProvenance}
+                  dataCategory={dataCategory}
+                  onMetadataChange={updateTemplateMetadata}
+                  onDataCategoryChange={updateDataCategory}
+                />
 
                 {/* 입력 정보 기반 AI 분석 */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
@@ -1757,15 +1696,15 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                 </div>
                 <div className="space-y-1">
                   <span className="text-2xs text-fg-muted font-mono block">dqv:QualityMeasurement (품질 지표)</span>
-                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">관측값 완전성 {aiReadinessScore}% · 대표성·편향·정확성은 별도 검토</p>
+                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">관측값 완전성 {aiReadinessScoreLabel} · 대표성·편향·정확성은 별도 검토</p>
                 </div>
               </div>
             </div>
 
-            <AiGuideTemplatePanel canonical={canonicalMetadata} metadata={templateMetadata}
-              onMetadataChange={value => { setTemplateMetadata(value); setHumanDocumentBase64(''); setZipDocumentBase64(''); setDownloadSuccessNotice(null); }}
+            <AiGuideTemplatePanel canonical={canonicalMetadata} metadata={templateMetadata} metadataProvenance={metadataProvenance}
+              onMetadataChange={handleTemplateMetadataChange}
               annotations={fieldAnnotations}
-              onAnnotationsChange={value => { setFieldAnnotations(value); setHumanDocumentBase64(''); setZipDocumentBase64(''); setDownloadSuccessNotice(null); }} />
+              onAnnotationsChange={handleFieldAnnotationsChange} />
 
             <div className="space-y-2 pt-4 border-t border-subtle">
               <label className="ui-label" htmlFor="ai-guide-human-format">AI 가이드 문서 형식</label>
@@ -1780,6 +1719,16 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                 ZIP 일괄 다운로드를 선택하면 문서 4종(HWPX·DOCX·HTML·MD), 메타데이터 3종(JSON·XML·JSON-LD), 품질보고서를 함께 제공합니다.
               </p>
             </div>
+
+            <AiGuideReadinessPanel
+              documentTitle={documentTitle}
+              hasSourceData={Boolean(rawText || fileBase64)}
+              dataCategory={dataCategory}
+              readinessScore={aiReadinessScore}
+              readinessChecklist={aiReadinessChecklist}
+              metadata={templateMetadata}
+              canonicalMetadata={canonicalMetadata}
+            />
 
             {/* 최종 산출물 ZIP 다운로드 */}
             <div className="pt-6 border-t border-subtle space-y-4">
@@ -1854,97 +1803,23 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                 </div>
               )}
 
-              {/* 생성 완료 후 개별 문서와 메타데이터 다운로드 */}
-              {(zipDocumentBase64 || humanDocumentBase64) && (
-                <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-surface-muted/60 border border-subtle">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-2xs font-bold text-fg-muted mr-1">개별 문서 다운로드:</span>
-                    <button
-                      type="button"
-                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      onClick={() => {
-                        const b64 = allDocumentsBase64['hwpx'] || (humanFormat === 'hwpx' ? humanDocumentBase64 : '');
-                        if (b64) handleDownloadBase64(b64, `${documentTitle}_AI_가이드.hwpx`, 'application/hwp+zip');
-                      }}
-                      title="한글 표준 문서 (HWPX)"
-                    >
-                      <Download className="w-3 h-3" /> HWPX
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      onClick={() => {
-                        const b64 = allDocumentsBase64['docx'] || (humanFormat === 'docx' ? humanDocumentBase64 : '');
-                        if (b64) handleDownloadBase64(b64, `${documentTitle}_AI_가이드.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                      }}
-                      title="Word 문서 (DOCX)"
-                    >
-                      <Download className="w-3 h-3" /> DOCX
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      onClick={() => {
-                        const b64 = allDocumentsBase64['md'] || (humanFormat === 'md' ? humanDocumentBase64 : '');
-                        if (b64) handleDownloadBase64(b64, `${documentTitle}_AI_가이드.md`, 'text/markdown;charset=utf-8');
-                        else handleDownloadFile(customMarkdownGuide || generatedMarkdownGuide, `${documentTitle}_AI_가이드.md`, 'text/markdown;charset=utf-8');
-                      }}
-                      title="마크다운 문서 (MD)"
-                    >
-                      <Download className="w-3 h-3" /> MD
-                    </button>
-
-                    <button
-                      type="button"
-                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      onClick={() => {
-                        const b64 = allDocumentsBase64['html'] || (humanFormat === 'html' ? humanDocumentBase64 : '');
-                        if (b64) handleDownloadBase64(b64, `${documentTitle}_AI_Guide.html`, 'text/html;charset=utf-8');
-                      }}
-                      title="HTML 문서"
-                    >
-                      <Download className="w-3 h-3" /> HTML
-                    </button>
-
-                    <span className="text-subtle mx-1">|</span>
-                    <span className="text-2xs font-bold text-fg-muted mr-1">메타데이터</span>
-
-                    <button
-                      type="button"
-                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      onClick={() => handleDownloadFile(customJsonRule || '{}', `${documentTitle}_메타데이터.json`, 'application/json;charset=utf-8')}
-                      title="표준 JSON 메타데이터"
-                    >
-                      <Download className="w-3 h-3" /> JSON
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      onClick={() => handleDownloadFile(metadataXml, `${documentTitle}_메타데이터.xml`, 'application/xml;charset=utf-8')}
-                      title="표준 XML 메타데이터"
-                    >
-                      <Download className="w-3 h-3" /> XML
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      onClick={() => handleDownloadFile(serverJsonLd || generatedJsonLd, `${documentTitle}_메타데이터.jsonld`, 'application/ld+json;charset=utf-8')}
-                      title="W3C DCAT 3.0 JSON-LD"
-                    >
-                      <Download className="w-3 h-3" /> JSON-LD
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleCopyClipboard(customMarkdownGuide || generatedMarkdownGuide)}
-                    className="ui-button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 cursor-pointer shrink-0"
-                  >
-                    {copySuccess ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-fg-muted" />}
-                    <span>{copySuccess ? '복사 완료' : 'Markdown 가이드 복사'}</span>
-                  </button>
-                </div>
-              )}
+              <AiGuideArtifactDownloads
+                documentTitle={documentTitle}
+                humanFormat={humanFormat}
+                zipDocumentBase64={zipDocumentBase64}
+                humanDocumentBase64={humanDocumentBase64}
+                allDocumentsBase64={allDocumentsBase64}
+                customMarkdownGuide={customMarkdownGuide}
+                generatedMarkdownGuide={generatedMarkdownGuide}
+                customJsonRule={customJsonRule}
+                metadataXml={metadataXml}
+                serverJsonLd={serverJsonLd}
+                generatedJsonLd={generatedJsonLd}
+                copySuccess={copySuccess}
+                onDownloadBase64={handleDownloadBase64}
+                onDownloadFile={handleDownloadFile}
+                onCopyClipboard={handleCopyClipboard}
+              />
             </div>
           </div>
         </div>

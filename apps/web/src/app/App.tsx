@@ -29,14 +29,25 @@ import { SynthesisWorkflowSelector, SyntheticWorkflow } from '../features/synthe
 import { StepReport } from '../features/reports/StepReport';
 import { QuickDummyBuilder } from '../features/dummy/QuickDummyBuilder';
 import { PseudonymStudio } from '../features/pseudonym/PseudonymStudio';
-import { DataConverterStudio } from '../features/converter/DataConverterStudio';
-import { AiRuleGuideStudio } from '../features/aiguide/AiRuleGuideStudio';
 import { SystemDocsView } from '../features/system/SystemDocsView';
 import { ApiDocsView } from '../features/system/ApiDocsView';
 import { Footer } from '../components/Footer';
+import { AsyncFeatureBoundary } from '../components/AsyncFeatureBoundary';
 import { WorkspaceNav, WorkbenchTab } from '../components/WorkspaceNav';
 import { WorkflowStepItem } from '../components/WorkflowSteps';
 import { WorkspaceHeader, WorkspaceHeaderProps } from '../components/WorkspaceHeader';
+
+const LazyDataConverterStudio = React.lazy(() =>
+  import('../features/converter/DataConverterStudio').then(({ DataConverterStudio }) => ({
+    default: DataConverterStudio,
+  })),
+);
+
+const LazyAiRuleGuideStudio = React.lazy(() =>
+  import('../features/aiguide/AiRuleGuideStudio').then(({ AiRuleGuideStudio }) => ({
+    default: AiRuleGuideStudio,
+  })),
+);
 
 export type MainView = 'workbench' | 'dictionary' | 'history' | 'changelog' | 'libraries' | 'apidocs';
 
@@ -542,20 +553,40 @@ export default function App() {
               <QuickDummyBuilder isDarkMode={isDarkMode} onStepChange={setDummyStep} />
             )}
             {activeTab === 'converter' && (
-              <DataConverterStudio
-                isDarkMode={isDarkMode}
-                onStepChange={setConverterStep}
-                activeStep={converterStep}
-                onSelectStep={setConverterStep}
-              />
+              <AsyncFeatureBoundary featureName="데이터변환">
+                <React.Suspense
+                  fallback={(
+                    <div className="ui-panel p-6 text-sm text-fg-muted" role="status" aria-live="polite">
+                      데이터변환 화면을 불러오는 중입니다.
+                    </div>
+                  )}
+                >
+                  <LazyDataConverterStudio
+                    isDarkMode={isDarkMode}
+                    onStepChange={setConverterStep}
+                    activeStep={converterStep}
+                    onSelectStep={setConverterStep}
+                  />
+                </React.Suspense>
+              </AsyncFeatureBoundary>
             )}
             {activeTab === 'ai-guide' && (
-              <AiRuleGuideStudio
-                isDarkMode={isDarkMode}
-                onStepChange={setAiGuideStep}
-                activeStep={aiGuideStep}
-                onSelectStep={setAiGuideStep}
-              />
+              <AsyncFeatureBoundary featureName="AI 가이드">
+                <React.Suspense
+                  fallback={(
+                    <div className="ui-panel p-6 text-sm text-fg-muted" role="status" aria-live="polite">
+                      AI 가이드 화면을 불러오는 중입니다.
+                    </div>
+                  )}
+                >
+                  <LazyAiRuleGuideStudio
+                    isDarkMode={isDarkMode}
+                    onStepChange={setAiGuideStep}
+                    activeStep={aiGuideStep}
+                    onSelectStep={setAiGuideStep}
+                  />
+                </React.Suspense>
+              </AsyncFeatureBoundary>
             )}
             {activeTab === 'synthetic' && (
               <>
