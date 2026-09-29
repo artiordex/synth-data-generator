@@ -851,6 +851,12 @@
               <xs:complexType>
                 <xs:sequence>
                   <xs:element name="description" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="inputFields" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="targetFields" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="evaluationMetrics" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="evidence" minOccurs="0" type="xs:string" nillable="true" />
+                  <xs:element name="status" minOccurs="0" type="tns:StatusType" nillable="true" />
+                  <xs:element name="reason" minOccurs="0" type="xs:string" nillable="true" />
                 </xs:sequence>
                 <xs:attribute name="type" type="xs:string" />
               </xs:complexType>
@@ -868,9 +874,9 @@
       <xs:element name="splitRatio" minOccurs="0">
         <xs:complexType>
           <xs:sequence>
-            <xs:element name="train" minOccurs="0" type="tns:ConfidenceType" nillable="true" />
-            <xs:element name="validation" minOccurs="0" type="tns:ConfidenceType" nillable="true" />
-            <xs:element name="test" minOccurs="0" type="tns:ConfidenceType" nillable="true" />
+            <xs:element name="train" minOccurs="0" type="tns:ScoreType" nillable="true" />
+            <xs:element name="validation" minOccurs="0" type="tns:ScoreType" nillable="true" />
+            <xs:element name="test" minOccurs="0" type="tns:ScoreType" nillable="true" />
             <xs:element name="strategy" minOccurs="0" type="xs:string" nillable="true" />
             <xs:element name="leakageReview" minOccurs="0" type="xs:string" nillable="true" />
           </xs:sequence>

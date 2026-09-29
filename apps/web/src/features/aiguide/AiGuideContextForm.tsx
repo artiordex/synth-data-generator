@@ -4,7 +4,7 @@
  * 목적: AI 가이드 생성에 필요한 기관 맥락을 입력받음
  * 작성자: 개발팀
  * 작성일: 2026-09-29
- * 수정일: 2026-09-29
+ * 수정일: 2026-09-30
  */
 import React from 'react';
 
@@ -15,6 +15,7 @@ interface AiGuideContextFormProps {
   metadataProvenance: Record<string, string>;
   dataCategory: DataCategory;
   onMetadataChange: (key: string, value: string) => void;
+  onAcceptAiSuggestion: (key: string) => void;
   onDataCategoryChange: (value: DataCategory) => void;
 }
 
@@ -39,6 +40,10 @@ const PROCESSING_FIELDS = [
   { key: 'imputation', label: '결측값 처리 방법', hint: '삭제·대체·미처리 여부와 규칙을 적어 주세요.', multiline: true },
   { key: 'ai_purpose', label: '예상 AI 활용 목적', hint: '사용자, 목표, 기대 결과와 사람의 검토 절차를 적어 주세요.', multiline: true },
   { key: 'training_split', label: '학습·평가 분리 기준', hint: '시간·개체 단위 분리 등 이미 정해진 기준이 있을 때 입력하세요.', multiline: true },
+  { key: 'training_split_train', label: '학습 비율(%)', hint: '0~100, 세 비율 합계 100', type: 'number', min: '0', max: '100', step: 'any' },
+  { key: 'training_split_validation', label: '검증 비율(%)', hint: '0~100, 세 비율 합계 100', type: 'number', min: '0', max: '100', step: 'any' },
+  { key: 'training_split_test', label: '시험 비율(%)', hint: '0~100, 세 비율 합계 100', type: 'number', min: '0', max: '100', step: 'any' },
+  { key: 'training_split_leakage_review', label: '데이터 누수 검토 기준', hint: '동일 개체·기간·중복 레코드가 학습과 시험에 섞이지 않도록 확인할 기준을 적어 주세요.', multiline: true },
 ] as const;
 
 const API_FIELDS = [
@@ -73,25 +78,38 @@ export const AiGuideContextForm: React.FC<AiGuideContextFormProps> = ({
   metadataProvenance,
   dataCategory,
   onMetadataChange,
+  onAcceptAiSuggestion,
   onDataCategoryChange,
 }) => {
   const inputClass = 'w-full rounded border border-subtle bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-accent';
 
   // 입력 필드 설정을 접근 가능한 폼 요소로 렌더링함
-  const renderFields = (fields: ReadonlyArray<{ key: string; label: string; hint: string; multiline?: boolean; type?: string }>) => (
+  const renderFields = (fields: ReadonlyArray<{ key: string; label: string; hint: string; multiline?: boolean; type?: string; min?: string; max?: string; step?: string }>) => (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       {fields.map((field) => (
-        <label key={field.key} className={`grid gap-1.5 text-xs ${field.multiline ? 'lg:col-span-2' : ''}`}>
-          <span className="flex flex-wrap items-center gap-2 font-semibold text-fg">
-            {field.label}
+        <div key={field.key} className={`grid gap-1.5 text-xs ${field.multiline ? 'lg:col-span-2' : ''}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor={`ai-guide-context-${field.key}`} className="font-semibold text-fg">{field.label}</label>
             {provenanceLabel(metadataProvenance[field.key]) && (
               <span className="rounded-full bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent">
                 {provenanceLabel(metadataProvenance[field.key])}
               </span>
             )}
-          </span>
+            {metadataProvenance[field.key] === 'AUTO_INFERRED' && metadata[field.key]?.trim() && (
+              <button
+                type="button"
+                className="rounded border border-accent/30 px-2 py-0.5 text-2xs font-medium text-accent hover:bg-accent/10"
+                onClick={() => onAcceptAiSuggestion(field.key)}
+                aria-label={`${field.label} AI 초안 확인`}
+                title="내용을 확인했으며 이 값을 담당자 확인값으로 사용합니다."
+              >
+                AI 초안 확인
+              </button>
+            )}
+          </div>
           {field.multiline ? (
             <textarea
+              id={`ai-guide-context-${field.key}`}
               className={`${inputClass} resize-y`}
               rows={3}
               maxLength={6000}
@@ -101,15 +119,19 @@ export const AiGuideContextForm: React.FC<AiGuideContextFormProps> = ({
             />
           ) : (
             <input
+              id={`ai-guide-context-${field.key}`}
               className={inputClass}
               type={field.type || 'text'}
+              min={field.min}
+              max={field.max}
+              step={field.step}
               maxLength={2000}
               value={metadata[field.key] || ''}
               placeholder={field.hint}
               onChange={(event) => onMetadataChange(field.key, event.target.value)}
             />
           )}
-        </label>
+        </div>
       ))}
     </div>
   );

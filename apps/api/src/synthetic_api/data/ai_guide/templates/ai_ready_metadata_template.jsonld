@@ -86,6 +86,64 @@
     "aig": "urn:synthetic-data:ai-ready:v2:",
     "processing": "aig:processing",
     "integration": "aig:integration",
+    "method": "aig:method",
+    "parameters": {
+      "@id": "aig:parameters",
+      "@type": "@json"
+    },
+    "input_fields": "aig:inputFields",
+    "evaluation_metrics": "aig:evaluationMetrics",
+    "evidence": "aig:evidence",
+    "status": "aig:taskStatus",
+    "reason": "aig:reason",
+    "is_integrated": "aig:isIntegrated",
+    "join_type": "aig:joinType",
+    "join_keys": "aig:joinKeys",
+    "spatial_alignment": "aig:spatialAlignment",
+    "temporal_alignment": "aig:temporalAlignment",
+    "transformations": "aig:transformations",
+    "outlier_processing": "aig:outlierProcessing",
+    "reversible": "aig:isReversible",
+    "rule": "aig:rule",
+    "step": "aig:step",
+    "name": "aig:name",
+    "unit": "schema:unitText",
+    "values": "aig:values",
+    "window": "aig:window",
+    "split_ratio": "aig:splitRatio",
+    "source_dataset_ids": "aig:sourceDatasetIds",
+    "external_sources": "aig:externalSources",
+    "output_description": "aig:outputDescription",
+    "limitations": "aig:limitations",
+    "field_id": "aig:fieldId",
+    "field_name": "aig:fieldName",
+    "source_fields": "aig:sourceFields",
+    "formula_or_rule": "aig:formulaOrRule",
+    "aggregation": "aig:aggregation",
+    "fallback_rule": "aig:fallbackRule",
+    "reproducible": "aig:isReproducible",
+    "confidence": "aig:confidence",
+    "notes": "aig:notes",
+    "target_field_ids": "aig:targetFieldIds",
+    "target_fields": "aig:targetFields",
+    "detected_missing_count": "aig:detectedMissingCount",
+    "detected_missing_ratio": "aig:detectedMissingRatio",
+    "method_description": "aig:methodDescription",
+    "steps": "aig:steps",
+    "grouping_keys": "aig:groupingKeys",
+    "temporal_window": "aig:temporalWindow",
+    "fallback_method": "aig:fallbackMethod",
+    "clipping_rule": "aig:clippingRule",
+    "affected_record_count": "aig:affectedRecordCount",
+    "original_value_preserved": "aig:originalValuePreserved",
+    "detection_method": "aig:detectionMethod",
+    "threshold": "aig:threshold",
+    "action": "aig:action",
+    "affected_count": "aig:affectedCount",
+    "replacement_method": "aig:replacementMethod",
+    "flag_field": "aig:flagField",
+    "meaning": "aig:meaning",
+    "code": "aig:code",
     "derived_fields": "aig:derivedFields",
     "missing_value_processing": "aig:missingValueProcessing",
     "quality_flags": "aig:qualityFlags",
@@ -977,7 +1035,25 @@
           "{{#ai.tasks}}",
           {
             "ai:type": "{{task.type}}",
-            "ai:description": "{{task.description}}"
+            "ai:description": "{{task.description}}",
+            "ai:input_fields": {
+              "@value": "{{task.input_fields}}",
+              "@type": "@json"
+            },
+            "ai:target_fields": {
+              "@value": "{{task.target_fields}}",
+              "@type": "@json"
+            },
+            "ai:evaluation_metrics": {
+              "@value": "{{task.evaluation_metrics}}",
+              "@type": "@json"
+            },
+            "ai:evidence": {
+              "@value": "{{task.evidence}}",
+              "@type": "@json"
+            },
+            "ai:status": "{{task.status}}",
+            "ai:reason": "{{task.reason}}"
           },
           "{{/ai.tasks}}"
         ],
@@ -988,11 +1064,11 @@
         ],
         "ai:split_ratio": {
           "rdfs:comment": "AI 학습/검증/시험 데이터 분할 비율 가이드",
-          "ai:train": "{{ai.split.train}}",
-          "ai:validation": "{{ai.split.validation}}",
-          "ai:test": "{{ai.split.test}}",
-          "ai:strategy": "{{ai.split.strategy}}",
-          "ai:leakage_review": "{{ai.split.leakage_review}}"
+          "ai:train": "{{ai.split_ratio.train}}",
+          "ai:validation": "{{ai.split_ratio.validation}}",
+          "ai:test": "{{ai.split_ratio.test}}",
+          "ai:strategy": "{{ai.split_ratio.strategy}}",
+          "ai:leakage_review": "{{ai.split_ratio.leakage_review}}"
         },
         "ai:large_data_optimization": {
           "rdfs:comment": "대용량 데이터셋 처리 최적화 가이드",

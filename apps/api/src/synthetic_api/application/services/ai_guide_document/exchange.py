@@ -5,13 +5,15 @@
 # 목적: 캐노니컬 모델을 표준 XML 및 JSON-LD 포맷으로 직렬화하고 스키마를 검증함
 # 작성자: 개발팀
 # 작성일: 2026-09-16
-# 수정일: 2026-09-16
+# 수정일: 2026-09-30
 # =============================================================================
 """Typed XML/JSON-LD AST projection of the same canonical input."""
 from __future__ import annotations
 import copy
+import hashlib
 import json
 import re
+from urllib.parse import urlsplit
 from lxml import etree
 from .binding import TOKEN
 
@@ -127,9 +129,8 @@ def validate_jsonld_semantics(raw):
 def ttl_output(model) -> str:
     """Generate a DCAT/OWL Turtle ontology from the canonical model.
 
-    Produces a minimal but conformant DCAT-AP 3.0 + schema.org description
-    with one dcat:Dataset, one dcat:Distribution per field group, and
-    OWL property declarations for each field.
+    Produces a compact DCAT/schema.org description and a typed property for
+    each canonical field. Field identities and review states stay attached.
     """
     ds = model.get('dataset', {})
     title = ds.get('title', '')
@@ -141,18 +142,33 @@ def ttl_output(model) -> str:
     keywords = ds.get('keywords', [])
     theme_label = ds.get('theme_label', '')
     landing_page = ds.get('landing_page', '')
-    license_uri = model.get('usage', {}).get('license', '')
+    license_value = model.get('usage', {}).get('license', '')
     issued = ds.get('version_info', {}).get('issued', '')
     modified = ds.get('version_info', {}).get('modified', '')
     update_freq = ds.get('update_frequency', '')
     fields = model.get('fields', [])
 
-    def esc(s):
-        return str(s).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+    # 문자열을 Turtle의 이스케이프된 리터럴로 인코딩함
+    def literal(value):
+        return json.dumps(str(value), ensure_ascii=False)
 
-    # safe IRI slug from title
-    slug = re.sub(r'[^A-Za-z0-9가-힣_-]+', '_', title)[:80].strip('_') or 'Dataset'
-    base = f'https://data.go.kr/ontology/{slug}#'
+    # 값이 공백·금지 문자 없는 절대 IRI인지 판별함
+    def absolute_iri(value):
+        if (not isinstance(value, str) or not value
+                or re.search(r'[\s<>"{}|^`\\]', value)
+                or re.search(r'%(?![0-9A-Fa-f]{2})', value)):
+            return False
+        try:
+            return bool(urlsplit(value).scheme)
+        except ValueError:
+            return False
+
+    # 제목 중복과 공식 주소 오인을 막기 위해 원천 내용 기반 식별자를 사용함
+    dataset_iri = ds.get('uri_or_id')
+    if not absolute_iri(dataset_iri):
+        identity = hashlib.sha256(json.dumps(ds, ensure_ascii=False, sort_keys=True, default=str).encode('utf-8')).hexdigest()
+        dataset_iri = 'urn:synthetic-data:dataset:' + identity
+    base = dataset_iri.rstrip('#') + '#'
 
     lines = [
         '@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .',
@@ -163,73 +179,124 @@ def ttl_output(model) -> str:
         '@prefix dct:  <http://purl.org/dc/terms/> .',
         '@prefix foaf: <http://xmlns.com/foaf/0.1/> .',
         '@prefix schema: <https://schema.org/> .',
+        '@prefix ai: <urn:synthetic-data:ai-ready:v2:> .',
         f'@prefix :     <{base}> .',
         '',
         f'<{base}> a owl:Ontology ;',
-        f'    rdfs:label "{esc(title)}"@ko ;',
+        f'    rdfs:label {literal(title)}@ko ;',
         f'    owl:versionInfo "1.0" .',
         '',
         ':Dataset a dcat:Dataset',
     ]
     if title:
-        lines.append(f'    ; dct:title "{esc(title)}"@ko')
+        lines.append(f'    ; dct:title {literal(title)}@ko')
     if description:
-        lines.append(f'    ; dct:description "{esc(description)}"@ko')
+        lines.append(f'    ; dct:description {literal(description)}@ko')
     if publisher:
-        lines.append(f'    ; dct:publisher [ a foaf:Organization ; foaf:name "{esc(publisher)}"@ko ]')
+        lines.append(f'    ; dct:publisher [ a foaf:Organization ; foaf:name {literal(publisher)}@ko ]')
     if creator:
-        lines.append(f'    ; dct:creator [ a foaf:Organization ; foaf:name "{esc(creator)}"@ko ]')
+        lines.append(f'    ; dct:creator [ a foaf:Organization ; foaf:name {literal(creator)}@ko ]')
     if identifier:
-        lines.append(f'    ; dct:identifier "{esc(identifier)}"')
-    if language:
+        lines.append(f'    ; dct:identifier {literal(identifier)}')
+    if language and re.fullmatch(r'[a-zA-Z]{2}', str(language)):
         lines.append(f'    ; dct:language <http://id.loc.gov/vocabulary/iso639-1/{language}>')
-    if landing_page:
+    if landing_page and absolute_iri(landing_page):
         lines.append(f'    ; dcat:landingPage <{landing_page}>')
-    if license_uri:
-        lines.append(f'    ; dct:license <{license_uri}>')
-    if issued:
-        lines.append(f'    ; dct:issued "{esc(issued)}"^^xsd:date')
-    if modified:
-        lines.append(f'    ; dct:modified "{esc(modified)}"^^xsd:date')
+    elif landing_page:
+        lines.append(f'    ; ai:landingPageValue {literal(landing_page)}')
+    if license_value and absolute_iri(license_value):
+        lines.append(f'    ; dct:license <{license_value}>')
+    elif license_value:
+        lines.append(f'    ; ai:licenseLabel {literal(license_value)}@ko')
+    if issued and re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(issued)):
+        lines.append(f'    ; dct:issued {literal(issued)}^^xsd:date')
+    elif issued:
+        lines.append(f'    ; ai:issuedValue {literal(issued)}')
+    if modified and re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(modified)):
+        lines.append(f'    ; dct:modified {literal(modified)}^^xsd:date')
+    elif modified:
+        lines.append(f'    ; ai:modifiedValue {literal(modified)}')
     if update_freq:
-        lines.append(f'    ; dct:accrualPeriodicity "{esc(update_freq)}"@ko')
+        lines.append(f'    ; dct:accrualPeriodicity {literal(update_freq)}@ko')
     if theme_label:
-        lines.append(f'    ; dcat:theme [ rdfs:label "{esc(theme_label)}"@ko ]')
+        lines.append(f'    ; dcat:theme [ rdfs:label {literal(theme_label)}@ko ]')
     for kw in keywords:
         if kw:
-            lines.append(f'    ; dcat:keyword "{esc(kw)}"@ko')
+            lines.append(f'    ; dcat:keyword {literal(kw)}@ko')
     lines.append('    .')
     lines.append('')
 
     # OWL DataProperty per field
     _TYPE_MAP = {
-        'integer': 'xsd:integer', 'bigint': 'xsd:long', 'numeric': 'xsd:decimal',
-        'float': 'xsd:double', 'boolean': 'xsd:boolean',
+        'integer': 'xsd:integer', 'int': 'xsd:integer', 'bigint': 'xsd:long', 'numeric': 'xsd:decimal',
+        'number': 'xsd:double', 'float': 'xsd:double', 'double': 'xsd:double',
+        'real': 'xsd:double', 'boolean': 'xsd:boolean', 'bool': 'xsd:boolean',
         'date': 'xsd:date', 'datetime': 'xsd:dateTime',
         'json': 'xsd:string', 'text': 'xsd:string',
         'char': 'xsd:string', 'varchar': 'xsd:string', 'string': 'xsd:string',
     }
-    for field in fields:
+    canonical_items_by_path = {
+        item.get('bindingPath'): item
+        for item in model.get('canonicalItems', [])
+        if item.get('bindingPath')
+    }
+    for field_index, field in enumerate(fields):
         raw_name = field.get('name') or ''
-        prop_name = re.sub(r'[^A-Za-z0-9_]', '_', raw_name) or 'field'
+        field_identity = field.get('field_id') or f"{field.get('source_dataset_id', '')}:{field.get('path', raw_name)}"
+        prop_name = 'field_' + hashlib.sha256(str(field_identity).encode('utf-8')).hexdigest()[:24]
         label_ko = field.get('name_ko') or field.get('path', '')
         desc = field.get('description', '')
-        data_types = field.get('types') or [field.get('data_type', 'string')]
-        raw_type = (data_types[0] if data_types else 'string').lower()
-        xsd_type = _TYPE_MAP.get(raw_type, 'xsd:string')
+        raw_types = [value.strip().lower() for value in str(field.get('data_type') or 'string').split('|') if value.strip()]
+        xsd_types = {_TYPE_MAP.get(value, 'xsd:string') for value in raw_types}
+        xsd_type = next(iter(xsd_types)) if len(xsd_types) == 1 else 'rdfs:Literal'
         unit = field.get('unit', '')
         lines.append(f':{prop_name} a owl:DatatypeProperty')
         lines.append(f'    ; rdfs:domain :Dataset')
         lines.append(f'    ; rdfs:range {xsd_type}')
         if label_ko:
-            lines.append(f'    ; rdfs:label "{esc(label_ko)}"@ko')
+            lines.append(f'    ; rdfs:label {literal(label_ko)}@ko')
         if raw_name and raw_name != label_ko:
-            lines.append(f'    ; rdfs:label "{esc(raw_name)}"@en')
+            lines.append(f'    ; ai:sourceFieldName {literal(raw_name)}')
+        lines.append(f'    ; ai:fieldId {literal(field_identity)}')
+        review_paths = {f'/fields/{field_index}/{key}' for key in ('name', 'name_ko', 'data_type', 'description', 'required', 'is_pk', 'unit', 'code_list', 'constraints')}
+        item_statuses = [canonical_items_by_path[path] for path in review_paths if path in canonical_items_by_path]
+        priority = {'REVIEW_REQUIRED': 5, 'AUTO_INFERRED': 4, 'USER_CONFIRMED': 3, 'AUTO_CONFIRMED': 2, 'NOT_APPLICABLE': 1}
+        field_status = max((item.get('status', 'REVIEW_REQUIRED') for item in item_statuses), key=lambda value: priority.get(value, 0), default='REVIEW_REQUIRED')
+        lines.append(f'    ; ai:reviewStatus {literal(field_status)}')
+        if field.get('value_origin'):
+            lines.append(f'    ; ai:valueOrigin {literal(field["value_origin"])}')
         if desc:
-            lines.append(f'    ; rdfs:comment "{esc(desc)}"@ko')
+            lines.append(f'    ; rdfs:comment {literal(desc)}@ko')
         if unit:
-            lines.append(f'    ; schema:unitText "{esc(unit)}"')
+            lines.append(f'    ; schema:unitText {literal(unit)}')
+        if field.get('constraints'):
+            lines.append(f'    ; ai:constraints {literal(field["constraints"])}')
         lines.append('    .')
         lines.append('')
+
+    # 샘플값을 제외한 Canonical 값과 검토 출처를 RDF에서 조회 가능하게 보존함
+    # 위 필드 속성은 도메인 중심의 간결한 표현으로 유지함
+    excluded_rdf_value = re.compile(r'(?:^|/)(?:sample_value|sample_values|sample_json|sample_xml|sample|example|examples|raw_values)(?:/|$)', re.I)
+    for item in model.get('canonicalItems', []):
+        path = item.get('bindingPath', '')
+        if not path or excluded_rdf_value.search(path):
+            continue
+        predicates = [
+            '    ai:dataset :Dataset',
+            f'    ai:bindingPath {literal(path)}',
+            f'    ai:status {literal(item.get("status", "REVIEW_REQUIRED"))}',
+            f'    ai:sourceType {literal(item.get("sourceType", "UNKNOWN"))}',
+            f'    ai:valueType {literal(item.get("valueType", "null"))}',
+            f'    ai:value {literal("null" if item.get("value") is None else lexical(item.get("value")))}',
+        ]
+        if item.get('reason'):
+            predicates.append(f'    ai:reason {literal(item["reason"])}')
+        if item.get('sourceReference'):
+            predicates.append(f'    ai:sourceReference {literal(item["sourceReference"])}')
+        if item.get('confidence') is not None:
+            predicates.append(f'    ai:confidence {literal(item["confidence"])}')
+        lines.append('[] a ai:CanonicalItem ;')
+        lines.extend(f'{predicate} ;' for predicate in predicates[:-1])
+        lines.append(f'{predicates[-1]} .')
 
     return '\n'.join(lines)

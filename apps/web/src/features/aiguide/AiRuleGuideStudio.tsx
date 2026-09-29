@@ -1,7 +1,10 @@
 /**
  * 파일명: AiRuleGuideStudio.tsx
  * 경로: apps/web/src/features/aiguide/AiRuleGuideStudio.tsx
- * 목적: 공공데이터를 분석하고 기관 검토용 AI 친화 가이드를 생성합니다.
+ * 목적: 공공데이터를 분석하고 기관 검토용 AI 친화 가이드를 생성함
+ * 작성자: 개발팀
+ * 작성일: 2026-09-16
+ * 수정일: 2026-09-30
  * 작성일: 2026-09-16
  */
 import React, { useState, useMemo } from 'react';
@@ -781,6 +784,28 @@ export const AiRuleGuideStudio: React.FC<AiRuleGuideStudioProps> = ({
     clearGeneratedArtifacts();
   };
 
+  // 업무 맥락 AI 초안을 확인값으로 승인하고 산출물을 갱신하도록 표시함
+  const acceptMetadataSuggestion = (key: string) => {
+    setMetadataDraft(current => {
+      if (current.provenance[key] !== 'AUTO_INFERRED' || !current.values[key]?.trim()) return current;
+      return { ...current, provenance: { ...current.provenance, [key]: 'USER_CONFIRMED' } };
+    });
+    clearGeneratedArtifacts();
+  };
+
+  // 필드별 AI 초안을 확인값으로 승인하고 산출물을 갱신하도록 표시함
+  const acceptFieldAnnotationSuggestions = (path: string) => {
+    setFieldAnnotationProvenance(current => {
+      const next = { ...(current[path] ?? {}) };
+      const annotation = fieldAnnotations[path] ?? {};
+      for (const [key, value] of Object.entries(annotation)) {
+        if (value && next[key] === 'AUTO_INFERRED') next[key] = 'USER_CONFIRMED';
+      }
+      return { ...current, [path]: next };
+    });
+    clearGeneratedArtifacts();
+  };
+
   // 분석 실행 핸들러
   const handleParseData = async (
     textToParse: string,
@@ -1266,7 +1291,7 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
       for (const [key, value] of Object.entries(templateMetadata)) {
         cleanMetadata[key] = value == null ? '' : String(value);
       }
-      const cleanAnnotations: Record<string, { english_name: string; label: string; description: string; unit: string; codes: string; data_type?: string }> = {};
+      const cleanAnnotations: Record<string, AiGuideFieldAnnotation> = {};
       for (const [fieldPath, annotation] of Object.entries(fieldAnnotations)) {
         cleanAnnotations[fieldPath] = {
           english_name: annotation?.english_name ?? '',
@@ -1275,6 +1300,9 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
           unit: annotation?.unit ?? '',
           codes: annotation?.codes ?? '',
           data_type: annotation?.data_type ?? '',
+          required: annotation?.required ?? '',
+          is_pk: annotation?.is_pk ?? '',
+          constraints: annotation?.constraints ?? '',
         };
       }
 
@@ -1319,11 +1347,13 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
         if (result.metadata_xml) zip.file(`${stem}_메타데이터.xml`, result.metadata_xml);
         if (result.json_ld) zip.file(`${stem}_메타데이터.jsonld`, result.json_ld);
         if (documents.ttl) zip.file(`${stem}_온톨로지.ttl`, documents.ttl, { base64: true });
+        if (documents.ai_knowledge) zip.file(`${stem}_AI_지식.jsonl`, documents.ai_knowledge, { base64: true });
+        if (documents.knowledge_manifest) zip.file(`${stem}_AI_지식_manifest.json`, documents.knowledge_manifest, { base64: true });
         zip.file(`${stem}_품질보고서.md`, generatedQualityReport);
         const blob = await zip.generateAsync({ type: 'blob' });
         downloadBlob(blob, finalZipName);
       }
-      setDownloadSuccessNotice('HWPX·DOCX·HTML·MD 문서와 JSON·XML·JSON-LD 메타데이터를 ZIP으로 다운로드했습니다.');
+      setDownloadSuccessNotice('가이드 문서, 메타데이터, AI 지식 JSONL과 매니페스트를 ZIP으로 다운로드했습니다.');
     } catch (error) {
       setErrorNotice(error instanceof Error ? error.message : '최종 AI 가이드와 ZIP 생성에 실패했습니다.');
     } finally {
@@ -1613,6 +1643,7 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
                   metadataProvenance={metadataProvenance}
                   dataCategory={dataCategory}
                   onMetadataChange={updateTemplateMetadata}
+                  onAcceptAiSuggestion={acceptMetadataSuggestion}
                   onDataCategoryChange={updateDataCategory}
                 />
 
@@ -1703,8 +1734,11 @@ ${aiReadinessChecklist.map(check => `- ${check.item}: ${check.message}`).join('\
 
             <AiGuideTemplatePanel canonical={canonicalMetadata} metadata={templateMetadata} metadataProvenance={metadataProvenance}
               onMetadataChange={handleTemplateMetadataChange}
+              onAcceptMetadataSuggestion={acceptMetadataSuggestion}
               annotations={fieldAnnotations}
-              onAnnotationsChange={handleFieldAnnotationsChange} />
+              annotationProvenance={fieldAnnotationProvenance}
+              onAnnotationsChange={handleFieldAnnotationsChange}
+              onAcceptAiSuggestion={acceptFieldAnnotationSuggestions} />
 
             <div className="space-y-2 pt-4 border-t border-subtle">
               <label className="ui-label" htmlFor="ai-guide-human-format">AI 가이드 문서 형식</label>

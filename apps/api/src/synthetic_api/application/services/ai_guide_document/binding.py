@@ -5,7 +5,7 @@
 # 목적: 템플릿 AST 분석, 명시적 별칭 매핑, 정형 데이터 바인딩 및 무결성 검증을 수행함
 # 작성자: 개발팀
 # 작성일: 2026-09-16
-# 수정일: 2026-09-16
+# 수정일: 2026-09-30
 # =============================================================================
 """Canonical JSON Schema validation, binding and review validation."""
 from __future__ import annotations
@@ -105,6 +105,29 @@ class Contract:
             error = errors[0]
             path = '/' + '/'.join(str(part) for part in error.absolute_path) if error.absolute_path else '/'
             raise ValueError(f'Canonical JSON Schema 검증 실패: {path}: {error.message}')
+        self._validate_ai_contract(model)
+
+    # AI 작업 참조와 분할 비율의 교차 제약을 검증함
+    @staticmethod
+    def _validate_ai_contract(model):
+        ai = model.get('ai') or {}
+        split = ai.get('split_ratio') or {}
+        ratios = [split.get(key) for key in ('train', 'validation', 'test')]
+        if all(value is not None for value in ratios) and abs(sum(ratios) - 100) > 0.000001:
+            raise ValueError('Canonical AI 학습·검증·시험 비율 합계는 100이어야 합니다.')
+        field_ids = {field.get('field_id') for field in model.get('fields', []) if field.get('field_id')}
+        references = []
+        for index, task in enumerate(ai.get('tasks') or []):
+            for key in ('input_fields', 'target_fields', 'evidence'):
+                for field_id in task.get(key) or []:
+                    references.append((f'/ai/tasks/{index}/{key}', field_id))
+        for collection in ('recommended_features', 'target_candidates'):
+            for index, item in enumerate(ai.get(collection) or []):
+                if item.get('field_id'):
+                    references.append((f'/ai/{collection}/{index}/field_id', item['field_id']))
+        for path, field_id in references:
+            if field_id not in field_ids:
+                raise ValueError(f'Canonical AI 필드 참조가 없습니다: {path} → {field_id}')
 
     # 템플릿 노드의 플레이스홀더를 초기 빈 값으로 치환함
     def empty(self, node=None):
@@ -245,6 +268,19 @@ def _source_dataset_id(profile):
     return 'urn:sha256:' + digest
 
 
+# 모든 입력의 내용과 범주를 반영한 데이터셋 식별자를 생성함
+def _combined_dataset_id(profiles):
+    if len(profiles) == 1:
+        return _source_dataset_id(profiles[0])
+    sources = sorted(({
+        'sha256': profile.get('sha256'),
+        'format': profile.get('format'),
+        'data_category': profile.get('data_category'),
+    } for profile in profiles), key=lambda value: json.dumps(value, sort_keys=True))
+    digest = hashlib.sha256(json.dumps(sources, sort_keys=True, separators=(',', ':')).encode('utf-8')).hexdigest()
+    return 'urn:sha256:' + digest
+
+
 def _remap_processing_paths(value, path_to_field_id):
     """Map analyzer paths to canonical field IDs without changing unknown values."""
     if isinstance(value, dict):
@@ -337,8 +373,9 @@ def canonical(profiles, title, contract, comparison=None):
     model['document'].update(status='REVIEW_REQUIRED',generated_utc=now,doc_type=category+'_dataset',
                              review_status='INCOMPLETE_REVIEW',is_draft=True,
                              review_notice='임시 검토본 - 기관 공식 확인 필요')
+    dataset_id = _combined_dataset_id(profiles)
     model['dataset'].update(title=title,byte_size=sum(p['byte_size'] for p in profiles),
-                            uri_or_id='urn:sha256:'+primary['sha256'])
+                            uri_or_id=dataset_id)
     root_types=sorted({profile['root_type'] for profile in profiles})
     model['structure'].update(data_category=category,has_file_data=has_file,has_api_data=has_api,
                               root_type=', '.join(root_types),
@@ -489,6 +526,13 @@ def finalize(model, status_overrides=None, contract=None):
     """One typed review record per leaf/empty collection; no phantom pointers."""
     status_overrides = status_overrides or {}
     entries=[]
+    # 구버전 호출자가 제공한 추천 필드도 현재 정형 계약에 맞게 보정함
+    for item in model.get('ai', {}).get('recommended_features') or []:
+        if isinstance(item, dict):
+            item.setdefault('name', item.get('field_name'))
+            item.setdefault('field_name', item.get('name'))
+            item.setdefault('role', None)
+            item.setdefault('importance', None)
     # 모델 트리를 순회하며 검토 항목을 수집함
     def walk(value,path):
         if isinstance(value,dict) and value:
@@ -518,10 +562,24 @@ def finalize(model, status_overrides=None, contract=None):
                 reason=override_reason
             else:
                 source_type='UNKNOWN' if status=='REVIEW_REQUIRED' else 'AI_INFERENCE' if status=='AUTO_INFERRED' else 'FILE_PROFILE'
-            entry=dict(id=hashlib.sha256(path.encode()).hexdigest()[:16],bindingPath=path,label=path,
+            stable_id=model.get('dataset', {}).get('uri_or_id', '')+'\n'+path
+            source_reference = f'Canonical 경로: {path}'
+            field_match = re.match(r'^/fields/(\d+)(?:/|$)', path)
+            if field_match:
+                field_index = int(field_match.group(1))
+                source_field = model.get('fields', [])[field_index]
+                source_reference = (f"원천 SHA-256: {source_field.get('source_dataset_id', '').removeprefix('urn:sha256:')}; "
+                                    f"원천 필드 경로: {source_field.get('source_field') or source_field.get('path')}")
+            elif source_type == 'USER_INPUT':
+                source_reference = f'담당자 입력: {path}'
+            elif source_type == 'AI_INFERENCE':
+                source_reference = f'AI 검토 초안: {path}'
+            elif source_type == 'UNKNOWN':
+                source_reference = f'기관 근거 확인 필요: {path}'
+            entry=dict(id=hashlib.sha256(stable_id.encode()).hexdigest()[:24],bindingPath=path,label=path,
                        property=path,namespace='urn:synthetic-data:ai-ready:v2:',value=value,valueType=kind(value),
                        sourceType=source_type,
-                       status=status,confidence=None,reason=reason,updatedAt=model['document']['generated_utc'],sourceReference='입력 파일 프로파일 / 템플릿 계약')
+                       status=status,confidence=None,reason=reason,updatedAt=model['document']['generated_utc'],sourceReference=source_reference)
             entries.append(entry)
     for key,value in model.items():
         if key not in {'canonicalItems','reviewRequired','document'}: walk(value,'/'+escape(key))

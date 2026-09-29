@@ -74,7 +74,18 @@
     },
     "quality": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "overall_score": {
+          "$ref": "#/$defs/nullablePercentage"
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/qualityMetric"
+          }
+        }
+      }
     },
     "ai": {
       "type": "object",
@@ -85,14 +96,30 @@
             "array",
             "null"
           ],
-          "items": {}
+          "items": {
+            "$ref": "#/$defs/recommendedFeature"
+          }
         },
         "target_candidates": {
           "type": [
             "array",
             "null"
           ],
-          "items": {}
+          "items": {
+            "$ref": "#/$defs/targetCandidate"
+          }
+        },
+        "tasks": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/aiTask"
+          }
+        },
+        "split_ratio": {
+          "$ref": "#/$defs/splitRatio"
         },
         "time_series_characteristics": {
           "type": [
@@ -125,7 +152,9 @@
             "array",
             "null"
           ],
-          "items": {}
+          "items": {
+            "$ref": "#/$defs/usageRisk"
+          }
         }
       }
     },
@@ -201,11 +230,174 @@
         "null"
       ]
     },
+    "nullablePercentage": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
     "nullableBoolean": {
       "type": [
         "boolean",
         "null"
       ]
+    },
+    "splitRatio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "train",
+        "validation",
+        "test",
+        "strategy",
+        "leakage_review"
+      ],
+      "properties": {
+        "train": {
+          "$ref": "#/$defs/nullablePercentage"
+        },
+        "validation": {
+          "$ref": "#/$defs/nullablePercentage"
+        },
+        "test": {
+          "$ref": "#/$defs/nullablePercentage"
+        },
+        "strategy": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "leakage_review": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "aiTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "description",
+        "input_fields",
+        "target_fields",
+        "evaluation_metrics",
+        "evidence",
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "description": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "input_fields": {
+          "$ref": "#/$defs/stringList"
+        },
+        "target_fields": {
+          "$ref": "#/$defs/stringList"
+        },
+        "evaluation_metrics": {
+          "$ref": "#/$defs/stringList"
+        },
+        "evidence": {
+          "$ref": "#/$defs/stringList"
+        },
+        "status": {
+          "const": "AUTO_INFERRED"
+        },
+        "reason": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "recommendedFeature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field_id",
+        "field_name",
+        "name",
+        "role",
+        "importance",
+        "reason"
+      ],
+      "properties": {
+        "field_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "field_name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "role": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "importance": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "reason": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "targetCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field_id",
+        "field_name",
+        "reason"
+      ],
+      "properties": {
+        "field_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "field_name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "reason": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "usageRisk": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "risk"
+          ],
+          "properties": {
+            "risk": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "qualityMetric": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "score": {
+          "$ref": "#/$defs/nullablePercentage"
+        }
+      }
     },
     "document": {
       "type": "object",

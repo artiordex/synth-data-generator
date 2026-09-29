@@ -4,7 +4,7 @@
  * 목적: AI-Ready 보고서 템플릿 메타데이터 및 필드 주석 설정을 관리함
  * 작성자: 개발팀
  * 작성일: 2026-09-16
- * 수정일: 2026-09-16
+ * 수정일: 2026-09-30
  */
 import React from 'react';
 import { AiGuideFieldAnnotation } from '../../services/api';
@@ -43,10 +43,14 @@ interface Props {
   metadata: Record<string, string>;
   metadataProvenance?: Record<string, string>;
   onMetadataChange: (value: Record<string, string>) => void;
+  onAcceptMetadataSuggestion?: (key: string) => void;
   annotations: Record<string, AiGuideFieldAnnotation>;
+  annotationProvenance?: Record<string, Record<string, string>>;
   onAnnotationsChange: (value: Record<string, AiGuideFieldAnnotation>) => void;
+  onAcceptAiSuggestion?: (path: string) => void;
 }
 
+// 입력 필드 경로에서 사람이 읽을 수 있는 기본 표시명을 추출함
 function visibleFieldName(field: {path: string; name?: string}) {
   if (field.name?.trim()) return field.name.trim();
   const pathParts = field.path.split('/').filter(part => part && part !== '*');
@@ -55,7 +59,7 @@ function visibleFieldName(field: {path: string; name?: string}) {
 }
 
 // AI 가이드 템플릿 메타데이터 및 필드 주석 편집 패널 컴포넌트임
-export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = {}, onMetadataChange, annotations, onAnnotationsChange}: Props) {
+export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = {}, onMetadataChange, onAcceptMetadataSuggestion, annotations, annotationProvenance = {}, onAnnotationsChange, onAcceptAiSuggestion}: Props) {
   const fields = ((canonical?.fields ?? []) as {path: string; name?: string; types?: string[]; data_type?: string}[])
     .map(field => ({...field, types: field.types ?? String(field.data_type ?? '').split(' | ').filter(Boolean)}))
     .filter(field => field.types.some(type => !['object', 'array'].includes(type)));
@@ -68,6 +72,7 @@ export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = 
   const baseSelectStyle =
     'w-full bg-surface-muted/20 hover:bg-surface-muted/40 focus:bg-surface border border-subtle/60 focus:border-accent rounded px-2.5 py-1.5 text-xs text-fg font-medium outline-none transition-colors cursor-pointer';
 
+  // 입력 항목과 AI 초안 승인 동작을 함께 렌더링함
   const metadataInputs = (items: ReadonlyArray<readonly [string, string]>, placeholder: string) =>
     items.map(([key, label]) => {
       const isLong = LONG_FORM_FIELDS.has(key);
@@ -159,6 +164,13 @@ export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = 
                     : '담당자 입력'}
               </span>
             )}
+            {metadataProvenance[key] === 'AUTO_INFERRED' && metadata[key]?.trim() && onAcceptMetadataSuggestion && (
+              <button type="button" className="mt-1 rounded border border-accent/30 px-2 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/10"
+                onClick={() => onAcceptMetadataSuggestion(key)}
+                title="내용을 확인했으며 이 값을 담당자 확인값으로 사용합니다.">
+                AI 초안 확인
+              </button>
+            )}
           </div>
           <div className="col-span-8">
             {control}
@@ -192,7 +204,7 @@ export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = 
                 <th scope="col" className="py-2.5 px-3 min-w-[140px] w-40">영문 컬럼명 (lowerCamelCase)</th>
                 <th scope="col" className="py-2.5 px-3 min-w-[200px]">설명·업무 의미</th>
                 <th scope="col" className="py-2.5 px-3 min-w-[80px] w-24 text-center">단위</th>
-                <th scope="col" className="py-2.5 px-3 min-w-[130px] w-36">도메인</th>
+                        <th scope="col" className="py-2.5 px-3 min-w-[130px] w-36">도메인</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-subtle bg-surface">
@@ -213,6 +225,9 @@ export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = 
                 const DATA_TYPES = ['varchar', 'char', 'text', 'integer', 'bigint', 'numeric', 'float', 'boolean', 'date', 'datetime', 'json', '기타'] as const;
 
                 const fieldAnn = annotations[field.path] ?? {english_name: '', label: '', description: '', unit: '', codes: ''};
+                const aiDraftCount = Object.entries(annotationProvenance[field.path] ?? {}).filter(([key, source]) =>
+                  source === 'AUTO_INFERRED' && Boolean(fieldAnn[key as keyof AiGuideFieldAnnotation])
+                ).length;
                 const selectedType = (annotations[field.path] as any)?.data_type ?? primaryType;
                 const defaultLabel = visibleFieldName(field);
 
@@ -225,7 +240,8 @@ export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = 
                 };
 
                 return (
-                  <tr key={field.path} className="hover:bg-surface-muted/40 transition-colors">
+                  <React.Fragment key={field.path}>
+                  <tr className="hover:bg-surface-muted/40 transition-colors">
                     {/* 1. No */}
                     <td className="py-2 px-3 text-center text-fg-muted font-mono font-medium">{idx + 1}</td>
 
@@ -299,6 +315,47 @@ export function AiGuideTemplatePanel({canonical, metadata, metadataProvenance = 
                       />
                     </td>
                   </tr>
+                  <tr className="bg-surface-muted/20">
+                    <td colSpan={7} className="px-3 pb-3 pt-1">
+                      {aiDraftCount > 0 && onAcceptAiSuggestion && (
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <span className="text-2xs text-accent">AI 초안 {aiDraftCount}개 · 확인 후 확정할 수 있습니다.</span>
+                          <button type="button" className="ui-button-secondary px-2 py-1 text-2xs"
+                            onClick={() => onAcceptAiSuggestion(field.path)}>
+                            이 필드의 AI 초안 확인
+                          </button>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <label className="grid gap-1 text-2xs font-semibold text-fg-muted">
+                          필수 입력 여부
+                          <select className="ui-input text-xs" value={fieldAnn.required ?? ''}
+                            onChange={event => handleChange('required', event.target.value)}>
+                            <option value="">미확정</option>
+                            <option value="true">필수</option>
+                            <option value="false">선택</option>
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-2xs font-semibold text-fg-muted">
+                          기본키 여부
+                          <select className="ui-input text-xs" value={fieldAnn.is_pk ?? ''}
+                            onChange={event => handleChange('is_pk', event.target.value)}>
+                            <option value="">미확정</option>
+                            <option value="true">기본키</option>
+                            <option value="false">기본키 아님</option>
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-2xs font-semibold text-fg-muted">
+                          값의 허용 범위·형식
+                          <input className="ui-input text-xs" type="text" maxLength={1000}
+                            placeholder="예: 0 이상, YYYY-MM-DD, 허용 코드 목록 참조"
+                            value={fieldAnn.constraints ?? ''}
+                            onChange={event => handleChange('constraints', event.target.value)} />
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+                  </React.Fragment>
                 );
               })}
             </tbody>

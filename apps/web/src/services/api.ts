@@ -4,7 +4,7 @@
  * 목적: 프론트엔드의 백엔드 API 호출과 응답 타입을 제공함
  * 작성자: 개발팀
  * 작성일: 2026-09-09
- * 수정일: 2026-09-17
+ * 수정일: 2026-09-30
  */
 import { DatasetProfile, JobStatus, SynthesisRequest, AuditLogEntry, ColumnDistribution, BatchStatus, BatchUploadItem, JobAssessmentReport, SyntheticPreviewData } from '../types';
 
@@ -747,6 +747,9 @@ export interface AiGuideFieldAnnotation {
   unit: string;
   codes: string;
   data_type?: string;
+  required?: string;
+  is_pk?: string;
+  constraints?: string;
 }
 
 export interface AiGuideTemplateRequest {

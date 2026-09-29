@@ -4,7 +4,7 @@
  * 목적: AI 가이드 문서와 메타데이터 산출물 다운로드를 제공함
  * 작성자: 개발팀
  * 작성일: 2026-09-29
- * 수정일: 2026-09-29
+ * 수정일: 2026-09-30
  */
 import React from 'react';
 import { Check, Copy, Download } from 'lucide-react';
@@ -126,6 +126,26 @@ export const AiGuideArtifactDownloads: React.FC<AiGuideArtifactDownloadsProps> =
         >
           <Download className="w-3 h-3" /> JSON-LD
         </button>
+        {allDocumentsBase64['ai_knowledge'] && (
+          <button
+            type="button"
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-accent/40 bg-accent/5 text-fg hover:bg-accent/10 font-medium flex items-center gap-1 cursor-pointer transition-colors"
+            onClick={() => onDownloadBase64(allDocumentsBase64['ai_knowledge'], `${documentTitle}_AI_지식.jsonl`, 'application/x-ndjson;charset=utf-8')}
+            title="검색·문맥 제공용 항목별 JSONL. 미확정 정보와 AI 제안은 상태 및 근거와 함께 표시합니다."
+          >
+            <Download className="w-3 h-3" /> AI 지식 JSONL
+          </button>
+        )}
+        {allDocumentsBase64['knowledge_manifest'] && (
+          <button
+            type="button"
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-subtle bg-surface text-fg hover:bg-surface-muted font-medium flex items-center gap-1 cursor-pointer transition-colors"
+            onClick={() => onDownloadBase64(allDocumentsBase64['knowledge_manifest'], `${documentTitle}_AI_지식_manifest.json`, 'application/json;charset=utf-8')}
+            title="JSONL의 해시, 스키마, 검토 상태 정책, 검색 적재 방법"
+          >
+            <Download className="w-3 h-3" /> 지식 매니페스트
+          </button>
+        )}
       </div>
 
       <button

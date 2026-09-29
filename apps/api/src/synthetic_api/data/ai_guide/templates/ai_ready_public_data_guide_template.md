@@ -89,84 +89,84 @@
 
 ### {{guide.sections.management.children.sources_collection.number}} {{guide.sections.management.children.sources_collection.title}}
 
-| ?? | ?? |
+| 수집 정보 | 내용 |
 | :--- | :--- |
-| ?? ?? | {{lineage.collection_process}} |
-| ?? ??? | {{lineage.source_datasets}} |
-| ?? ????? | {{analysis.limitations}} |
+| 수집·생성 방법 | {{lineage.collection_process}} |
+| 원천 데이터셋 | {{lineage.source_datasets}} |
+| 분석 범위·한계 | {{analysis.limitations}} |
 
 ### {{guide.sections.management.children.integration.number}} {{guide.sections.management.children.integration.title}}
 
 {{#integrations}}
-| ?? | ?? |
+| 결합 정보 | 내용 |
 | :--- | :--- |
-| ?? ?? | {{description}} |
-| ?? ?? | {{method}} |
-| ?? ?? | {{join_type}} |
-| ?? ? | {{join_keys}} |
-| ?? ?? | {{temporal_alignment}} |
-| ?? ?? | {{spatial_alignment}} |
-| ?? ???? | {{source_dataset_ids}} |
-| ?? ??? | {{output_description}} |
-| ?? ?? | {{limitations}} |
+| 결합 설명 | {{description}} |
+| 결합 방법 | {{method}} |
+| 결합 유형 | {{join_type}} |
+| 결합 키 | {{join_keys}} |
+| 시간 정렬 규칙 | {{temporal_alignment}} |
+| 공간 정렬 규칙 | {{spatial_alignment}} |
+| 원천 데이터셋 ID | {{source_dataset_ids}} |
+| 결합 결과 설명 | {{output_description}} |
+| 제한사항 | {{limitations}} |
 {{/integrations}}
 
 ### {{guide.sections.management.children.cleaning.number}} {{guide.sections.management.children.cleaning.title}}
 
-| ?? | ?? |
+| 처리 이력 | 내용 |
 | :--- | :--- |
-| ?? ?? | {{lineage.preprocessing_history}} |
-| ?? ?? ?? | {{responsible_ai.missing_data_info}} |
-| ?? ?? ?? | ??? ?? ???? ??? ??? ?? ?? ?? |
+| 전처리 이력 | {{lineage.preprocessing_history}} |
+| 결측 데이터 정보 | {{responsible_ai.missing_data_info}} |
+| 추가 처리 정보 | 확인된 처리 규칙이 없습니다. |
 
 ### {{guide.sections.management.children.derivation_transformation.number}} {{guide.sections.management.children.derivation_transformation.title}}
 
 {{#derivedFields}}
-| ?? ID | ??? | ?? | ?? ?? | ?? | ?????? | ?? ??? |
+| 필드 ID | 필드명 | 파생 유형 | 원천 필드 | 적용 방법 | 수식·규칙 | 재현 가능 여부 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | {{field_id}} | {{field_name}} | {{derivation_type}} | {{source_fields}} | {{method}} | {{formula_or_rule}} | {{reproducible}} |
 {{/derivedFields}}
 ### {{guide.sections.management.children.missing_outlier_processing.number}} {{guide.sections.management.children.missing_outlier_processing.title}}
 
 {{#missingValueRules}}
-| ?? ?? | ?? ?? ? | ?? ?? | ?? ?? | ?? ?? | ?? ??? | ?? ?? |
+| 대상 필드 ID | 결측 건수 | 결측 비율 | 처리 방법 | 처리 설명 | 품질 플래그 필드 | 원본값 보존 여부 |
 | :--- | ---: | ---: | :--- | :--- | :--- | :--- |
 | {{target_field_ids}} | {{detected_missing_count}} | {{detected_missing_ratio}} | {{method}} | {{method_description}} | {{quality_flag_field}} | {{original_value_preserved}} |
 {{/missingValueRules}}
 {{#outlierRules}}
-| ??? ?? | ?? ?? | ??? | ?? | ?? ?? | ?? ?? | ?? ??? |
+| 대상 필드 ID | 탐지 방법 | 임계값 | 처리 조치 | 대체 방법 | 대상 건수 | 품질 플래그 필드 |
 | :--- | :--- | :--- | :--- | :--- | ---: | :--- |
 | {{target_field_ids}} | {{detection_method}} | {{threshold}} | {{action}} | {{replacement_method}} | {{affected_count}} | {{quality_flag_field}} |
 {{/outlierRules}}
 
 ### {{guide.sections.management.children.processing_validation.number}} {{guide.sections.management.children.processing_validation.title}}
 
-| ?? | ??? | ????? | ??? |
+| 단계 | 작업 이름 | 적용 규칙 | 출력 |
 | :--- | :--- | :--- | :--- |
 {{#pipeline}}
 | {{step}} | {{name}} | {{rules}} | {{output}} |
 {{/pipeline}}
 
-| ?? ?? | ?? | ?? |
+| 처리 검토 항목 | 상태 | 확인 내용 |
 | :--- | :--- | :--- |
-| ?? ?? ?? | {{responsible_ai.quality_annotation}} | {{analysis.limitations}} |
-| ?? ?? ?? | {{document.review_status}} | {{document.review_notice}} |
+| 품질 설명 | {{responsible_ai.quality_annotation}} | {{analysis.limitations}} |
+| 문서 검토 상태 | {{document.review_status}} | {{document.review_notice}} |
 
 ### {{guide.sections.management.children.quality.number}} {{guide.sections.management.children.quality.title}}
 
-| ?? ?? | ?? | ?? |
+| 품질 지표 | 점수 | 산정 근거·범위 |
 | :--- | :--- | :--- |
-| ??? ??? | {{quality.metrics.completeness.score}} | {{quality.metrics.completeness.evidence}} |
-| ??? | {{quality.metrics.validity.score}} | {{quality.metrics.validity.evidence}} |
-| ??? | {{quality.metrics.consistency.score}} | {{quality.metrics.consistency.evidence}} |
-| ??? | {{quality.metrics.accuracy.score}} | {{quality.metrics.accuracy.evidence}} |
-| ??? | {{quality.metrics.uniqueness.score}} | {{quality.metrics.uniqueness.evidence}} |
-| ??? | {{quality.metrics.timeliness.score}} | {{quality.metrics.timeliness.evidence}} |
+| 입력값 채움률 | {{quality.metrics.completeness.score}} | {{quality.metrics.completeness.evidence}} |
+| 유효성 | {{quality.metrics.validity.score}} | {{quality.metrics.validity.evidence}} |
+| 일관성 | {{quality.metrics.consistency.score}} | {{quality.metrics.consistency.evidence}} |
+| 정확성 | {{quality.metrics.accuracy.score}} | {{quality.metrics.accuracy.evidence}} |
+| 중복 없음 | {{quality.metrics.uniqueness.score}} | {{quality.metrics.uniqueness.evidence}} |
+| 최신성 | {{quality.metrics.timeliness.score}} | {{quality.metrics.timeliness.evidence}} |
 
 ### {{guide.sections.management.children.quality_flags.number}} {{guide.sections.management.children.quality_flags.title}}
 
 {{#qualityFlags}}
-| ??? ?? | ?? | ?? ?? | ?? | ??? | ?? | ? ?? |
+| 플래그 필드 | 설명 | 대상 필드 | 코드 | 이름 | 의미 | 값의 출처 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 {{#values}}
 | {{flag_field}} | {{description}} | {{target_fields}} | {{code}} | {{name}} | {{meaning}} | {{value_origin}} |
@@ -175,41 +175,41 @@
 
 ### {{guide.sections.management.children.metadata_interoperability.number}} {{guide.sections.management.children.metadata_interoperability.title}}
 
-| ?? | ?? |
+| 상호운용 정보 | 내용 |
 | :--- | :--- |
-| ?? ??? ?? | {{interoperability.standard_schema_applied}} |
-| ??? ???URI | {{interoperability.schema_format}} / {{interoperability.schema_uri}} |
-| ?? ?? | {{interoperability.code_systems}} |
-| ??? ?? | {{interoperability.identifier_policy}} |
+| 적용 표준 스키마 | {{interoperability.standard_schema_applied}} |
+| 스키마 형식·URI | {{interoperability.schema_format}} / {{interoperability.schema_uri}} |
+| 코드 체계 | {{interoperability.code_systems}} |
+| 식별자 정책 | {{interoperability.identifier_policy}} |
 
 ### {{guide.sections.management.children.lineage_changes.number}} {{guide.sections.management.children.lineage_changes.title}}
 
-| ?? | ?? |
+| 계보·변경 정보 | 내용 |
 | :--- | :--- |
-| ????? ??? | {{lineage.source_datasets}} / {{dataset.relations}} |
-| ?? ?? | {{lineage.preprocessing_history}} |
-| ?? ????? | {{dataset.legal_references}} |
-| ????? ?? | {{dataset.version_info.version}} / {{dataset.version_info.version_notes}} |
+| 원천·연계 데이터 | {{lineage.source_datasets}} / {{dataset.relations}} |
+| 전처리 이력 | {{lineage.preprocessing_history}} |
+| 관련 법령·근거 | {{dataset.legal_references}} |
+| 버전·변경 내용 | {{dataset.version_info.version}} / {{dataset.version_info.version_notes}} |
 
 ### {{guide.sections.management.children.privacy_deidentification.number}} {{guide.sections.management.children.privacy_deidentification.title}}
 
-| ?? | ?? |
+| 개인정보·보안 정보 | 내용 |
 | :--- | :--- |
-| ???? ?? ?? | {{governance.privacy_security.contains_pii}} |
-| ???? ?? | {{governance.privacy_security.anonymization_method}} |
-| ?? ?? | {{governance.privacy_security.security_level}} |
-| ????? ?? | {{governance.privacy_security.retention_period}} / {{governance.privacy_security.deletion_method}} |
+| 개인정보 포함 여부 | {{governance.privacy_security.contains_pii}} |
+| 비식별 처리 방법 | {{governance.privacy_security.anonymization_method}} |
+| 보안 등급 | {{governance.privacy_security.security_level}} |
+| 보유 기간·파기 방법 | {{governance.privacy_security.retention_period}} / {{governance.privacy_security.deletion_method}} |
 
 ### {{guide.sections.management.children.rights_conditions.number}} {{guide.sections.management.children.rights_conditions.title}}
 
-| ?? | ?? |
+| 이용 조건 | 내용 |
 | :--- | :--- |
-| ???? | {{usage.license}} |
-| ???????? | {{usage.rights}} |
-| ?? ?? | {{usage.access_rights}} |
-| ?? ????? ?? | {{usage.access_restrictions}} |
-| ?? ?? | {{usage.attribution}} |
-| ?? ?? | {{usage.pricing}} |
+| 라이선스 | {{usage.license}} |
+| 권리 관계 | {{usage.rights}} |
+| 접근 권한 | {{usage.access_rights}} |
+| 접근 제한 | {{usage.access_restrictions}} |
+| 출처 표시 조건 | {{usage.attribution}} |
+| 비용 | {{usage.pricing}} |
 
 {{#guide.file}}
 ## {{guide.sections.file_distribution.number}}. {{guide.sections.file_distribution.title}}
@@ -381,66 +381,66 @@
 
 ### {{guide.sections.ai.children.ai_summary.number}} {{guide.sections.ai.children.ai_summary.title}}
 
-| ?? | ?? |
+| 활용 정보 | 내용 |
 | :--- | :--- |
-| AI ?? ?? | {{ai.purpose}} |
-| ??? ?? ?? | {{structure.data_category}} |
-| ?? ?? ?? | {{ai.time_series_characteristics}} |
-| ?? ?? ?? | {{ai.spatial_characteristics}} |
+| AI 활용 목적 | {{ai.purpose}} |
+| 데이터 제공 유형 | {{structure.data_category}} |
+| 시계열 특성 | {{ai.time_series_characteristics}} |
+| 공간 특성 | {{ai.spatial_characteristics}} |
 
 ### {{guide.sections.ai.children.tasks.number}} {{guide.sections.ai.children.tasks.title}}
 
-| ?? ?? | ?? | ?? ?? | ?? ?? | ?? ?? |
-| :--- | :--- | :--- | :--- | :--- |
+| 작업 유형 | 설명 | 입력 필드 ID | 목표 필드 ID | 평가 지표 후보 | 근거 필드 ID | 검토 상태 | 제안 사유 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 {{#ai.tasks}}
-| {{type}} | {{description}} | {{input_fields}} | {{target_fields}} | {{evaluation_metrics}} |
+| {{type}} | {{description}} | {{input_fields}} | {{target_fields}} | {{evaluation_metrics}} | {{evidence}} | {{status}} | {{reason}} |
 {{/ai.tasks}}
 
 ### {{guide.sections.ai.children.training_info.number}} {{guide.sections.ai.children.training_info.title}}
 
-| ?? | ?? |
+| 데이터 분할 기준 | 내용 |
 | :--- | :--- |
-| ?? ??? ?? ?? | {{ai.split_ratio.strategy}} |
-| ?? ?? | {{ai.split_ratio.train}} |
-| ?? ?? | {{ai.split_ratio.validation}} |
-| ?? ?? | {{ai.split_ratio.test}} |
-| ???? ?? | {{ai.split_ratio.leakage_review}} |
+| 분할 전략 | {{ai.split_ratio.strategy}} |
+| 학습 비율(%) | {{ai.split_ratio.train}} |
+| 검증 비율(%) | {{ai.split_ratio.validation}} |
+| 시험 비율(%) | {{ai.split_ratio.test}} |
+| 데이터 누수 검토 | {{ai.split_ratio.leakage_review}} |
 
 ### {{guide.sections.ai.children.recommended_features.number}} {{guide.sections.ai.children.recommended_features.title}}
 
 {{#aiRecommendedFeatures}}
-| ?? ID | ??? | ?? ?? |
+| 필드 ID | 필드명 | 추천 근거 |
 | :--- | :--- | :--- |
 | {{field_id}} | {{field_name}} | {{reason}} |
 {{/aiRecommendedFeatures}}
 
 ### {{guide.sections.ai.children.bias_representativeness.number}} {{guide.sections.ai.children.bias_representativeness.title}}
 
-| ?? | ?? |
+| 편향·대표성 | 내용 |
 | :--- | :--- |
-| ??? ?? | {{ai.bias}} / {{responsible_ai.data_biases}} |
-| ??? ?? | {{ai.representativeness}} / {{statistics.representativeness}} |
-| ?? ?? | {{analysis.scope}} |
+| 편향 위험 | {{ai.bias}} / {{responsible_ai.data_biases}} |
+| 대표성 범위 | {{ai.representativeness}} / {{statistics.representativeness}} |
+| 분석 범위 | {{analysis.scope}} |
 
 ### {{guide.sections.ai.children.limitations.number}} {{guide.sections.ai.children.limitations.title}}
 
-| ?? | ?? |
+| 활용 한계 | 내용 |
 | :--- | :--- |
-| ??? ?? | {{aiLimitations}} |
-| ?? ?? | {{analysis.limitations}} |
-| ??? ?? ?? | {{ai.large_data_optimization}} |
+| AI 활용 시 주의사항 | {{aiLimitations}} |
+| 분석 한계 | {{analysis.limitations}} |
+| 대용량 처리 권고 | {{ai.large_data_optimization}} |
 
 ### {{guide.sections.ai.children.corrected_estimated_usage.number}} {{guide.sections.ai.children.corrected_estimated_usage.title}}
 
-| ?? | ?? |
+| 보정·추정값 사용 정보 | 내용 |
 | :--- | :--- |
-| ?????? ?? | {{ai.imputed_data_usage}} |
-| ?? ?? ?? | {{document.review_notice}} |
-| ?????? ?? | ?? ???? ??????? ???? ??? ?? ?? ?? |
+| 대체값 활용 주의 | {{ai.imputed_data_usage}} |
+| 문서 검토 상태 | {{document.review_notice}} |
+| 품질 플래그 사용 원칙 | 품질 플래그의 의미와 적용 범위를 확인한 후 사용하세요. |
 
 ### {{guide.sections.ai.children.usage_risks.number}} {{guide.sections.ai.children.usage_risks.title}}
 
-| ??????? |
+| 사용 위험 및 주의사항 |
 | :--- |
 {{#ai.usage_risks}}
 | {{risk}} |

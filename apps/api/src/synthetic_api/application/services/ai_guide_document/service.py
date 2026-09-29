@@ -5,12 +5,14 @@
 # 목적: AI 친화 가이드 문서 생성 서비스 및 CLI 진입점을 제공함
 # 작성자: 개발팀
 # 작성일: 2026-09-16
-# 수정일: 2026-09-16
+# 수정일: 2026-09-30
 # =============================================================================
 """Reusable guide generation service and CLI. Renderers never re-analyze sources."""
 from __future__ import annotations
 import argparse
+import hashlib
 import json
+import math
 import re
 from collections import Counter
 from pathlib import Path
@@ -55,6 +57,7 @@ USER_METADATA_PATHS = {
     'transformation': ('lineage', 'preprocessing_history'),
     'imputation': ('lineage', 'imputation_method'),
     'training_split': ('ai', 'split_ratio', 'strategy'),
+    'training_split_leakage_review': ('ai', 'split_ratio', 'leakage_review'),
     'limitations': ('responsible_ai', 'known_limitations'),
     'ai_purpose': ('ai', 'purpose'),
     'anonymization_method': ('governance', 'privacy_security', 'anonymization_method'),
@@ -192,6 +195,23 @@ def _apply_user_input(
             elif source in {'AUTO_INFERRED','SAMPLE_PRESET'}:
                 source_type='SAMPLE_PRESET' if source == 'SAMPLE_PRESET' else 'AI_INFERENCE'
                 overrides[_pointer(path)]=('AUTO_INFERRED',source_type,'AI 또는 샘플에서 제안한 시간 범위 초안')
+    # 분할 비율을 수치로 보관하여 학습 계약의 범위 검증과 연결함
+    for key, target in (('training_split_train', 'train'),
+                        ('training_split_validation', 'validation'),
+                        ('training_split_test', 'test')):
+        raw_value = str(metadata.get(key, '')).strip()
+        if not raw_value:
+            continue
+        try:
+            value = float(raw_value)
+        except ValueError as exc:
+            raise ValueError(f'{key}는 0부터 100 사이의 숫자여야 합니다.') from exc
+        if not math.isfinite(value) or not 0 <= value <= 100:
+            raise ValueError(f'{key}는 0부터 100 사이의 숫자여야 합니다.')
+        path = ('ai', 'split_ratio', target)
+        _set(model, path, value)
+        overrides[_pointer(path)] = ('USER_CONFIRMED', 'USER_INPUT', '담당자가 직접 입력한 데이터 분할 비율')
+
     keywords=[value.strip() for value in re.split(r'[,\n]',str(metadata.get('keywords',''))) if value.strip()]
     if keywords:
         model['dataset']['keywords']=keywords
@@ -316,9 +336,24 @@ def _apply_user_input(
     annotations=field_annotations or {}
     for index,field in enumerate(model['fields']):
         values=annotations.get(field['path']) or {}
-        for source_key,target_key in (('english_name','name'),('label','name_ko'),('description','description'),('unit','unit'),('codes','code_list'),('data_type','data_type')):
-            value=str(values.get(source_key,'')).strip()
-            if value:
+        for source_key,target_key in (('english_name','name'),('label','name_ko'),
+                                      ('description','description'),('unit','unit'),
+                                      ('codes','code_list'),('data_type','data_type'),
+                                      ('constraints','constraints'),('required','required'),('is_pk','is_pk')):
+            raw_value = values.get(source_key, '')
+            if source_key in {'required', 'is_pk'}:
+                if raw_value in (None, ''):
+                    continue
+                if isinstance(raw_value, bool):
+                    value = raw_value
+                elif str(raw_value).strip().lower() in {'true', 'false'}:
+                    value = str(raw_value).strip().lower() == 'true'
+                else:
+                    raise ValueError(f'{source_key}는 true/false 또는 미확정 값이어야 합니다.')
+            else:
+                value=str(raw_value or '').strip()
+            has_value = bool(value) or (source_key in {'required', 'is_pk'} and isinstance(value, bool))
+            if has_value:
                 source_record=field_annotation_provenance.get(field['path'], 'USER_CONFIRMED')
                 source=(source_record.get(source_key, source_record.get(target_key, 'USER_CONFIRMED'))
                         if isinstance(source_record,dict) else source_record)
@@ -411,11 +446,9 @@ def _apply_ai_enrichment(model, enrichment, overrides):
         for index in range(len(keywords)):
             overrides[_pointer(('dataset','keywords',str(index)))]=(
                 'AUTO_INFERRED','AI_INFERENCE','OpenAI가 데이터 구조와 설명에서 추출한 검색 키워드 초안')
-    for target,key,fields in (
-            (('ai','tasks'),'ai_tasks',('type','description','input_fields','target_fields',
-                                        'evaluation_metrics','evidence','status','reason')),
+    for target,key,fields in [
             (('ai','scenarios'),'ai_scenarios',('title','description','actors','preconditions',
-                                                'outputs','risks','status','reason'))):
+                                                'outputs','risks','status','reason'))]:
         values=[]
         for item in enrichment.get(key,[]) if isinstance(enrichment.get(key),list) else []:
             if not isinstance(item,dict):
@@ -430,6 +463,51 @@ def _apply_ai_enrichment(model, enrichment, overrides):
                     if field_value:
                         overrides[_pointer((target[0],target[1],str(index),field))]=(
                             'AUTO_INFERRED','AI_INFERENCE','OpenAI가 제안한 AI 활용 초안')
+    task_values=[]
+    known_field_ids={field.get('field_id') for field in model.get('fields', [])}
+    for item in enrichment.get('ai_tasks', []) if isinstance(enrichment.get('ai_tasks'), list) else []:
+        if not isinstance(item, dict):
+            continue
+        references={}
+        for key in ('input_fields', 'target_fields', 'evidence'):
+            values=item.get(key, [])
+            if not isinstance(values, list) or any(not isinstance(value, str) or value not in known_field_ids for value in values):
+                references=None
+                break
+            references[key]=list(dict.fromkeys(values))
+        if references is None:
+            continue
+        metrics=item.get('evaluation_metrics', [])
+        if isinstance(metrics, str):
+            metrics=re.split(r'[,\n]', metrics)
+        if not isinstance(metrics, list) or any(not isinstance(value, str) for value in metrics):
+            continue
+        value={
+            'type': str(item.get('type', '')).strip()[:100] or None,
+            'description': str(item.get('description', '')).strip()[:1000] or None,
+            **references,
+            'evaluation_metrics': list(dict.fromkeys(metric.strip()[:100] for metric in metrics if metric.strip()))[:8],
+            'status': 'AUTO_INFERRED',
+            'reason': str(item.get('reason', '')).strip()[:1000] or '관측 필드를 바탕으로 한 작업 후보이며 목표와 적용 여부 확인 필요',
+        }
+        if value['type'] or value['description']:
+            task_values.append(value)
+    if task_values and not model['ai']['tasks']:
+        model['ai']['tasks']=task_values[:8]
+        for index, value in enumerate(model['ai']['tasks']):
+            for key in ('type', 'description', 'status', 'reason'):
+                if value[key]:
+                    overrides[_pointer(('ai','tasks',str(index),key))]=(
+                        'AUTO_INFERRED','AI_INFERENCE','OpenAI가 관측 필드와 사용자 입력을 바탕으로 작성한 검토용 작업 후보')
+            for key in ('input_fields', 'target_fields', 'evaluation_metrics', 'evidence'):
+                values=value[key]
+                if values:
+                    for value_index in range(len(values)):
+                        overrides[_pointer(('ai','tasks',str(index),key,str(value_index)))]=(
+                            'AUTO_INFERRED','AI_INFERENCE','OpenAI가 관측 필드를 바탕으로 작성한 검토용 작업 후보')
+                else:
+                    overrides[_pointer(('ai','tasks',str(index),key))]=(
+                        'AUTO_INFERRED','AI_INFERENCE','근거가 확인되지 않아 비워 둔 AI 검토용 작업 후보')
     by_path={field['path']:(index,field) for index,field in enumerate(model['fields'])}
     used_names=Counter(field['name'].lower() for field in model['fields'] if field.get('name'))
     for item in enrichment.get('fields',[]) if isinstance(enrichment.get('fields'),list) else []:
@@ -493,6 +571,172 @@ def _sync_api_response_fields(model, overrides):
 
 
 # 원본 파일 입력 목록과 제목을 기반으로 AI 친화 가이드 문서를 종합 생성함
+# 검색·문맥 제공용 JSONL과 배포 범위 매니페스트를 생성함
+def _ai_knowledge_artifacts(model):
+    dataset=model.get('dataset', {})
+    content_id=dataset.get('uri_or_id', '')
+    dataset_id=dataset.get('identifier') or content_id
+    title=dataset.get('title', '')
+    fields=model.get('fields', [])
+    field_by_id={field.get('field_id'): field for field in fields if field.get('field_id')}
+    label_map={
+        'title':'데이터셋 이름','description':'데이터 설명','purpose':'구축 목적',
+        'publisher':'제공 기관','creator':'관리 기관','identifier':'기관 식별자',
+        'theme_label':'주제 분류','keywords':'검색 키워드','spatial':'지역·대상 범위',
+        'start':'대상 기간 시작','end':'대상 기간 종료','update_frequency':'갱신 주기',
+        'name':'원천 필드명','name_ko':'필드 표시명','data_type':'자료형',
+        'required':'필수 여부','is_pk':'기본키 여부','description':'필드 설명',
+        'unit':'측정 단위','code_list':'허용 코드','constraints':'값 제약',
+        'occurrences':'관측 건수','types':'관측 자료형','null_count':'결측 건수',
+        'empty_count':'빈 문자열 건수','zero_count':'0 값 건수','numeric_count':'수치형 건수',
+        'formula_count':'수식 건수','input_fields':'입력 필드 ID','target_fields':'목표 필드 ID',
+        'evaluation_metrics':'평가 지표 후보','evidence':'근거 필드 ID','status':'검토 상태',
+        'reason':'제안 사유','license':'이용 라이선스','rights':'권리 관계',
+        'contains_pii':'개인정보 포함 여부','anonymization_method':'비식별 처리 방법',
+        'method':'처리 방법','join_type':'결합 유형','join_keys':'결합 키',
+    }
+    eligible_prefixes=(
+        '/dataset/','/fields/','/processing/','/ai/','/usage/','/governance/',
+        '/structure/','/lineage/','/responsible_ai/','/statistics/',
+    )
+    excluded_path=re.compile(r'(?:^|/)(?:sample_value|sample_values|sample_json|sample_xml|sample|example|examples|raw_values|api_key|token|password)(?:/|$)', re.I)
+    stat_keys={'occurrences','types','null_count','empty_count','zero_count','false_count',
+               'numeric_count','formula_count','uncached_formula_count','distinct_count'}
+    records=[]
+
+    # Canonical 항목의 단일 값을 출처·검토 상태와 함께 문서 단위 레코드로 변환함
+    def append_record(item, review=False):
+        path=item.get('bindingPath', '')
+        if not path.startswith(eligible_prefixes) or excluded_path.search(path):
+            return
+        if path.startswith('/analysis/') or path.startswith('/statistics/'):
+            if path.rsplit('/', 1)[-1] not in {'total_records','total_fields','total_bytes','missing_cells_total'}:
+                return
+        if re.match(r'^/fields/\d+/statistics/', path):
+            statistic=path.split('/')[4]
+            if statistic not in stat_keys:
+                return
+        value=item.get('value')
+        not_applicable=item.get('status') == 'NOT_APPLICABLE'
+        if review or not_applicable:
+            reason=item.get('reason') or '원천에서 값을 확인하지 못했습니다.'
+            path_parts=[part.replace('~1','/').replace('~0','~') for part in path.strip('/').split('/')]
+            key=path_parts[-2] if path_parts and path_parts[-1].isdigit() else path_parts[-1] if path_parts else ''
+            label='데이터 설명' if path_parts[:1] == ['dataset'] and key == 'description' else label_map.get(key, key.replace('_',' '))
+            state_label='비해당' if not_applicable else '미확정 항목'
+            text=f"{title} — {state_label}: {label} ({path}). {reason}"
+            kind_name='not_applicable' if not_applicable else 'review_question'
+        else:
+            if value is None or isinstance(value, (dict, list)) or value == '':
+                return
+            path_parts=[part.replace('~1','/').replace('~0','~') for part in path.strip('/').split('/')]
+            subject=title or '데이터셋'
+            if len(path_parts)>1 and path_parts[0]=='fields':
+                try:
+                    field=fields[int(path_parts[1])]
+                    subject=f"{title} — {field.get('name_ko') or field.get('name') or field.get('path')}"
+                except (IndexError, ValueError):
+                    pass
+            key=path_parts[-2] if path_parts and path_parts[-1].isdigit() else path_parts[-1] if path_parts else ''
+            label='데이터 설명' if path_parts[:1] == ['dataset'] and key == 'description' else label_map.get(key, key.replace('_',' '))
+            field_value=json.dumps(value,ensure_ascii=False,separators=(',',':')) if not isinstance(value,str) else value
+            text=f"{subject} — {label}: {field_value}"
+            task_reference_key=path_parts[3] if len(path_parts)>4 and path_parts[:2]==['ai','tasks'] else None
+            if task_reference_key in {'input_fields','target_fields','evidence'}:
+                resolved=[field_by_id[field_id].get('name_ko') or field_by_id[field_id].get('name')
+                          for field_id in [value] if isinstance(value,str) and field_id in field_by_id]
+                if resolved:
+                    text += f" (연결 필드: {', '.join(resolved)})"
+            kind_name='suggestion' if item.get('status')=='AUTO_INFERRED' else 'fact'
+        canonical_item_id=item.get('id')
+        identity=canonical_item_id or f"synth-ai-knowledge/v1\n{content_id}\n{path}"
+        record={
+            'id': identity if canonical_item_id else hashlib.sha256(identity.encode('utf-8')).hexdigest(),
+            'format_version':'synth-ai-knowledge/v1',
+            'dataset_id':dataset_id,
+            'dataset_title':title,
+            'dataset_version':dataset.get('version_info',{}).get('version'),
+            'content_id':content_id,
+            'kind':kind_name,
+            'text':text,
+            'source_path':path,
+            'status':item.get('status'),
+            'source_type':item.get('sourceType'),
+            'confidence':item.get('confidence'),
+            'reason':item.get('reason'),
+            'source_reference':item.get('sourceReference'),
+            'updated_at':item.get('updatedAt'),
+        }
+        records.append(record)
+
+    reviews={item.get('bindingPath') for item in model.get('reviewRequired', [])}
+    for item in model.get('canonicalItems', []):
+        append_record(item, review=item.get('bindingPath') in reviews)
+    jsonl='\n'.join(json.dumps(record,ensure_ascii=False,separators=(',',':')) for record in records)
+    if records:
+        jsonl += '\n'
+    jsonl_bytes=jsonl.encode('utf-8')
+    manifest={
+        'format_version':'synth-ai-knowledge/v1',
+        'dataset_id':dataset_id,
+        'dataset_title':title,
+        'dataset_version':dataset.get('version_info',{}).get('version'),
+        'content_id':content_id,
+        'schema_version':model.get('schemaVersion'),
+        'template_version':model.get('templateVersion'),
+        'generated_at':model.get('document',{}).get('generated_utc'),
+        'record_count':len(records),
+        'records_sha256':hashlib.sha256(jsonl_bytes).hexdigest(),
+        'record_status_counts':dict(Counter(record.get('status') for record in records)),
+        'sample_values_included':False,
+        'purpose':'retrieval_context',
+        'fine_tuning_dataset':False,
+        'record_schema':{
+            '$schema':'https://json-schema.org/draft/2020-12/schema',
+            '$id':'urn:synthetic-data:ai-knowledge:v1:record',
+            'type':'object',
+                'required':['id','format_version','dataset_id','dataset_title','dataset_version','content_id','kind','text','source_path','status','source_type','confidence','reason','source_reference','updated_at'],
+            'additionalProperties':False,
+            'properties':{
+                'id':{'type':'string','description':'Canonical 항목 ID; 원천 내용과 바인딩 경로에 따라 달라지는 upsert 키'},
+                'format_version':{'const':'synth-ai-knowledge/v1'},
+                'dataset_id':{'type':'string','description':'기관 식별자 또는 데이터셋 URI'},
+                'dataset_title':{'type':'string'},
+                'dataset_version':{'type':['string','null']},
+                'content_id':{'type':'string','description':'입력 전체 내용 해시 기반 URI'},
+                'kind':{'enum':['fact','suggestion','review_question','not_applicable']},
+                'text':{'type':'string','description':'검색·문맥 제공용 한 항목 텍스트'},
+                'source_path':{'type':'string','description':'Canonical JSON Pointer'},
+                'status':{'enum':['AUTO_CONFIRMED','AUTO_INFERRED','USER_CONFIRMED','REVIEW_REQUIRED','NOT_APPLICABLE']},
+                'source_type':{'type':'string','description':'원천 종류'},
+                'confidence':{'type':['number','null'],'minimum':0,'maximum':1},
+                'reason':{'type':['string','null']},
+                'source_reference':{'type':'string','description':'원천 해시·필드 경로 또는 담당자/AI 입력 경로'},
+                'updated_at':{'type':'string','format':'date-time'},
+            },
+        },
+        'consumption':{
+            'format':'UTF-8 JSON Lines; 한 줄을 검색 문서 한 건으로 적재',
+            'citation':'응답에서 source_reference와 source_path를 함께 인용',
+            'review':'AUTO_INFERRED는 제안으로 표시하고 REVIEW_REQUIRED는 사실로 인용하지 않음',
+        },
+        'approval_scope':{
+            'confirmed':['AUTO_CONFIRMED','USER_CONFIRMED'],
+            'provisional':['AUTO_INFERRED'],
+            'unresolved':['REVIEW_REQUIRED'],
+            'not_applicable':['NOT_APPLICABLE'],
+        },
+        'usage_policy':{
+            'AUTO_CONFIRMED':'입력 파일에서 관측·계산한 사실 범위로만 사용',
+            'USER_CONFIRMED':'담당자가 확인한 값으로 사용',
+            'AUTO_INFERRED':'승인 전 제안으로 표시',
+            'REVIEW_REQUIRED':'사실로 인용하지 않고 기관 확인 질문으로 사용',
+            'NOT_APPLICABLE':'이 자료 범위에서 적용되지 않는 항목',
+        },
+    }
+    return jsonl,manifest
+
+
 def generate(inputs,title,assets=None,user_metadata=None,field_annotations=None,enricher=None,human_format='docx',
              metadata_provenance=None,field_annotation_provenance=None):
     contract=Contract(assets) if assets else Contract()
@@ -534,13 +778,17 @@ def render(model,contract,human_format='docx'):
     odt_path = contract.assets/'ai_ready_public_data_guide_template.odt'
     odt_doc = odt_bytes(blocks, odt_path, model, contract) if odt_path.exists() and human_format == 'odt' else b''
     md_bytes = md.encode('utf-8')
-    all_documents = {'docx': docx, 'hwpx': hwpx_doc, 'md': md_bytes, 'html': html_doc}
+    ai_knowledge,ai_knowledge_manifest=_ai_knowledge_artifacts(model)
+    all_documents = {'docx': docx, 'hwpx': hwpx_doc, 'md': md_bytes, 'html': html_doc,
+                     'ai_knowledge':ai_knowledge.encode('utf-8'),
+                     'knowledge_manifest':json.dumps(ai_knowledge_manifest,ensure_ascii=False,indent=2).encode('utf-8')}
     if odt_doc:
         all_documents['odt'] = odt_doc
     human = all_documents.get(human_format, docx)
     return dict(canonical=model,markdown=md,html=html_doc,docx=docx,xml=xml,jsonld=ld,ttl=ttl,
                 human_format=human_format,human_document=human,
                 all_documents=all_documents,
+                ai_knowledge=ai_knowledge,ai_knowledge_manifest=ai_knowledge_manifest,
                 validation=validation,
                 template_index=index,document_model=blocks)
 

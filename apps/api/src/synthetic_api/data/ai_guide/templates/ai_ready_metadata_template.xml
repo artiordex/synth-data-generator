@@ -696,6 +696,12 @@
       <!-- 반복: {{#ai.tasks}} -->
       <task type="{{task.type}}">
         <description>{{task.description}}</description>
+        <inputFields>{{task.input_fields}}</inputFields>
+        <targetFields>{{task.target_fields}}</targetFields>
+        <evaluationMetrics>{{task.evaluation_metrics}}</evaluationMetrics>
+        <evidence>{{task.evidence}}</evidence>
+        <status>{{task.status}}</status>
+        <reason>{{task.reason}}</reason>
       </task>
       <!-- {{/ai.tasks}} -->
     </tasks>
@@ -705,13 +711,13 @@
       <!-- {{/ai.models}} -->
     </recommendedModels>
     <splitRatio>
-      <train>{{ai.split.train}}</train>
-      <validation>{{ai.split.validation}}</validation>
-      <test>{{ai.split.test}}</test>
+      <train>{{ai.split_ratio.train}}</train>
+      <validation>{{ai.split_ratio.validation}}</validation>
+      <test>{{ai.split_ratio.test}}</test>
       <!-- 시간순/그룹별/무작위 등 분할 기준. 고정 비율을 범용 강제하지 않는다. -->
-      <strategy>{{ai.split.strategy}}</strategy>
+      <strategy>{{ai.split_ratio.strategy}}</strategy>
       <!-- 동일 개체·에피소드·미래 시점이 분할 경계를 넘는 누수 검토. -->
-      <leakageReview>{{ai.split.leakage_review}}</leakageReview>
+      <leakageReview>{{ai.split_ratio.leakage_review}}</leakageReview>
     </splitRatio>
     <largeDataOptimization>
       <isChunkApplied>{{ai.large_data.is_chunk_applied}}</isChunkApplied>
