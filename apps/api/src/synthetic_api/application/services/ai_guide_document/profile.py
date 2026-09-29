@@ -114,8 +114,10 @@ class Observations:
 
 
 # 바이트 데이터를 파싱하여 통계 및 품질 메타데이터를 프로파일링함
-def profile_bytes(raw: bytes, fmt: str, name: str) -> dict:
+def profile_bytes(raw: bytes, fmt: str, name: str, data_category: str | None = None) -> dict:
     fmt = fmt.lower().lstrip('.')
+    if data_category not in {None, 'file', 'api'}:
+        raise ValueError('data_category는 file 또는 api여야 합니다.')
     if fmt != 'xlsx':
         try:
             text = raw.decode('utf-8-sig')
@@ -125,7 +127,7 @@ def profile_bytes(raw: bytes, fmt: str, name: str) -> dict:
                 raise ValueError('UTF-8 입력이 필요합니다.')
             text = raw.decode('cp949')
             encoding = 'CP949'
-        model = analyze(text, fmt)
+        model = analyze(text, fmt, data_category=data_category)
         model.update(name=name, byte_size=len(raw), sha256=hashlib.sha256(raw).hexdigest(),
                      scope='FULL', encoding=encoding)
         for field in model['fields']:
@@ -150,8 +152,10 @@ def profile_bytes(raw: bytes, fmt: str, name: str) -> dict:
             for node in root.iter():
                 if isinstance(node.tag, str) and etree.QName(node).localname.lower() in {'totalcount', 'numofrows', 'pageno'}:
                     model['declared_counts'].append({'path': root.getroottree().getpath(node), 'value': node.text})
-        model['observed_records'] = (sum(t['row_count'] for t in model['tables']) if model['data_category']=='file'
-                                     else model['record_sets'][0]['count'] if len(model['record_sets']) == 1 else None)
+        if fmt in {'csv','tsv','xlsx'} and model['tables']:
+            model['observed_records']=sum(t['row_count'] for t in model['tables'])
+        else:
+            model['observed_records']=model['record_sets'][0]['count'] if len(model['record_sets']) == 1 else None
         return model
     from zipfile import ZipFile
     with ZipFile(io.BytesIO(raw)) as archive:
@@ -223,11 +227,11 @@ def profile_bytes(raw: bytes, fmt: str, name: str) -> dict:
     cells = sum(f['occurrences'] for f in fields)
     missing = sum(f['null_count']+f['empty_count'] for f in fields)
     field_list = fields
-    return dict(name=name, format=fmt, data_category='file', byte_size=len(raw),
+    return dict(name=name, format=fmt, data_category=data_category or 'file', byte_size=len(raw),
                 sha256=hashlib.sha256(raw).hexdigest(), root_type='workbook', scope='FULL',
                 encoding=None, tables=tables, fields=fields, record_sets=[], declared_counts=[],
                 namespaces={}, traits=['tabular'], observed_records=sum(t['row_count'] for t in tables),
-                processing=_processing_candidates(field_list, 'file'),
+                processing=_processing_candidates(field_list, data_category or 'file'),
                 quality_metrics=[dict(category='COMPLETENESS', score=100*(cells-missing)/cells if cells else None,
                                       missing=missing, observed=cells)],
                 warnings=['업로드 파일 전수 조사이며 모집단 전체를 뜻하지 않습니다.',

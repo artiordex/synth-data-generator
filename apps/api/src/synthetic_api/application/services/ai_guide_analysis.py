@@ -189,8 +189,10 @@ def kind(value):
 
 
 # 텍스트 또는 바이너리 데이터를 분석하여 정형화된 모델 사전을 생성함
-def analyze(text: str, fmt: str, binary: str | None = None) -> dict:
+def analyze(text: str, fmt: str, binary: str | None = None, data_category: str | None = None) -> dict:
     fmt = fmt.lower().strip().lstrip('.')
+    if data_category not in {None, 'file', 'api'}:
+        raise ValueError('data_category는 file 또는 api여야 합니다.')
     if fmt not in {'csv', 'tsv', 'xlsx', 'json', 'jsonld', 'json-ld', 'xml'}:
         raise ValueError('지원 형식: CSV, TSV, XLSX, JSON, JSON-LD, XML')
     raw = base64.b64decode(binary, validate=True) if binary else text.encode('utf-8')
@@ -294,6 +296,8 @@ def analyze(text: str, fmt: str, binary: str | None = None) -> dict:
             return result
         data={root.tag:xml_node(root)}; category='api'; traits.add('xml')
         warnings.append('XML 문자값은 XSD 없이 숫자/날짜로 강제 변환하지 않습니다. QName은 {URI}local 형식입니다.')
+    if data_category is not None:
+        category=data_category
     walk(data)
     for f in fields.values():
         f['types']=sorted(f['types'])
