@@ -233,7 +233,8 @@ def test_xlsx_multiple_sheets_formula():
 
 
 # local 프로바이더 설정 시 네트워크 호출 방지 및 카테고리 자동 판별을 검증함
-def test_local_prevents_network_and_category_override(monkeypatch):
+# 로컬 분석이 네트워크를 호출하지 않고 명시한 범주를 보존하는지 검증함
+def test_local_prevents_network_and_preserves_explicit_category(monkeypatch):
     from synthetic_api.routes.v1 import ai_guide
     monkeypatch.setenv('OPENAI_API_KEY','do-not-use')
     # 네트워크 차단 검증용 모의 함수임
@@ -241,7 +242,7 @@ def test_local_prevents_network_and_category_override(monkeypatch):
     monkeypatch.setattr(ai_guide.urllib.request,'urlopen',denied)
     response=client.post('/api/v1/ai-guide/generate-rule',json={'format':'json','data_category':'file','payload_text':'{"x":1}','provider':'local'})
     assert response.status_code==200
-    assert response.json()['data_category']=='api'
+    assert response.json()['data_category']=='file'
     assert response.json()['ai_powered'] is False
 
 
@@ -305,6 +306,7 @@ def test_xml_export_preserves_arbitrary_json_key():
 
 
 # AI 엔진이 구조를 임의 조작하지 않고 필드 노트만 안전하게 보강하는지 검증함
+# AI 프롬프트가 허용된 사용자 맥락과 전체 구조를 구분하는지 검증함
 def test_ai_only_adds_notes_and_receives_complete_structure(monkeypatch):
     from synthetic_api.routes.v1 import ai_guide
     requests=[]
@@ -336,12 +338,13 @@ def test_ai_only_adds_notes_and_receives_complete_structure(monkeypatch):
     assert result['suggested_field_annotations']['/data/*/x']['english_name']=='observedValue'
     assert '/invented' not in result['suggested_field_annotations']
     payload=json.loads(requests[0]['messages'][1]['content'])
-    assert payload['institution_context']['publisher']=='테스트 제공기관'
-    assert payload['institution_context']['creator']=='테스트 소관부서'
+    assert payload['user_context']=={}
+    assert 'institution_context' not in payload
     assert any(f['path']=='/data/*/x' for f in payload['fields'])
     assert all('examples' not in f for f in payload['fields'])
 
 
+# 담당자 입력을 보존하고 지원 산출물을 생성하는지 검증함
 def test_generate_documents_calls_ai_after_user_input_and_returns_required_outputs(monkeypatch):
     from synthetic_api.routes.v1 import ai_guide
     requests=[]
@@ -374,5 +377,5 @@ def test_generate_documents_calls_ai_after_user_input_and_returns_required_outpu
     assert '사용자 입력 기관' in result['metadata_xml']
     assert '사용자 입력 기관' in result['json_ld']
     prompt=json.loads(requests[0]['messages'][1]['content'])
-    assert prompt['dataset']['publisher']=='사용자 입력 기관'
-    assert 'lowerCamelCase' in prompt['instructions']
+    assert 'publisher' not in prompt['dataset']
+    assert 'lowerCamelCase' in requests[0]['messages'][0]['content']

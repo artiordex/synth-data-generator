@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from .binding import Contract,canonical,finalize
 from .profile import profile_bytes,compare_json_xml
@@ -28,6 +29,7 @@ USER_METADATA_PATHS = {
     'creator': ('dataset', 'creator'),
     'description': ('dataset', 'description'),
     'purpose': ('dataset', 'purpose'),
+    'version_notes': ('dataset', 'version_info', 'version_notes'),
     'department': ('governance', 'managing_department'),
     'legal_basis': ('dataset', 'legal_references'),
     'landing_page': ('dataset', 'landing_page'),
@@ -40,6 +42,7 @@ USER_METADATA_PATHS = {
     'media_type': ('dataset', 'media_type'),
     'theme_label': ('dataset', 'theme_label'),
     'license': ('usage', 'license'),
+    'license_type': ('usage', 'license'),
     'rights': ('usage', 'rights'),
     'access_rights': ('usage', 'access_rights'),
     'attribution': ('usage', 'attribution'),
@@ -53,9 +56,10 @@ USER_METADATA_PATHS = {
     'imputation': ('lineage', 'imputation_method'),
     'training_split': ('ai', 'split_ratio', 'strategy'),
     'limitations': ('responsible_ai', 'known_limitations'),
+    'ai_purpose': ('ai', 'purpose'),
     'anonymization_method': ('governance', 'privacy_security', 'anonymization_method'),
     'security_level': ('governance', 'privacy_security', 'security_level'),
-    'endpoint': ('structure', 'api_specification', 'base_url'),
+    'api_base_url': ('structure', 'api_specification', 'base_url'),
     'authentication_type': ('structure', 'api_specification', 'auth_type'),
     'authentication': ('structure', 'api_specification', 'authentication_description'),
     'pagination': ('structure', 'api_specification', 'pagination'),
@@ -63,6 +67,30 @@ USER_METADATA_PATHS = {
     'specification_url': ('structure', 'api_specification', 'specification_url'),
     'api_version': ('structure', 'api_specification', 'version'),
     'rate_limit': ('structure', 'api_specification', 'rate_limit'),
+}
+
+AI_INFERABLE_METADATA = {
+    'description', 'purpose', 'keywords', 'language', 'media_type', 'theme_label',
+    'spatial', 'temporal_start', 'temporal_end', 'limitations', 'ai_purpose',
+}
+
+KOGL_LICENSE_LABELS = {
+    'KOGL_TYPE_0': '공공누리 제0유형(자유이용)',
+    'KOGL_TYPE_1': '공공누리 제1유형(출처표시)',
+    'KOGL_TYPE_2': '공공누리 제2유형(출처표시·상업적 이용금지)',
+    'KOGL_TYPE_3': '공공누리 제3유형(출처표시·변경금지)',
+    'KOGL_TYPE_4': '공공누리 제4유형(출처표시·상업적 이용금지·변경금지)',
+    'KOGL_TYPE_AI': '공공누리 AI유형(AI 학습용 이용허락)',
+}
+
+_AI_TYPE_FAMILIES = {
+    'string': {'string'}, 'varchar': {'string'}, 'char': {'string'}, 'text': {'string'},
+    'integer': {'integer'}, 'int': {'integer'}, 'bigint': {'integer'},
+    'numeric': {'number'}, 'decimal': {'number'}, 'float': {'number'},
+    'double': {'number'}, 'number': {'number'},
+    'boolean': {'boolean'}, 'bool': {'boolean'},
+    'date': {'date'}, 'datetime': {'datetime'}, 'timestamp': {'datetime'},
+    'json': {'object', 'array'}, 'object': {'object'}, 'array': {'array'},
 }
 
 
@@ -76,86 +104,226 @@ def _pointer(path):
     return '/'+'/'.join(str(value).replace('~','~0').replace('/','~1') for value in path)
 
 
-def _apply_user_input(model, contract, metadata=None, field_annotations=None):
+def _can_refine(path, overrides):
+    provenance=overrides.get(path)
+    return not provenance or (provenance[0]=='AUTO_INFERRED' and provenance[1]=='AI_INFERENCE')
+
+
+def _ai_type_matches_observations(field, candidate):
+    """Require AI labels to preserve the complete observed type families."""
+    if not isinstance(candidate, str):
+        return False
+    observed={value.strip().lower() for value in str(field.get('data_type') or '').split('|')}
+    proposed=[value.strip().lower() for value in candidate.split('|') if value.strip()]
+    if not observed or not proposed:
+        return False
+    if ('null' in observed) != ('null' in proposed):
+        return False
+    observed.discard('null')
+    proposed=[value for value in proposed if value != 'null']
+    if not observed or not proposed:
+        return False
+    observed_families=set()
+    for value in observed:
+        family=_AI_TYPE_FAMILIES.get(value)
+        if family is None:
+            return False
+        observed_families.update(family)
+    proposed_families=set()
+    for value in proposed:
+        family=_AI_TYPE_FAMILIES.get(value)
+        if family is None:
+            return False
+        proposed_families.update(family)
+    return observed_families == proposed_families
+
+
+def _apply_user_input(
+    model,
+    contract,
+    metadata=None,
+    field_annotations=None,
+    metadata_provenance=None,
+    field_annotation_provenance=None,
+):
     """Apply only explicit user values before AI inference and retain their provenance."""
     overrides={}
     metadata=metadata or {}
+    metadata_provenance=metadata_provenance or {}
+    field_annotation_provenance=field_annotation_provenance or {}
     for key,path in USER_METADATA_PATHS.items():
         value=str(metadata.get(key,'')).strip()
+        if key == 'license_type' and str(metadata.get('license','')).strip():
+            continue
+        if key == 'license_type' and value:
+            value = KOGL_LICENSE_LABELS.get(value, '')
         if not value: continue
+        source=metadata_provenance.get(key, 'USER_CONFIRMED')
+        if source == 'AUTO_INFERRED' and key not in AI_INFERABLE_METADATA:
+            continue
+        if source not in {'USER_CONFIRMED', 'AUTO_INFERRED', 'SAMPLE_PRESET'}:
+            continue
         _set(model,path,value)
-        overrides[_pointer(path)]=('USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 값')
+        if source == 'USER_CONFIRMED':
+            overrides[_pointer(path)]=('USER_CONFIRMED','USER_INPUT','담당자가 직접 입력하거나 확인한 값')
+        else:
+            source_type='SAMPLE_PRESET' if source == 'SAMPLE_PRESET' else 'AI_INFERENCE'
+            reason='샘플 예시값으로 실제 기관 정보가 아님' if source == 'SAMPLE_PRESET' else 'AI가 데이터 구조와 담당자 입력을 바탕으로 작성한 검토용 초안'
+            overrides[_pointer(path)]=('AUTO_INFERRED',source_type,reason)
     temporal=str(metadata.get('temporal','')).strip()
     if temporal:
         parts=[value.strip() for value in temporal.replace('~','|').split('|',1)]
         for key,value in zip(('start','end'),parts):
             if value:
                 path=('dataset','temporal',key);_set(model,path,value)
-                overrides[_pointer(path)]=('USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 시간 범위')
+                source=metadata_provenance.get('temporal', metadata_provenance.get(key, 'USER_CONFIRMED'))
+                if source == 'USER_CONFIRMED':
+                    overrides[_pointer(path)]=('USER_CONFIRMED','USER_INPUT','담당자가 직접 입력하거나 확인한 시간 범위')
+                elif source in {'AUTO_INFERRED','SAMPLE_PRESET'}:
+                    source_type='SAMPLE_PRESET' if source == 'SAMPLE_PRESET' else 'AI_INFERENCE'
+                    overrides[_pointer(path)]=('AUTO_INFERRED',source_type,'AI 또는 샘플에서 제안한 시간 범위 초안')
     for key,target in (('temporal_start','start'),('temporal_end','end')):
         value=str(metadata.get(key,'')).strip()
         if value:
             path=('dataset','temporal',target);_set(model,path,value)
-            overrides[_pointer(path)]=('USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 시간 범위')
+            source=metadata_provenance.get(key, 'USER_CONFIRMED')
+            if source == 'USER_CONFIRMED':
+                overrides[_pointer(path)]=('USER_CONFIRMED','USER_INPUT','담당자가 직접 입력하거나 확인한 시간 범위')
+            elif source in {'AUTO_INFERRED','SAMPLE_PRESET'}:
+                source_type='SAMPLE_PRESET' if source == 'SAMPLE_PRESET' else 'AI_INFERENCE'
+                overrides[_pointer(path)]=('AUTO_INFERRED',source_type,'AI 또는 샘플에서 제안한 시간 범위 초안')
     keywords=[value.strip() for value in re.split(r'[,\n]',str(metadata.get('keywords',''))) if value.strip()]
     if keywords:
         model['dataset']['keywords']=keywords
         for index in range(len(keywords)):
-            overrides[_pointer(('dataset','keywords',str(index)))]=(
-                'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 검색 키워드')
+            source=metadata_provenance.get('keywords', 'USER_CONFIRMED')
+            if source == 'USER_CONFIRMED':
+                overrides[_pointer(('dataset','keywords',str(index)))]=(
+                    'USER_CONFIRMED','USER_INPUT','담당자가 직접 입력하거나 확인한 검색 키워드')
+            elif source in {'AUTO_INFERRED','SAMPLE_PRESET'}:
+                source_type='SAMPLE_PRESET' if source == 'SAMPLE_PRESET' else 'AI_INFERENCE'
+                overrides[_pointer(('dataset','keywords',str(index)))]=(
+                    'AUTO_INFERRED',source_type,'AI 또는 샘플 예시에서 만든 검색 키워드 초안')
     relations=[value.strip() for value in re.split(r'[,\n]',str(metadata.get('source_datasets',''))) if value.strip()]
+    if metadata_provenance.get('source_datasets','USER_CONFIRMED') != 'USER_CONFIRMED':
+        relations=[]
     if relations:
         model['dataset']['relations']=relations
         for index in range(len(relations)):
             overrides[_pointer(('dataset','relations',str(index)))]=(
-                'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 연계 데이터셋')
-    contains_pii=str(metadata.get('contains_pii','')).strip().lower()
+                'USER_CONFIRMED','USER_INPUT','담당자가 직접 입력하거나 확인한 연계 데이터셋')
+        model['lineage']['source_datasets']=relations
+        for index in range(len(relations)):
+            overrides[_pointer(('lineage','source_datasets',str(index)))]=(
+                'USER_CONFIRMED','USER_INPUT','담당자가 직접 입력하거나 확인한 연계 데이터셋')
+    contains_pii=(str(metadata.get('contains_pii','')).strip().lower()
+                  if metadata_provenance.get('contains_pii','USER_CONFIRMED') == 'USER_CONFIRMED' else '')
     if contains_pii:
         truthy={'true','yes','y','1','예','포함'};falsy={'false','no','n','0','아니오','미포함'}
         if contains_pii not in truthy|falsy:
             raise ValueError('개인정보 포함 여부는 true/false, 예/아니오, 포함/미포함 중 하나로 입력하세요.')
         path=('governance','privacy_security','contains_pii');_set(model,path,contains_pii in truthy)
-        overrides[_pointer(path)]=('USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 확인한 개인정보 포함 여부')
+        overrides[_pointer(path)]=('USER_CONFIRMED','USER_INPUT','담당자가 직접 확인한 개인정보 포함 여부')
     api=model['structure']['api_specification']
     if model['structure']['has_api_data']:
-        operation_values={key:str(metadata.get(key,'')).strip() for key in ('endpoint','http_method','request_parameters')}
+        operation_values={key:(str(metadata.get(key,'')).strip()
+                               if metadata_provenance.get(key,'USER_CONFIRMED') == 'USER_CONFIRMED' else '')
+                          for key in ('operation_id','operation_name','endpoint','http_method','request_parameters')}
         if any(operation_values.values()):
             prototype=next(value for value in contract.template['structure']['api_specification']['operations'] if isinstance(value,dict))
             operation=api['operations'][0] if api['operations'] else contract.empty(prototype)
-            operation.update(operation_id=operation.get('operation_id') or 'user-confirmed-operation',
-                             operation_name=operation.get('operation_name') or model['dataset']['title'],
-                             endpoint_path=operation_values['endpoint'] or operation.get('endpoint_path'),
-                             http_method=operation_values['http_method'].upper() or operation.get('http_method'),
-                             data_formats=operation.get('data_formats') or [
-                                 profile['format'].upper() for profile in model['analysis']['sources']
-                                 if profile['data_category']=='api'])
+            for metadata_key,operation_key in (
+                ('operation_id','operation_id'),('operation_name','operation_name'),('endpoint','endpoint_path')):
+                if operation_values[metadata_key]:
+                    operation[operation_key]=operation_values[metadata_key]
+                    overrides[_pointer(('structure','api_specification','operations','0',operation_key))]=(
+                        'USER_CONFIRMED','USER_INPUT','담당자가 직접 입력한 API 오퍼레이션 정보')
+            if operation_values['http_method']:
+                operation['http_method']=operation_values['http_method'].upper()
+                overrides[_pointer(('structure','api_specification','operations','0','http_method'))]=(
+                    'USER_CONFIRMED','USER_INPUT','담당자가 직접 입력한 HTTP 메서드')
+            operation['data_formats']=operation.get('data_formats') or [
+                profile['format'].upper() for profile in model['analysis']['sources']
+                if profile['data_category']=='api']
             if operation_values['request_parameters']:
-                if not operation['request_parameters']:
-                    request_template=next(value for value in prototype['request_parameters'] if isinstance(value,dict))
-                    operation['request_parameters']=[contract.empty(request_template)]
-                operation['request_parameters'][0]['description']=operation_values['request_parameters']
-                overrides[_pointer(('structure','api_specification','operations','0','request_parameters','0','description'))]=(
-                    'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 요청 파라미터 설명')
+                request_template=next(value for value in prototype['request_parameters'] if isinstance(value,dict))
+                request_lines=[line.strip() for line in operation_values['request_parameters'].splitlines() if line.strip()]
+                parsed_parameters=[]
+                structured=bool(request_lines)
+                for line in request_lines:
+                    parts=[part.strip() for part in line.split('|')]
+                    if len(parts)<7 or not parts[0] or not parts[6]:
+                        structured=False
+                        break
+                    name,name_ko,location,data_type,required,default_value,description=parts[:7]
+                    location_value=location.upper() if location.upper() in {'QUERY','HEADER','PATH','BODY'} else None
+                    required_value=True if required.lower() in {'필수','예','true','yes','required'} else (
+                        False if required.lower() in {'선택','아니오','false','no','optional'} else None)
+                    parameter=contract.empty(request_template)
+                    parameter.update(param_name=name,name_ko=name_ko or name,
+                                     location=location_value,data_type=data_type or None,
+                                     required=required_value,default_value=default_value or None,
+                                     description=description)
+                    parsed_parameters.append(parameter)
+                if structured:
+                    operation['request_parameters']=parsed_parameters
+                    for parameter_index,parameter in enumerate(parsed_parameters):
+                        for key,value in parameter.items():
+                            if value is not None:
+                                overrides[_pointer(('structure','api_specification','operations','0','request_parameters',str(parameter_index),key))]=(
+                                    'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 요청 파라미터')
+                else:
+                    parameter=contract.empty(request_template)
+                    parameter['description']=operation_values['request_parameters']
+                    operation['request_parameters']=[parameter]
+                    overrides[_pointer(('structure','api_specification','operations','0','request_parameters','0','description'))]=(
+                        'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 요청 파라미터 설명')
             api['operations']=[operation]
-            for key,value in operation.items():
-                if value is not None and value != []:
-                    overrides[_pointer(('structure','api_specification','operations','0',key))]=(
-                        'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 API 계약')
-        error_codes=str(metadata.get('error_codes','')).strip()
+        error_codes=(str(metadata.get('error_codes','')).strip()
+                     if metadata_provenance.get('error_codes','USER_CONFIRMED') == 'USER_CONFIRMED' else '')
         if error_codes:
             prototype=next(value for value in contract.template['structure']['api_specification']['error_codes'] if isinstance(value,dict))
-            error=contract.empty(prototype);error.update(code='USER_PROVIDED',description=error_codes)
-            api['error_codes']=[error]
-            for key,value in error.items():
-                if value is not None:
-                    overrides[_pointer(('structure','api_specification','error_codes','0',key))]=(
-                        'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 API 오류 계약')
+            error_lines=[line.strip() for line in error_codes.splitlines() if line.strip()]
+            structured_errors=[]
+            structured=bool(error_lines)
+            for line in error_lines:
+                parts=[part.strip() for part in line.split('|')]
+                if len(parts)<4 or not parts[0] or not parts[3]:
+                    structured=False
+                    break
+                code,status,message,description=parts[:4]
+                try:
+                    http_status=int(status)
+                except ValueError:
+                    structured=False
+                    break
+                if not 100 <= http_status <= 599:
+                    structured=False
+                    break
+                error=contract.empty(prototype)
+                error.update(code=code,http_status=http_status,message=message or None,description=description)
+                structured_errors.append(error)
+            if not structured:
+                error=contract.empty(prototype)
+                error['description']=error_codes
+                structured_errors=[error]
+            api['error_codes']=structured_errors
+            for error_index,error in enumerate(structured_errors):
+                for key,value in error.items():
+                    if value is not None:
+                        overrides[_pointer(('structure','api_specification','error_codes',str(error_index),key))]=(
+                            'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 API 오류 계약')
     annotations=field_annotations or {}
     for index,field in enumerate(model['fields']):
         values=annotations.get(field['path']) or {}
-        for source_key,target_key in (('english_name','name'),('label','name_ko'),('description','description'),('unit','unit'),('codes','code_list')):
+        for source_key,target_key in (('english_name','name'),('label','name_ko'),('description','description'),('unit','unit'),('codes','code_list'),('data_type','data_type')):
             value=str(values.get(source_key,'')).strip()
             if value:
+                source_record=field_annotation_provenance.get(field['path'], 'USER_CONFIRMED')
+                source=(source_record.get(source_key, source_record.get(target_key, 'USER_CONFIRMED'))
+                        if isinstance(source_record,dict) else source_record)
+                if source not in {'USER_CONFIRMED','AUTO_INFERRED'}:
+                    continue
                 if source_key=='english_name' and not LOWER_CAMEL_NAME.fullmatch(value):
                     clean_tokens = [t for t in re.split(r'[^a-zA-Z0-9]+', value) if t]
                     if clean_tokens:
@@ -171,8 +339,12 @@ def _apply_user_input(model, contract, metadata=None, field_annotations=None):
                     else:
                         continue
                 field[target_key]=value
-                overrides[_pointer(('fields',str(index),target_key))]=(
-                    'USER_CONFIRMED','USER_INPUT','화면에서 담당자가 직접 입력한 필드 설명')
+                if source == 'USER_CONFIRMED':
+                    overrides[_pointer(('fields',str(index),target_key))]=(
+                        'USER_CONFIRMED','USER_INPUT','담당자가 직접 입력하거나 확인한 필드 설명')
+                else:
+                    overrides[_pointer(('fields',str(index),target_key))]=(
+                        'AUTO_INFERRED','AI_INFERENCE','AI가 관측 필드 구조를 바탕으로 작성한 검토용 초안')
     confirmed_names=[field['name'].lower() for index,field in enumerate(model['fields'])
                      if _pointer(('fields',str(index),'name')) in overrides]
     if len(confirmed_names)!=len(set(confirmed_names)):
@@ -196,6 +368,9 @@ def _apply_ai_enrichment(model, enrichment, overrides):
             'limitations':'known_limitations',
             'theme_label':'theme_label',
             'keywords':'keywords',
+            'spatial':'spatial',
+            'update_frequency':'update_frequency',
+            'collection_process':'collection_process',
         }
         for source,target in metadata_aliases.items():
             if target not in enrichment and metadata.get(source) not in (None,''):
@@ -204,22 +379,35 @@ def _apply_ai_enrichment(model, enrichment, overrides):
         (('dataset','description'),enrichment.get('dataset_description')),
         (('dataset','purpose'),enrichment.get('dataset_purpose')),
         (('dataset','theme_label'),enrichment.get('theme_label')),
+        (('dataset','spatial'),enrichment.get('spatial')),
+        (('dataset','temporal','start'),enrichment.get('temporal_start')),
+        (('dataset','temporal','end'),enrichment.get('temporal_end')),
         (('ai','purpose'),enrichment.get('ai_purpose')),
         (('responsible_ai','known_limitations'),enrichment.get('known_limitations')),
         (('responsible_ai','data_biases'),enrichment.get('data_biases')),
         (('responsible_ai','quality_annotation'),enrichment.get('quality_annotation')),
     ]
     for path,value in candidates:
-        if isinstance(value,str) and value.strip() and not model[path[0]][path[1]]:
+        path_pointer=_pointer(path)
+        if (isinstance(value,str) and value.strip()
+                and _can_refine(path_pointer,overrides)):
             _set(model,path,value.strip()[:6000])
-            overrides[_pointer(path)]=('AUTO_INFERRED','AI_INFERENCE','OpenAI가 관측 구조와 사용자 입력을 바탕으로 작성한 검토용 초안')
+            overrides[path_pointer]=('AUTO_INFERRED','AI_INFERENCE','OpenAI가 관측 구조와 사용자 입력을 바탕으로 작성한 검토용 초안')
     raw_keywords=enrichment.get('keywords',[])
     if isinstance(raw_keywords,str):
         raw_keywords=re.split(r'[,\n]',raw_keywords)
     keywords=[str(value).strip() for value in raw_keywords
               if isinstance(value,str) and value.strip()][:12]
-    if keywords and not model['dataset']['keywords']:
+    user_keywords=any(value and value[0]=='USER_CONFIRMED'
+                      for path,value in overrides.items()
+                      if path.startswith('/dataset/keywords/'))
+    sample_keywords=any(value and value[1]=='SAMPLE_PRESET'
+                        for path,value in overrides.items()
+                        if path.startswith('/dataset/keywords/'))
+    if keywords and not user_keywords and not sample_keywords:
         model['dataset']['keywords']=keywords
+        for path in [path for path in overrides if path.startswith('/dataset/keywords/')]:
+            overrides.pop(path,None)
         for index in range(len(keywords)):
             overrides[_pointer(('dataset','keywords',str(index)))]=(
                 'AUTO_INFERRED','AI_INFERENCE','OpenAI가 데이터 구조와 설명에서 추출한 검색 키워드 초안')
@@ -243,26 +431,41 @@ def _apply_ai_enrichment(model, enrichment, overrides):
                         overrides[_pointer((target[0],target[1],str(index),field))]=(
                             'AUTO_INFERRED','AI_INFERENCE','OpenAI가 제안한 AI 활용 초안')
     by_path={field['path']:(index,field) for index,field in enumerate(model['fields'])}
-    used_names={field['name'].lower() for index,field in enumerate(model['fields'])
-                if _pointer(('fields',str(index),'name')) in overrides}
+    used_names=Counter(field['name'].lower() for field in model['fields'] if field.get('name'))
     for item in enrichment.get('fields',[]) if isinstance(enrichment.get('fields'),list) else []:
         if not isinstance(item,dict) or item.get('path') not in by_path: continue
         index,field=by_path[item['path']]
         english_name=item.get('english_name')
         name_path=_pointer(('fields',str(index),'name'))
-        if (name_path not in overrides and isinstance(english_name,str)
-                and LOWER_CAMEL_NAME.fullmatch(english_name.strip())
-                and english_name.strip().lower() not in used_names):
-            field['name']=english_name.strip()
-            used_names.add(field['name'].lower())
-            overrides[name_path]=(
-                'AUTO_INFERRED','AI_INFERENCE','OpenAI가 원천 컬럼명을 lowerCamelCase 영문 물리명으로 변환한 검토용 초안')
+        if _can_refine(name_path,overrides):
+            previous_name=str(field.get('name') or '').lower()
+            if previous_name:
+                used_names[previous_name]-=1
+            if (isinstance(english_name,str)
+                    and LOWER_CAMEL_NAME.fullmatch(english_name.strip())
+                    and used_names[english_name.strip().lower()] <= 0):
+                field['name']=english_name.strip()
+                used_names[field['name'].lower()]+=1
+                overrides[name_path]=(
+                    'AUTO_INFERRED','AI_INFERENCE','OpenAI가 원천 컬럼명을 lowerCamelCase 영문 물리명으로 변환한 검토용 초안')
+            elif previous_name:
+                used_names[previous_name]+=1
         for source_key,target_key in (('name_ko','name_ko'),('label','name_ko'),('description','description')):
             value=item.get(source_key)
-            if isinstance(value,str) and value.strip() and not field[target_key]:
+            target_path=_pointer(('fields',str(index),target_key))
+            if (isinstance(value,str) and value.strip()
+                    and _can_refine(target_path,overrides)):
                 field[target_key]=value.strip()[:2000]
-                overrides[_pointer(('fields',str(index),target_key))]=(
+                overrides[target_path]=(
                     'AUTO_INFERRED','AI_INFERENCE','OpenAI가 원천 필드명과 관측 타입을 바탕으로 작성한 검토용 초안')
+        data_type=item.get('data_type')
+        data_type_path=_pointer(('fields',str(index),'data_type'))
+        if (isinstance(data_type,str) and data_type.strip()
+                and _can_refine(data_type_path,overrides)
+                and _ai_type_matches_observations(field,data_type)):
+            field['data_type']=data_type.strip()[:100]
+            overrides[data_type_path]=(
+                'AUTO_INFERRED','AI_INFERENCE','AI가 관측한 필드 타입을 바탕으로 제안한 검토용 초안')
 
 
 def _sync_api_response_fields(model, overrides):
@@ -290,15 +493,22 @@ def _sync_api_response_fields(model, overrides):
 
 
 # 원본 파일 입력 목록과 제목을 기반으로 AI 친화 가이드 문서를 종합 생성함
-def generate(inputs,title,assets=None,user_metadata=None,field_annotations=None,enricher=None,human_format='docx'):
+def generate(inputs,title,assets=None,user_metadata=None,field_annotations=None,enricher=None,human_format='docx',
+             metadata_provenance=None,field_annotation_provenance=None):
     contract=Contract(assets) if assets else Contract()
-    profiles=[profile_bytes(raw,fmt,name) for name,fmt,raw in inputs]
+    profiles=[]
+    for source in inputs:
+        name,fmt,raw=source[:3]
+        data_category=source[3] if len(source)>3 else None
+        profiles.append(profile_bytes(raw,fmt,name,data_category=data_category))
     comparison=None
-    if len(inputs)==2 and {fmt.lstrip('.') for _,fmt,_ in inputs}=={'json','xml'}:
-        raw={fmt.lstrip('.'):data for _,fmt,data in inputs}
+    source_formats={str(source[1]).lstrip('.') for source in inputs}
+    if len(inputs)==2 and source_formats=={'json','xml'}:
+        raw={str(source[1]).lstrip('.'):source[2] for source in inputs}
         comparison=compare_json_xml(raw['json'],raw['xml'])
     model=canonical(profiles,title,contract,comparison)
-    overrides=_apply_user_input(model,contract,user_metadata,field_annotations)
+    overrides=_apply_user_input(model,contract,user_metadata,field_annotations,
+                                 metadata_provenance,field_annotation_provenance)
     enrichment=enricher(model) if enricher else None
     _apply_ai_enrichment(model,enrichment,overrides)
     _sync_api_response_fields(model,overrides)

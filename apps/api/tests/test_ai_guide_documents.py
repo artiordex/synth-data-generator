@@ -75,6 +75,38 @@ def test_comparison_does_not_union_or_coerce_codes():
     assert not compare_json_xml(a,b.replace(b'<item><code>002</code></item>',b''))['equivalent']
 
 
+# 선택적 소스 범주가 JSON/XML 비교 생성에 유지되는지 검증함
+def test_service_accepts_optional_source_categories_for_json_xml_comparison():
+    result = generate([
+        ('response.json', 'json', b'{"r":{"items":[{"code":"001"}]}}', 'api'),
+        ('response.xml', 'xml', b'<r><items><item><code>001</code></item></items></r>', 'api'),
+    ], 'API response comparison', human_format='md')
+    assert result['canonical']['analysis']['comparison']['equivalent'] is True
+    assert all(source['data_category'] == 'api'
+               for source in result['canonical']['analysis']['sources'])
+
+
+# API 문서 생성이 소스 범주 필드를 처리하는지 검증함
+def test_generate_documents_accepts_source_category_field():
+    import base64
+    from fastapi.testclient import TestClient
+    from synthetic_api.main import app
+
+    payload = base64.b64encode(b'[{"id":1}]').decode('ascii')
+    response = TestClient(app).post('/api/v1/ai-guide/generate-documents', json={
+        'sources': [{
+            'filename': 'sample.json',
+            'file_base64': payload,
+            'data_category': 'api',
+        }],
+        'document_title': 'API 응답 예시',
+        'provider': 'local',
+        'human_format': 'md',
+    })
+    assert response.status_code == 200
+    assert response.json()['canonical_metadata']['analysis']['sources'][0]['data_category'] == 'api'
+
+
 # 데이터 라운드트립 시 샘플 데이터 누출 방지 및 포인터 유효성을 검증함
 def test_other_data_roundtrip_no_case_leak_and_no_fake_contract():
     result=generate([('inventory.json','json',b'{"items":[{"part":"a|b","qty":0},{"qty":2}]}')],'Inventory')
@@ -465,6 +497,29 @@ def test_user_input_precedes_inference_and_all_human_formats_are_generated(human
             assert package.testzip() is None
             assert ('word/document.xml' if human_format=='docx' else
                     'Contents/section0.xml' if human_format=='hwpx' else 'content.xml') in package.namelist()
+
+
+# AI 타입 제안이 관측된 값과 형식적으로 호환되는지 검증함
+@pytest.mark.parametrize(('suggested_type', 'raw_value', 'expected_type'), [
+    ('string', b'[{"id":1}]', 'integer'),
+    ('number', b'[{"id":1}]', 'integer'),
+    ('float', b'[{"id":1.5}]', 'float'),
+    ('integer', b'[{"id":1},{"id":null}]', 'integer | null'),
+    ('integer | null', b'[{"id":1},{"id":null}]', 'integer | null'),
+])
+def test_ai_type_enrichment_respects_observed_type_compatibility(suggested_type, raw_value, expected_type):
+    def enrich(_model):
+        return {'fields': [{'path': '/*/id', 'data_type': suggested_type}]}
+
+    result = generate(
+        [('typed.json', 'json', raw_value)],
+        '형식 호환성 점검',
+        enricher=enrich,
+        human_format='md',
+    )
+
+    field = next(item for item in result['canonical']['fields'] if item['path'] == '/*/id')
+    assert field['data_type'] == expected_type
 
 
 # DOCX 및 HWPX 가이드 문서 렌더링 시 목차의 들여쓰기, 점선 채움선, 페이지 번호 무결성을 검증함
