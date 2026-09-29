@@ -57,8 +57,8 @@ class SurveyInspectionResult:
 
 class SurveyFusionEngine:
     """
-    설문조사 다중 모듈 자동 통합, 조건부 분기(Skip-Logic) 무결성 100% 보정,
-    리커트 척도 서열성 보존, 다지역 풀링(Pooled) 조건부 생성 및 엑셀 심의 평가서 생성 엔진.
+    설문조사 다중 모듈 자동 통합, 조건부 분기 규칙 적용 및 결과 검증,
+    리커트 척도 선택 보존, 다지역 풀링(Pooled) 조건부 생성 및 엑셀 심의 평가서 생성 엔진.
     """
 
     # inspect modules 작업을 수행함
@@ -225,8 +225,9 @@ class SurveyFusionEngine:
         enable_gpu: bool = False
     ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """
-        결합된 설문 와이드 테이블을 AI 모델로 학습하고 증강 샘플링하며,
-        조건부 분기(Skip-Logic) 무결성 100% 보정 및 리커트 척도 순서성을 보존합니다.
+        결합된 설문 와이드 테이블을 모델로 학습하고 증강 샘플링하며,
+        선택된 조건부 분기 규칙과 리커트 척도 보존 설정을 적용합니다.
+        ``protect_k_anonymity`` is retained for compatibility; it does not transform rows.
         """
         # 분석 리포트 작업을 수행함
         def report(pct: int, msg: str):
@@ -270,7 +271,7 @@ class SurveyFusionEngine:
 
         cond_msg = f" (조건: {conditions})" if conditions else ""
         report(75, f"합성 설문 응답자 데이터 {target_rows:,}건 생성(Sampling){cond_msg} 중...")
-        
+
         # 조건부 샘플링 또는 일반 샘플링
         if conditions and hasattr(synthesizer, "sample"):
             try:
@@ -340,7 +341,8 @@ class SurveyFusionEngine:
         fused_raw: pd.DataFrame,
         fused_syn: pd.DataFrame,
         common_keys: Optional[List[str]] = None,
-        rules: Optional[List[Dict[str, Any]]] = None
+        rules: Optional[List[Dict[str, Any]]] = None,
+        include_k_anonymity_risk_report: bool = True,
     ) -> Dict[str, Any]:
         """
             @description 설문조사 synthesis 품질 및 지표를 평가함
@@ -357,13 +359,20 @@ class SurveyFusionEngine:
         logic_check = SurveyLogicEngine.validate_survey_logic(fused_syn, rules or [])
 
         # k-익명성 점검
-        k_anonymity_report = {}
-        if common_keys and set(common_keys).issubset(set(fused_syn.columns)):
+        k_anonymity_report = (
+            {"status": "NOT_REQUESTED", "reason": "희귀 그룹 위험도 보고 옵션 비활성화"}
+            if not include_k_anonymity_risk_report
+            else {"status": "NOT_MEASURED", "reason": "공통 키를 확인할 수 없음"}
+        )
+        if (include_k_anonymity_risk_report and common_keys
+                and set(common_keys).issubset(set(fused_syn.columns))
+                and set(common_keys).issubset(set(fused_raw.columns))):
             syn_groups = fused_syn.groupby(common_keys, dropna=False).size()
             raw_groups = fused_raw.groupby(common_keys, dropna=False).size()
             k_syn_less_5 = int((syn_groups < 5).sum())
             k_raw_less_5 = int((raw_groups < 5).sum())
             k_anonymity_report = {
+                "status": "MEASURED",
                 "common_keys": common_keys,
                 "raw_distinct_groups": len(raw_groups),
                 "raw_rare_groups_under_5": k_raw_less_5,
@@ -417,7 +426,23 @@ class SurveyFusionEngine:
                 f"{'PASS' if logic_data.get('passed') is True else '검토 필요'} "
                 f"(위반: {logic_data.get('total_violations')}건)"
             ) if logic_measured else '미측정 (적용 가능한 규칙 없음)'
-            
+            if k_data.get('status') == 'NOT_REQUESTED':
+                k_anonymity_summary = '미측정 (보고 옵션 비활성화)'
+            elif k_data.get('status') == 'NOT_MEASURED':
+                k_anonymity_summary = f"미측정 ({k_data.get('reason') or '공통 키 확인 필요'})"
+            else:
+                k_anonymity_summary = (
+                    f"원본 {percentage(k_data.get('raw_rare_ratio'))} → "
+                    f"합성 {percentage(k_data.get('syn_rare_ratio'))}"
+                )
+            dp_data = eval_metrics.get('differential_privacy', {})
+            if dp_data.get('status') == 'NOT_APPLIED':
+                dp_summary = f"미적용 ({dp_data.get('reason') or '설문 합성 경로 미지원'})"
+            elif dp_data.get('status') == 'NOT_REQUESTED':
+                dp_summary = '요청하지 않음'
+            else:
+                dp_summary = '미측정'
+
             summary_rows = [
                 {"항목": "평가 대상 데이터", "결과": eval_metrics.get('dataset_name') or '설문 합성데이터'},
                 {"항목": "원본 데이터 표본 규모", "결과": f"{eval_metrics.get('raw_rows', len(fused_raw)):,} 건"},
@@ -426,7 +451,8 @@ class SurveyFusionEngine:
                 {"항목": "설문 분기(Skip-Logic) 무결성", "결과": logic_summary},
                 {"항목": "종합 품질 점수 (JSD/유사도)", "결과": percentage(eval_metrics.get('overall_quality'))},
                 {"항목": "상관계수 보존율 (Correlation Score)", "결과": percentage(eval_metrics.get('utility', {}).get('correlation', {}).get('overall_correlation_score'))},
-                {"항목": "준식별자 k-익명성 희귀 집단 비율", "결과": f"원본 {percentage(k_data.get('raw_rare_ratio'))} → 합성 {percentage(k_data.get('syn_rare_ratio'))}"},
+                {"항목": "준식별자 k-익명성 희귀 집단 비율", "결과": k_anonymity_summary},
+                {"항목": "차분 프라이버시 적용 상태", "결과": dp_summary},
                 {"항목": "개인정보 비식별 심의 적격성", "결과": "담당자 검토 및 승인 필요"},
             ]
             pd.DataFrame(summary_rows).to_excel(writer, sheet_name="종합_심의_요약", index=False)

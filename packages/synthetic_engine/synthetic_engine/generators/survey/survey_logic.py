@@ -172,7 +172,7 @@ class SurveyLogicEngine:
                                 "description": f"IF [{col_a} == '{no_val}'] THEN [{col_b} = '미응답']",
                             })
 
-        # 2. '희망 직업의 유무' == '아니오' 전용 분기 규칙 보장
+        # 2. '희망 직업의 유무' == '아니오' 전용 분기 규칙 후보 추가
         if "희망 직업의 유무" in cols:
             job_no = df["희망 직업의 유무"] == "아니오"
             if job_no.sum() >= 5:
@@ -191,7 +191,7 @@ class SurveyLogicEngine:
                                 "description": f"IF [희망 직업의 유무 == '아니오'] THEN [{target} = '미응답']",
                             })
 
-        # 3. '참여경험_진로체험' == '아니오' -> '희망 진로체험 반영 수준' == '미응답' 보장
+        # 3. '참여경험_진로체험' == '아니오'에 대한 분기 규칙 후보 추가
         if "참여경험_진로체험" in cols and "희망 진로체험 반영 수준" in cols:
             exp_no = df["참여경험_진로체험"] == "아니오"
             if exp_no.sum() >= 5:
@@ -214,7 +214,7 @@ class SurveyLogicEngine:
     @staticmethod
     def apply_skip_rules(df: pd.DataFrame, rules: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """
-        합성 데이터에 설문 분기 규칙을 적용하여 비논리적 모순값을 100% 자동 교정합니다.
+        합성 데이터에 제공된 분기 규칙을 적용하고, 실제 교정 건수를 반환합니다.
         """
         rectified_df = df.copy()
         corrections: List[Dict[str, Any]] = []

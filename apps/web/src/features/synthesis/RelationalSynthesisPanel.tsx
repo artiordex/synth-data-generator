@@ -30,7 +30,7 @@ export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose,
   const analyze = async (targetFiles?: File[]) => {
     const toAnalyze = targetFiles || files;
     if (toAnalyze.length < 2) return;
-    setBusy(true); setError(''); setResult(null);
+    setBusy(true); setError(''); setResult(null); setAnalysis(null); setUploadedNames([]);
     try {
       const uploaded = await uploadDatasets(toAnalyze);
       const names = uploaded.flatMap(x => !x.error && x.filename ? [x.filename] : []);
@@ -42,6 +42,10 @@ export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose,
   };
 
   const generate = async () => {
+    if (!uploadedNames.length || !analysis?.relationships?.length) {
+      setError('현재 업로드한 파일에서 테이블 관계를 확인한 뒤 실행해 주세요.');
+      return;
+    }
     setBusy(true); setError('');
     try {
       setResult(await generateRelational({ file_names: uploadedNames, model_type: model, scale,
@@ -64,6 +68,10 @@ export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose,
         busyText="테이블 간 PK/FK 참조 관계 및 무결성 자동 분석 중..."
         onFilesSelected={selectedFiles => {
           setFiles(selectedFiles);
+          setAnalysis(null);
+          setUploadedNames([]);
+          setResult(null);
+          setError('');
           if (selectedFiles.length >= 2) {
             void analyze(selectedFiles);
           } else if (selectedFiles.length === 1) {
@@ -82,7 +90,7 @@ export const RelationalSynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose,
       <div className="mt-4 space-y-2">{analysis.relationships.length ? analysis.relationships.map((r: any, i: number) => <div key={i} className="rounded-lg bg-sky-500/10 px-3 py-2 text-xs"><b>{r.parent_table}.{r.parent_key}</b> → {r.child_table}.{r.child_key}</div>) : <div className="text-xs text-amber-500">관계를 자동 탐지하지 못했습니다. 같은 이름의 PK/FK 값을 확인하세요.</div>}</div>
       <div className="mt-5 flex flex-wrap items-end gap-4"><label className="text-xs font-bold">모델<select value={model} onChange={e => setModel(e.target.value)} className="ui-field mt-1 block"><option value="turbo">Turbo 관계형</option><option value="hma">HMA AI 관계형</option></select></label>
         <label className="text-xs font-bold">생성 배율<input type="number" min="0.1" max="20" step="0.1" value={scale} onChange={e => setScale(Number(e.target.value))} className="ui-field mt-1 block w-28"/></label>
-        <button disabled={!analysis.relationships.length || busy} onClick={generate} className="ui-button-primary px-6 py-2.5">관계형 합성 실행</button></div>
+        <button disabled={!analysis.relationships.length || !uploadedNames.length || busy} onClick={generate} className="ui-button-primary px-6 py-2.5">관계형 합성 실행</button></div>
     </div>}
 
     {result && <div className="ui-panel p-6"><div className="flex items-center justify-between"><div><h3 className="font-bold text-emerald-500">생성 완료 · 참조 무결성 검사</h3><p className="text-xs text-slate-400">{result.tables.map((t: any) => `${t.name} ${t.rows.toLocaleString()}행`).join(' · ')}</p></div><a href={getDownloadUrl(result.download_url)} className="ui-button-primary px-5 py-2.5"><Download className="h-4 w-4"/>전체 ZIP 다운로드</a></div>

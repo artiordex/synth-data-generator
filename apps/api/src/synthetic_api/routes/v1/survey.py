@@ -50,9 +50,16 @@ class SurveyGenerateRequest(BaseModel):
     target_region: Optional[str] = None
     apply_logic_rules: bool = True
     preserve_likert_order: bool = True
-    protect_k_anonymity: bool = True
-    dp_enabled: bool = False
-    eps: float = Field(default=1.0, ge=0.01)
+    include_k_anonymity_risk_report: Optional[bool] = None
+    protect_k_anonymity: Optional[bool] = Field(
+        default=None,
+        description="Deprecated compatibility alias for including the k-anonymity risk report; this does not anonymize data.",
+    )
+    dp_enabled: bool = Field(
+        default=False,
+        description="현재 설문 통합 합성 경로에서는 적용되지 않습니다. 결과에 차분 프라이버시 보장이 추가되지 않습니다.",
+    )
+    eps: float = Field(default=1.0, ge=0.01, description="dp_enabled가 미지원 경로에서는 결과에 반영되지 않습니다.")
     department_name: str = "설문조사 분석팀"
     project_purpose: str = "다중 모듈 설문 합성데이터 증강 및 분석"
 
@@ -72,6 +79,15 @@ def _load_survey_tables(file_names: List[str]) -> Dict[str, pd.DataFrame]:
             candidate, suffix = f"{key}_{suffix}", suffix + 1
         tables[candidate] = read_table(path)
     return tables
+
+
+def _include_k_anonymity_risk_report(req: SurveyGenerateRequest) -> bool:
+    """Honor the new reporting option and preserve the old request field as an alias."""
+    if req.include_k_anonymity_risk_report is not None:
+        return req.include_k_anonymity_risk_report
+    if req.protect_k_anonymity is not None:
+        return req.protect_k_anonymity
+    return True
 
 
 # 설문 문항 모듈 및 분기 논리 구조를 분석함
@@ -146,11 +162,17 @@ def _run_survey_synthesis_task(job_id: str, req: SurveyGenerateRequest):
             seed=req.seed,
             apply_logic_rules=req.apply_logic_rules,
             preserve_likert_order=req.preserve_likert_order,
-            protect_k_anonymity=req.protect_k_anonymity,
             conditions=conditions,
             custom_rules=inspect_res.detected_rules,
             progress_callback=progress_cb
         )
+        differential_privacy = {
+            "requested": req.dp_enabled,
+            "applied": False,
+            "status": "NOT_APPLIED" if req.dp_enabled else "NOT_REQUESTED",
+            "reason": "설문 통합 합성 경로에는 차분 프라이버시 처리가 구현되어 있지 않습니다.",
+        }
+        extra_meta["differential_privacy"] = differential_privacy
 
         progress_cb(88, "개별 설문 모듈별 역분할(Split) 및 엑셀 저장 중...")
         split_tables = SurveyFusionEngine.split_synthesized(fused_syn, module_metas)
@@ -191,8 +213,13 @@ def _run_survey_synthesis_task(job_id: str, req: SurveyGenerateRequest):
 
         # 3. 종합 품질 및 무결성 평가 리포트 생성 (JSON + 다중 시트 Excel 평가서)
         eval_metrics = SurveyFusionEngine.evaluate_survey_synthesis(
-            fused_raw, fused_syn, inspect_res.common_keys, inspect_res.detected_rules
+            fused_raw,
+            fused_syn,
+            inspect_res.common_keys,
+            inspect_res.detected_rules,
+            include_k_anonymity_risk_report=_include_k_anonymity_risk_report(req),
         )
+        eval_metrics["differential_privacy"] = differential_privacy
         report_file_path = report_dir / "설문_합성품질_평가결과.json"
         with open(report_file_path, "w", encoding="utf-8") as rf:
             json.dump({**eval_metrics, "extra_meta": extra_meta}, rf, ensure_ascii=False, indent=2)
@@ -201,7 +228,7 @@ def _run_survey_synthesis_task(job_id: str, req: SurveyGenerateRequest):
         report_excel_fname = "00_설문_합성품질_적정성_평가서.xlsx"
         report_excel_path = report_dir / report_excel_fname
         SurveyFusionEngine.generate_excel_compliance_report(eval_metrics, fused_raw, fused_syn, report_excel_path)
-        
+
         # 다운로드 편의를 위해 합성데이터 디렉토리에도 복사
         shutil.copy(report_excel_path, syn_dir / report_excel_fname)
 
@@ -238,7 +265,7 @@ def _run_survey_synthesis_task(job_id: str, req: SurveyGenerateRequest):
 
 
 # 설문 데이터 합성 요청을 접수하고 비동기 생성 작업을 등록함
-@router.post("/generate", summary="복합 설문 모듈 통합 합성 데이터 생성", description="설문 응답 간 논리적 분기 규칙 및 리커트 척도 순서성을 보존하며 멀티 모듈 설문 합성데이터 및 심의 패키지를 생성합니다.")
+@router.post("/generate", summary="복합 설문 모듈 통합 합성 데이터 생성", description="설문 합성데이터와 심의 패키지를 생성하고, 요청 옵션에 따라 분기 규칙, 리커트 척도 및 희귀 그룹 위험도 보고를 적용합니다.")
 def generate_survey_synthesis(req: SurveyGenerateRequest):
     job_id = f"survey-{uuid.uuid4().hex[:8]}"
     SURVEY_JOBS[job_id] = {
@@ -252,6 +279,7 @@ def generate_survey_synthesis(req: SurveyGenerateRequest):
         "target_region": req.target_region,
         "apply_logic_rules": req.apply_logic_rules,
         "preserve_likert_order": req.preserve_likert_order,
+        "include_k_anonymity_risk_report": _include_k_anonymity_risk_report(req),
     }
 
     t = threading.Thread(target=_run_survey_synthesis_task, args=(job_id, req), daemon=True)
@@ -260,7 +288,7 @@ def generate_survey_synthesis(req: SurveyGenerateRequest):
     return {
         "job_id": job_id,
         "status": "pending",
-        "message": "설문 통합 합성 및 무결성 보정 작업이 등록되었습니다."
+        "message": "설문 통합 합성 작업이 등록되었습니다."
     }
 
 

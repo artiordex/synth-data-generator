@@ -61,19 +61,21 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
   // Advanced Integrity & Preservation Options
   const [applyLogicRules, setApplyLogicRules] = useState<boolean>(true);
   const [preserveLikertOrder, setPreserveLikertOrder] = useState<boolean>(true);
-  const [protectKAnonymity, setProtectKAnonymity] = useState<boolean>(true);
+  const [includeKAnonymityRiskReport, setIncludeKAnonymityRiskReport] = useState<boolean>(true);
 
   // Active Job State
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<SurveyJobStatusResponse | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [statusPollError, setStatusPollError] = useState<string>('');
+  const [statusPollAttempt, setStatusPollAttempt] = useState(0);
 
   useEffect(() => {
     const completed = jobStatus?.status === 'completed';
-    onStepChange?.(completed ? 4 : activeJobId || isGenerating ? 3 : analysis ? 2 : 1);
+    onStepChange?.(completed ? 4 : isGenerating ? 3 : analysis ? 2 : 1);
   }, [activeJobId, analysis, isGenerating, jobStatus?.status, onStepChange]);
 
-  // Poll Job Status
+  // 상태 요청이 끝난 뒤 다음 요청을 예약해 네트워크가 느려도 중복 폴링하지 않음
   useEffect(() => {
     if (!activeJobId) return;
     if (jobStatus && (jobStatus.status === 'completed' || jobStatus.status === 'failed')) {
@@ -81,20 +83,39 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
       return;
     }
 
-    const interval = setInterval(async () => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let consecutiveFailures = 0;
+    const controller = new AbortController();
+    const poll = async () => {
       try {
-        const st = await getSurveyJobStatus(activeJobId);
+        const st = await getSurveyJobStatus(activeJobId, controller.signal);
+        if (stopped) return;
+        consecutiveFailures = 0;
+        setStatusPollError('');
         setJobStatus(st);
         if (st.status === 'completed' || st.status === 'failed') {
           setIsGenerating(false);
+          return;
         }
-      } catch (e: any) {
-        console.error(e);
+        timer = setTimeout(poll, 1500);
+      } catch (e) {
+        if (stopped) return;
+        consecutiveFailures += 1;
+        const detail = e instanceof Error ? e.message : '작업 상태를 확인하지 못했습니다.';
+        setStatusPollError(detail);
+        const retryDelay = Math.min(1500 * (2 ** Math.min(consecutiveFailures, 4)), 15000);
+        timer = setTimeout(poll, retryDelay);
       }
-    }, 1500);
+    };
+    void poll();
 
-    return () => clearInterval(interval);
-  }, [activeJobId, jobStatus]);
+    return () => {
+      stopped = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [activeJobId, statusPollAttempt]);
 
   const handleAnalyze = async (targetFiles?: File[]) => {
     const toAnalyze = targetFiles || files;
@@ -102,6 +123,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
     setIsAnalyzing(true);
     setError('');
     setAnalysis(null);
+    setUploadedNames([]);
     setJobStatus(null);
     try {
       const uploaded = await uploadDatasets(toAnalyze);
@@ -124,6 +146,8 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
     setIsGenerating(true);
     setError('');
     setJobStatus(null);
+    setActiveJobId(null);
+    setStatusPollError('');
     try {
       const res = await generateSurveySynthesis({
         file_names: uploadedNames,
@@ -133,12 +157,15 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
         batch_size: Number(batchSize),
         apply_logic_rules: applyLogicRules,
         preserve_likert_order: preserveLikertOrder,
-        protect_k_anonymity: protectKAnonymity,
+        include_k_anonymity_risk_report: includeKAnonymityRiskReport,
         dp_enabled: dpEnabled,
         eps: Number(dpEpsilon),
         department_name: '설문조사 합성팀',
         project_purpose: '다중 모듈 설문 연계 무결성 합성데이터 생성',
       });
+      if (!res.job_id?.trim()) {
+        throw new Error('작업 ID를 받지 못해 진행 상태를 확인할 수 없습니다. 다시 시도해 주세요.');
+      }
       setActiveJobId(res.job_id);
     } catch (e: any) {
       setError(e.message || '설문 합성 시작 실패');
@@ -157,8 +184,8 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
               설문 모듈 연계 및 무결성 합성 (Survey Module Fusion & Logic Engine)
             </h2>
             <p className="ui-help-text mt-1">
-              동일 학생 대상 분할 설문 엑셀 파일들을 공통 키로 통합 학습하고, 
-              <strong>분기 로직(Skip-Logic) 무결성 100% 보정</strong>과 <strong>5점 리커트 척도 서열성 보존</strong>을 거쳐 원본 파일별로 자동 분할 저장합니다.
+              같은 응답자 대상 설문 파일을 공통 키로 통합 학습하고, 탐지된 분기 규칙과 리커트 척도 보존 설정을 적용할 수 있습니다.
+              생성이 끝나면 논리 무결성 점수와 품질 평가 결과를 확인할 수 있습니다.
             </p>
           </div>
           <button
@@ -175,10 +202,15 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
           maxFiles={30}
           title="설문조사 모듈 파일 일괄 업로드 (2~30개)"
           subtitle="동일 응답자 대상 설문 엑셀/CSV 파일들을 드래그하거나 선택하면 구조 및 분기 로직을 즉시 자동 분석합니다."
-          isUploading={isAnalyzing}
-          busyText="설문 모듈 구조, 분기 로직 및 리커트 척도 자동 분석 중..."
+          isUploading={isAnalyzing || isGenerating}
+          busyText={isGenerating ? '설문 합성 작업이 진행 중입니다...' : '설문 모듈 구조, 분기 로직 및 리커트 척도 자동 분석 중...'}
           onFilesSelected={selectedFiles => {
             setFiles(selectedFiles);
+            setAnalysis(null);
+            setUploadedNames([]);
+            setJobStatus(null);
+            setActiveJobId(null);
+            setStatusPollError('');
             if (selectedFiles.length >= 2) {
               void handleAnalyze(selectedFiles);
             } else if (selectedFiles.length === 1) {
@@ -265,7 +297,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
                   자동 탐지된 설문 분기(Skip-Logic) 무결성 규칙 ({analysis.detected_rules.length}개)
                 </div>
                 <span className="text-2xs text-sky-600 dark:text-sky-400 font-semibold">
-                  합성 시 100% 무결성 사후 보정 적용
+                  {applyLogicRules ? '감지 규칙 적용 후 결과 검증' : '분기 규칙 보정 비활성화'}
                 </span>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -332,7 +364,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
                     분기 로직 무결성 보정 (Skip-Logic)
                   </div>
                   <div className="text-2xs text-slate-400 mt-0.5">
-                    비논리적 모순 레코드 100% 원천 차단
+                    탐지된 규칙을 적용하고 결과 점수를 확인합니다
                   </div>
                 </div>
               </label>
@@ -357,16 +389,16 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
               <label className="flex items-start gap-2.5 rounded-xl border border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-950/20 p-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={protectKAnonymity}
-                  onChange={e => setProtectKAnonymity(e.target.checked)}
+                  checked={includeKAnonymityRiskReport}
+                  onChange={e => setIncludeKAnonymityRiskReport(e.target.checked)}
                   className="mt-0.5 rounded text-indigo-500 focus:ring-indigo-400"
                 />
                 <div>
                   <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                    준식별자 k-익명성 보호 (k ≥ 5)
+                    희귀 그룹 위험도 보고서 포함
                   </div>
                   <div className="text-2xs text-slate-400 mt-0.5">
-                    희귀 계층 특이치 재식별 위험 차단
+                    공통 키 기준 k&lt;5 그룹 비율을 기록합니다
                   </div>
                 </div>
               </label>
@@ -438,7 +470,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
                     onChange={e => setDpEnabled(e.target.checked)}
                     className="rounded text-emerald-500 focus:ring-emerald-400"
                   />
-                  <span>차분 프라이버시 (DP) 노이즈 주입</span>
+                  <span>차분 프라이버시 적용 요청 (설문 경로 미지원)</span>
                 </label>
                 {dpEnabled && (
                   <div className="flex items-center gap-1.5 text-xs">
@@ -455,6 +487,9 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
                   </div>
                 )}
               </div>
+              <p className="text-2xs text-amber-600 dark:text-amber-400" role="note">
+                현재 설문 통합 합성 경로에는 DP 노이즈 처리가 구현되어 있지 않아, Epsilon 설정은 결과에 반영되지 않습니다.
+              </p>
 
               <button
                 disabled={isGenerating}
@@ -469,7 +504,7 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
                 ) : (
                   <>
                     <Sparkles className="mr-2 inline h-4 w-4" />
-                    설문 통합 합성 및 무결성 보정 실행
+                    {applyLogicRules ? '설문 통합 합성 및 분기 규칙 적용' : '설문 통합 합성 실행'}
                   </>
                 )}
               </button>
@@ -479,21 +514,48 @@ export const SurveySynthesisPanel: React.FC<Props> = ({ isDarkMode, onClose, onS
       )}
 
       {/* 4. Generation Progress */}
-      {isGenerating && jobStatus && (
+      {isGenerating && (
         <div className="ui-panel p-6 space-y-4">
           <div className="flex items-center justify-between text-xs font-bold">
             <span className="flex items-center gap-2 text-emerald-500">
               <RefreshCw className="h-4 w-4 animate-spin" />
-              {jobStatus.message || '작업 처리 중...'}
+              {jobStatus?.message || '작업 상태를 확인하고 있습니다...'}
             </span>
-            <span>{jobStatus.progress}%</span>
+            <span>{jobStatus ? `${Math.max(0, Math.min(100, jobStatus.progress))}%` : '확인 중'}</span>
           </div>
           <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
             <div
               className="bg-emerald-500 h-2.5 rounded-full transition-all duration-300"
-              style={{ width: `${Math.max(5, jobStatus.progress)}%` }}
+              style={{ width: `${jobStatus ? Math.max(5, Math.min(100, jobStatus.progress)) : 5}%` }}
             />
           </div>
+          {activeJobId && <p className="text-xs text-slate-500">작업 ID: {activeJobId}</p>}
+          {statusPollError && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300" role="alert">
+              <span>작업 상태 조회가 지연되고 있습니다. 생성 작업은 서버에서 계속 진행 중일 수 있습니다. ({statusPollError})</span>
+              <button
+                type="button"
+                className="ui-button-secondary px-2 py-1"
+                onClick={() => setStatusPollAttempt(value => value + 1)}
+              >
+                상태 다시 확인
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {jobStatus?.status === 'failed' && (
+        <div className="ui-panel border border-rose-500/30 p-4 text-sm text-rose-600" role="alert">
+          <p className="font-semibold">설문 합성 작업이 실패했습니다.</p>
+          <p className="mt-1 break-words">{jobStatus.error || jobStatus.message || '상세 실패 사유가 제공되지 않았습니다.'}</p>
+          <button
+            type="button"
+            className="ui-button-secondary mt-3"
+            onClick={() => void handleStartSynthesis()}
+          >
+            같은 설정으로 다시 실행
+          </button>
         </div>
       )}
 
